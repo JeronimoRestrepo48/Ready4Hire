@@ -1,0 +1,8 @@
+fastapi
+langchain
+ollama
+uvicorn
+python-dotenv
+# Opcional para embeddings y datasets
+sentence-transformers
+huggingface_hub
