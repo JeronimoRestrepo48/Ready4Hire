@@ -73,9 +73,12 @@ async def next_question(request: Request):
             feedback = h["feedback"]
             break
     # Siguiente pregunta
+    # Incrementar el contador ANTES de devolver la pregunta
+    if session.get('stage') == 'interview':
+        session['question_counter'] = session.get('question_counter', 0) + 1
     result = agent.next_question(user_id)
     resp = {"question": result["question"] if isinstance(result, dict) and "question" in result else result,
-            "counter": session.get('question_counter', 0)+1,
+            "counter": session.get('question_counter', 0),
             "feedback": feedback}
     return resp
 

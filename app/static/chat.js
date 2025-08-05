@@ -34,6 +34,8 @@ let questionCount = 0;
 const maxQuestions = 10;
 let inInterview = false;
 
+const nextQuestionBtn = document.getElementById('next-question-btn');
+
 // Mensaje de carga y alertas
 const loadingDiv = document.createElement('div');
 loadingDiv.id = 'loading-msg';
@@ -259,17 +261,22 @@ chatForm.onsubmit = async (e) => {
       levelSpan.textContent = 'Nivel: ' + currentLevel;
       gamificationBar.classList.add('active');
     }
-    // Solo mostrar la siguiente pregunta si la respuesta fue correcta
-    if (feedbackData && feedbackData.next && questionCount < maxQuestions) {
-      appendMessage(feedbackData.next, 'agent');
-    }
-    if (feedbackData && feedbackData.end) {
-      endInterview();
-    }
+    // Mostrar botón para avanzar a la siguiente pregunta
+    nextQuestionBtn.style.display = '';
+    chatForm.querySelector('button[type="submit"]').disabled = true;
+    userInput.disabled = true;
   } catch (err) {
     showError('Error de red al enviar respuesta o al obtener feedback.');
   }
   showLoading(false);
+// Botón para avanzar a la siguiente pregunta
+nextQuestionBtn.onclick = async () => {
+  nextQuestionBtn.style.display = 'none';
+  chatForm.querySelector('button[type="submit"]').disabled = false;
+  userInput.disabled = false;
+  await nextInterviewQuestion();
+  userInput.focus();
+};
 };
 
 async function nextInterviewQuestion() {
@@ -302,11 +309,14 @@ async function nextInterviewQuestion() {
     // Mostrar la siguiente pregunta y actualizar contador
     if (data.question) {
       appendMessage(data.question, 'agent');
-      if (typeof data.counter === 'number') {
+      // Siempre mostrar el contador, usando el valor recibido o el local
+      if (typeof data.counter === 'number' && data.counter > 0) {
         questionCount = data.counter;
-        questionCounterDiv.textContent = `Pregunta ${questionCount} / ${maxQuestions}`;
-        questionCounterDiv.style.display = '';
+      } else {
+        questionCount = questionCount > 0 ? questionCount : 1;
       }
+      questionCounterDiv.textContent = `Pregunta ${questionCount} / ${maxQuestions}`;
+      questionCounterDiv.style.display = '';
     }
     if (data.error) showError(data.error);
   } catch (err) {

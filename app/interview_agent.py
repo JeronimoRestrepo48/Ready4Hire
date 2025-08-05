@@ -25,32 +25,57 @@ class InterviewAgent:
     def process_context_answer(self, user_id: str, answer: str):
         """
         Procesa la respuesta de contexto y devuelve la siguiente pregunta de contexto o avanza a la entrevista.
+        Personaliza preguntas de contexto para soft-skills y usa NLP para elegir preguntas relevantes.
         """
         session = self.sessions.get(user_id)
         if not session:
             return {"error": "Entrevista no iniciada"}
-        # Guardar respuesta en el contexto adecuado
         idx = session.get("context_asked", 0)
-        context_keys = ["role", "level", "years", "knowledge", "tools", "expectations", "preference"]
+        # Determinar tipo de entrevista
+        interview_type = session.get("interview_type", "tecnica").lower()
+        if interview_type in ("blanda", "soft"):
+            context_keys = ["situacion", "reto", "motivacion", "valores", "equipo", "objetivo"]
+            context_questions = [
+                "Cuéntame una situación desafiante que hayas enfrentado en el trabajo.",
+                "¿Cómo resolviste un conflicto con un compañero o líder?",
+                "¿Qué te motiva a dar lo mejor de ti en un equipo?",
+                "¿Qué valores consideras más importantes en el trabajo?",
+                "¿Cómo contribuyes al éxito de un equipo?",
+                "¿Cuál ha sido tu mayor logro personal o profesional?"
+            ]
+        else:
+            context_keys = ["role", "level", "years", "knowledge", "tools", "expectations", "preference"]
+            context_questions = [
+                "¿Para qué rol específico deseas prepararte? (IA, ciberseguridad, devops, infraestructura, etc.)",
+                "¿Cuál es tu nivel de experiencia profesional (junior, semi-senior, senior)?",
+                "¿Cuántos años de experiencia tienes en el rol?",
+                "¿Qué conocimientos o tecnologías consideras tus fortalezas?",
+                "¿Qué herramientas dominas mejor?",
+                "¿Qué expectativas tienes sobre el trabajo o la empresa?",
+            ]
+        # Guardar respuesta en el contexto adecuado
         if idx < len(context_keys):
             key = context_keys[idx]
             session[key] = answer
         session["context_asked"] = idx + 1
         # Si hay más preguntas de contexto
-        context_questions = [
-            "¿Para qué rol específico deseas prepararte? (IA, ciberseguridad, devops, infraestructura, etc.)",
-            "¿Cuál es tu nivel de experiencia profesional (junior, semi-senior, senior)?",
-            "¿Cuántos años de experiencia tienes en el rol?",
-            "¿Qué conocimientos o tecnologías consideras tus fortalezas?",
-            "¿Qué herramientas dominas mejor?",
-            "¿Qué expectativas tienes sobre el trabajo o la empresa?",
-        ]
         if session["context_asked"] < len(context_questions):
             question = context_questions[session["context_asked"]]
             session["history"].append({"agent": question})
             return {"question": question}
         else:
             session["stage"] = "interview"
+            # --- NLP robusto para elegir preguntas soft-skills relevantes ---
+            if interview_type in ("blanda", "soft"):
+                # Unir respuestas de contexto
+                contexto_usuario = " ".join([str(session.get(k, "")) for k in context_keys])
+                # Usar embeddings_manager para encontrar las preguntas soft más relevantes
+                if hasattr(self, 'emb_mgr') and hasattr(self.emb_mgr, 'find_most_similar_soft'):
+                    top_soft = self.emb_mgr.find_most_similar_soft(contexto_usuario, top_k=10)
+                    session["soft_pool"] = top_soft
+                else:
+                    # Fallback: aleatorio
+                    session["soft_pool"] = random.sample(self.soft_questions, min(10, len(self.soft_questions)))
             return {"message": "Contexto finalizado. Inicia la entrevista."}
 
 
@@ -219,14 +244,16 @@ class InterviewAgent:
         if qtype == "technical" and session["tech_pool"]:
             question = random.choice(session["tech_pool"])
             session["tech_pool"].remove(question)
-            print(f"[DEBUG] Pregunta técnica seleccionada: {question.get('question','')} (quedan {len(session['tech_pool'])})")
+            preguntas_restantes = 10 - session.get('question_counter', 0)
+            print(f"[DEBUG] Pregunta técnica seleccionada: {question.get('question','')} (quedan {preguntas_restantes})")
             session["last_type"] = "technical"
             session["history"].append({"agent": question["question"]})
             return {"question": question["question"]}
         elif qtype == "soft" and session["soft_pool"]:
             question = random.choice(session["soft_pool"])
             session["soft_pool"].remove(question)
-            print(f"[DEBUG] Pregunta soft seleccionada: {question.get('scenario','')} (quedan {len(session['soft_pool'])})")
+            preguntas_restantes = 10 - session.get('question_counter', 0)
+            print(f"[DEBUG] Pregunta soft seleccionada: {question.get('scenario','')} (quedan {preguntas_restantes})")
             session["last_type"] = "soft"
             session["history"].append({"agent": question["scenario"]})
             return {"question": question["scenario"]}
