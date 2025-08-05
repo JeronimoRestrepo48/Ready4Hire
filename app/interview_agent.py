@@ -1,5 +1,19 @@
 
-# Entrevistador IA robusto para Ingeniería de Sistemas y ramas
+
+# ===============================
+# Ready4Hire - Agente de Entrevista IA
+# ===============================
+# Este módulo implementa la lógica central del agente de entrevistas:
+# - Selección inteligente de preguntas técnicas y blandas
+# - Feedback motivador, emocional y adaptativo
+# - Pistas generadas por LLM
+# - Gamificación avanzada (puntos, niveles, logros)
+# - Análisis emocional y personalización
+# - Aprendizaje continuo y registro para fine-tuning
+#
+# Autor: JeronimoRestrepo48
+# Licencia: MIT
+
 
 from langchain.llms import Ollama
 from typing import Dict, Any, List, Optional
@@ -44,20 +58,29 @@ class InterviewAgent:
         "¿Te gustaría volver a usar el simulador en el futuro?",
         "¿Cómo calificarías tu experiencia general con la entrevista?"
     ]
+
     """
-    Agente de entrevistas que alterna preguntas técnicas y de habilidades blandas,
-    usando datasets personalizados y modelos LLM locales vía Ollama.
+    Agente de entrevistas IA para simulación de procesos técnicos y de soft skills.
+    - Alterna preguntas técnicas y blandas según contexto y tipo de entrevista.
+    - Usa embeddings y NLP para seleccionar y validar preguntas/respuestas.
+    - Proporciona feedback emocional, motivador y adaptativo.
+    - Integra gamificación, análisis emocional y aprendizaje continuo.
+    - Registra todas las interacciones relevantes para mejorar el modelo (fine-tuning).
     """
 
     def __init__(self, model_name: str = "llama3"):
-        self.llm = Ollama(model=model_name)  # Usando llama3 por defecto
+        """
+        Inicializa el agente de entrevista.
+        - model_name: nombre del modelo LLM a usar (por defecto llama3 vía Ollama).
+        - Carga datasets de preguntas técnicas y blandas.
+        - Inicializa gestor de embeddings y frases motivacionales/emojis.
+        """
+        self.llm = Ollama(model=model_name)
         self.sessions: Dict[str, Dict[str, Any]] = {}
-        # Cargar datasets
         self.tech_questions = self._load_dataset('tech_questions.jsonl')
         self.soft_questions = self._load_dataset('soft_skills.jsonl')
-        # Embeddings para robustez semántica
         self.emb_mgr = EmbeddingsManager()
-        # Aprendizaje automático de frases motivacionales y emojis
+        # Inicialización de frases motivacionales y emojis aprendidos
         self.motivational_phrases = [
             "¡Sigue así, vas por un gran camino! 🚀",
             "¡Tu esfuerzo se nota! 👏",
@@ -272,6 +295,16 @@ class InterviewAgent:
 
     def process_answer(self, user_id: str, answer: str):
         """
+        Procesa la respuesta del usuario a una pregunta:
+        - Valida la respuesta usando embeddings y NLP.
+        - Si es incorrecta, genera feedback motivador y una pista (modo práctica).
+        - Si es correcta, motiva y avanza a la siguiente pregunta.
+        - En modo práctica: no avanza hasta respuesta correcta o agotar pistas.
+        - En modo examen: solo confirma y suma puntos, sin feedback inmediato.
+        - Registra la interacción para aprendizaje continuo y fine-tuning.
+        Devuelve: dict con feedback, retry (bool) y control de avance.
+        """
+        """
         Procesa la respuesta del usuario, da feedback humano, motivador y aprende de buenas respuestas.
         Compara embeddings de la respuesta del candidato con la esperada para determinar si es correcta.
         """
@@ -480,6 +513,16 @@ class InterviewAgent:
 
     def _save_interaction_for_finetune(self, user_id: str, question: str, answer: str, feedback: str, hint: Optional[str] = None, correct: bool = False):
         """
+        Guarda la interacción relevante para procesos de fine-tuning y mejora del modelo.
+        - user_id: identificador del usuario
+        - question: pregunta realizada
+        - answer: respuesta del usuario
+        - feedback: feedback generado
+        - hint: pista generada (si aplica)
+        - correct: si la respuesta fue correcta
+        Almacena en datasets/finetune_interactions.jsonl
+        """
+        """
         Guarda la interacción para posibles procesos de fine-tuning o análisis posterior.
         """
         try:
@@ -499,6 +542,13 @@ class InterviewAgent:
             pass  # No interrumpir el flujo si falla la escritura
 
     def end_interview(self, user_id: str):
+        """
+        Finaliza la entrevista y entrega un resumen robusto:
+        - Analiza el historial de respuestas y feedback.
+        - Calcula estadísticas, fortalezas, puntos de mejora y habilidades destacadas.
+        - Integra resultados de gamificación y encuesta de satisfacción.
+        - Genera un resumen profesional usando LLM.
+        """
         """
         Finaliza la entrevista y entrega un resumen del desempeño del usuario, con estadísticas, fortalezas y puntos de mejora.
         Si hay encuesta de satisfacción pendiente, la solicita antes del feedback final.

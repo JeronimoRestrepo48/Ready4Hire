@@ -1,4 +1,34 @@
+// ===============================
+// Ready4Hire - Frontend Webchat
+// ===============================
+// Este archivo implementa la lógica de interacción del chat web:
+// - Envío y recepción de preguntas/respuestas con el backend
+// - Integración de audio (STT y TTS)
+// - Temporizador y gamificación visual
+// - Manejo robusto de feedback, pistas y control de avance
+// - Accesibilidad y experiencia de usuario moderna
+//
+// Autor: JeronimoRestrepo48
+// Licencia: MIT
+
 // --- STT y TTS integrados con backend ---
+// ===============================
+// GUÍA DE INTEGRACIÓN Y FLUJO PRINCIPAL
+// ===============================
+// 1. El usuario inicia la entrevista y responde preguntas de contexto.
+// 2. El backend selecciona preguntas personalizadas y las envía al frontend.
+// 3. El usuario responde cada pregunta:
+//    - Si la respuesta es incorrecta, el backend retorna feedback y una pista (retry: true).
+//    - El frontend muestra la pista y espera una nueva respuesta para la misma pregunta.
+//    - Solo cuando retry: false, el frontend avanza a la siguiente pregunta.
+// 4. En modo examen, no hay feedback inmediato, solo confirmación y temporizador.
+// 5. Al finalizar, se muestra un resumen con gamificación y encuesta de satisfacción.
+//
+// El campo 'retry' en la respuesta del backend es clave para controlar el avance:
+//   - retry: true  => mostrar feedback y esperar nueva respuesta
+//   - retry: false => avanzar a la siguiente pregunta
+//
+// El frontend es robusto ante errores y accesible para todos los usuarios.
 const micBtn = document.getElementById('mic-btn');
 const ttsBtn = document.getElementById('tts-btn');
 let lastAgentMsg = '';
@@ -186,7 +216,6 @@ async function startInterview() {
 }
 
 async function sendAnswer(answer) {
-  questionCount++;
   const res = await fetch('/answer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -198,6 +227,12 @@ async function sendAnswer(answer) {
     return;
   }
   if (data.feedback) addMessage('agent', data.feedback);
+  // Solo avanzar si retry es false o no está presente
+  if (data.retry === true) {
+    // No avanzar, esperar nueva respuesta del usuario
+    return;
+  }
+  questionCount++;
   if (questionCount < MAX_QUESTIONS) {
     await nextQuestion();
   } else {

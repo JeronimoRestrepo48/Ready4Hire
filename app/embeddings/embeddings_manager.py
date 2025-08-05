@@ -15,10 +15,14 @@ try:
     numpy.seterr(all='ignore')
 except ImportError:
     pass
-# embeddings_manager.py
 """
-Módulo para gestión de embeddings y búsqueda semántica en entrevistas.
-Utiliza SentenceTransformers para generar y comparar embeddings de preguntas y respuestas.
+Ready4Hire - Gestor de Embeddings
+---------------------------------
+Este módulo gestiona la generación, actualización y búsqueda semántica de embeddings para preguntas, respuestas y recursos en entrevistas IA.
+Utiliza SentenceTransformers para comparar similitud semántica y seleccionar preguntas/referencias relevantes.
+Incluye control de recursos y refresco dinámico para aprendizaje continuo.
+Autor: JeronimoRestrepo48
+Licencia: MIT
 """
 from sentence_transformers import SentenceTransformer, util
 from pathlib import Path
@@ -26,15 +30,31 @@ import json
 
 class EmbeddingsManager:
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
+        """
+        Inicializa el gestor de embeddings:
+        - model_name: modelo de SentenceTransformers a usar.
+        - Carga datasets técnicos y blandos.
+        - Calcula embeddings iniciales para preguntas y buenas respuestas.
+        """
         self.model = SentenceTransformer(model_name)
         self.tech_data = self._load_jsonl(Path(__file__).parent / '../datasets/tech_questions.jsonl')
         self.soft_data = self._load_jsonl(Path(__file__).parent / '../datasets/soft_skills.jsonl')
         self._update_embeddings()
 
     def _normalize(self, text: str) -> str:
+        """
+        Normaliza texto para comparación semántica (minúsculas, sin espacios extra).
+        """
         return text.lower().strip()
 
     def _update_embeddings(self):
+        """
+        Calcula y actualiza los embeddings de:
+        - Preguntas técnicas (incluye nivel y rol)
+        - Preguntas blandas (escenario, nivel, rol)
+        - Buenas respuestas (campos answer/expected)
+        Permite búsquedas y validaciones semánticas robustas.
+        """
         # Embeddings técnicos: pregunta + nivel + rol
         tech_texts = [
             self._normalize(f"{q.get('question','')} {q.get('level','')} {q.get('role','')}")
