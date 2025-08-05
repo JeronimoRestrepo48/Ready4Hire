@@ -3,185 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Webchat Agente</title>
+  <title>Ready4Hire - Simulador de Entrevistas</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <div id="chat-container">
-    <h2>Entrevista con Agente IA</h2>
-
-    <!-- Selección de tipo y modo -->
-    <div id="setup-section" class="active">
+  <div class="chat-container">
+    <h2>Simulador de Entrevistas IA</h2>
+    <div id="setup-section">
       <label for="interview-type">Tipo de entrevista:</label>
-      <select id="interview-type" name="interview-type">
-        <option value="tecnica">Técnica</option>
-        <option value="blanda">Habilidades blandas</option>
-        <option value="mixta">Mixta</option>
+      <select id="interview-type">
+        <option value="technical">Técnica</option>
+        <option value="soft">Habilidades Blandas</option>
       </select>
-      <label for="interview-mode">Modo:</label>
-      <select id="interview-mode" title="Modo de entrevista">
-        <option value="practica">Práctica</option>
-        <option value="examen">Examen (con calificación y gamificación)</option>
+      <label for="mode-select">Modo:</label>
+      <select id="mode-select">
+        <option value="practice">Práctica</option>
+        <option value="exam">Examen</option>
       </select>
-      <button id="start-btn">Iniciar entrevista</button>
+      <button id="start-btn">Comenzar</button>
     </div>
-
-    <!-- Chat rápido siempre visible -->
-    <div id="quick-chat-section" style="margin-top:30px;">
-      <div id="quick-chat-box" class="chat-box" style="min-height:120px; max-height:220px; overflow-y:auto; background:#fff; border-radius:8px; border:1px solid #e0e0e0; margin-bottom:8px;"></div>
-      <form id="quick-chat-form" autocomplete="off" style="display:flex; gap:8px;">
-        <input type="text" id="quick-user-input" placeholder="Habla con el modelo IA..." style="flex:1; padding:8px; border-radius:4px; border:1px solid #bbb;" required disabled />
-        <button type="submit" style="padding:8px 16px; border-radius:4px; background:#1a7f5a; color:#fff; border:none; font-weight:bold;">Enviar</button>
-        <button type="button" id="clear-chat-btn" style="padding:8px 16px; border-radius:4px; background:#c00; color:#fff; border:none; font-weight:bold;">Limpiar chat</button>
-      </form>
-    </div>
-
-    <!-- Preguntas de contexto -->
-    <div id="context-section" style="display:none;">
-      <div id="context-question"></div>
-      <form id="context-form" autocomplete="off">
-        <input type="text" id="context-input" placeholder="Responde aquí..." required />
-        <button type="submit">Enviar</button>
-      </form>
-    </div>
-
-    <!-- Chat principal -->
-    <div id="main-chat-section" style="display:none;">
-      <div id="gamification-bar" style="display:none;">
-        <span id="points">Puntos: 0</span> | <span id="level">Nivel: 1</span>
-      </div>
-      <div id="question-counter" style="position:absolute;top:10px;right:20px;font-size:1.1em;font-weight:bold;color:#1a5cff;z-index:10;"></div>
-      <div id="chat-box" class="chat-box"></div>
-      <form id="chat-form" autocomplete="off">
+    <div id="chat-section" style="display:none;">
+      <div id="timer" style="display:none; text-align:right; font-weight:bold; color:#2a7; margin-bottom:4px;">00:00</div>
+      <div id="chat-box"></div>
+      <form id="chat-form">
         <input type="text" id="user-input" placeholder="Escribe tu respuesta..." autocomplete="off" required />
         <button type="submit">Enviar</button>
-        <button type="button" id="mic-btn" title="Hablar" class="r4h-btn-mic">🎤</button>
-        <button type="button" id="tts-btn" title="Escuchar" class="r4h-btn-tts">🔊</button>
+        <button type="button" id="mic-btn" title="Hablar"><span>🎤</span></button>
+        <button type="button" id="tts-btn" title="Escuchar"><span>🔊</span></button>
       </form>
-      <button id="next-question-btn" style="display:none;">Siguiente pregunta</button>
-    </div>
-
-    <!-- Feedback final y encuesta -->
-    <div id="feedback-section" class="hidden-section">
-      <div id="final-feedback"></div>
-      <form id="survey-form">
-        <label>¿Cómo calificarías la experiencia?</label>
-        <select id="survey-rating" required title="Calificación de la experiencia">
-          <option value="">Selecciona</option>
-          <option value="5">Excelente</option>
-          <option value="4">Muy buena</option>
-          <option value="3">Buena</option>
-          <option value="2">Regular</option>
-          <option value="1">Mala</option>
-        </select>
-        <textarea id="survey-comments" placeholder="¿Qué mejorarías? ¿Qué te gustó?" rows="3"></textarea>
-        <button type="submit">Enviar feedback</button>
-      </form>
-      <div id="survey-thanks" class="hidden-section">¡Gracias por tu feedback!</div>
     </div>
   </div>
   <script src="/static/chat.js"></script>
-  <script>
-    // Chat rápido IA
-    const quickChatBox = document.getElementById('quick-chat-box');
-    const quickChatForm = document.getElementById('quick-chat-form');
-    const quickUserInput = document.getElementById('quick-user-input');
-    function quickAppendMessage(msg, sender) {
-      const div = document.createElement('div');
-      div.className = sender === 'user' ? 'msg-user' : 'msg-agent';
-      div.innerHTML = msg;
-      quickChatBox.appendChild(div);
-      quickChatBox.scrollTop = quickChatBox.scrollHeight;
-    }
-
-
-    // Estado para saber si la entrevista está iniciada y tipo/modo elegidos
-    let quickInterviewStarted = false;
-    let quickInterviewType = null;
-    let quickInterviewMode = null;
-
-    // Habilitar input solo tras iniciar entrevista
-    function enableQuickInput(enable) {
-      document.getElementById('quick-user-input').disabled = !enable;
-    }
-    enableQuickInput(false);
-
-    // Botón para iniciar entrevista rápida (usa los mismos selects que el setup principal)
-    document.getElementById('start-btn').onclick = async () => {
-      quickInterviewType = document.getElementById('interview-type').value;
-      quickInterviewMode = document.getElementById('interview-mode').value;
-      quickChatBox.innerHTML = '';
-      quickInterviewStarted = false;
-      enableQuickInput(true);
-      await startQuickInterview();
-    };
-
-    async function startQuickInterview() {
-      const res = await fetch('/start_interview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: 'quick-user', interview_type: quickInterviewType || 'tecnica', mode: quickInterviewMode || 'practica' })
-      });
-      const data = await res.json();
-      if (data.context_questions && data.context_questions.question) {
-        quickAppendMessage(data.context_questions.question, 'agent');
-        quickInterviewStarted = true;
-      }
-    }
-
-    quickChatForm.onsubmit = async (e) => {
-      e.preventDefault();
-      if (!quickInterviewStarted) return;
-      const msg = quickUserInput.value.trim();
-      if (!msg) return;
-      quickAppendMessage(msg, 'user');
-      quickUserInput.value = '';
-      try {
-        // Primero intentamos enviar como respuesta de contexto
-        let res = await fetch('/context_answer', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user_id: 'quick-user', answer: msg })
-        });
-        let data = await res.json();
-        if (data.question) {
-          quickAppendMessage(data.question, 'agent');
-        } else if (data.message) {
-          // Contexto finalizado, pedir la primera pregunta de entrevista
-          const qres = await fetch('/next_question', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: 'quick-user' })
-          });
-          const qdata = await qres.json();
-          if (qdata.question) quickAppendMessage(qdata.question, 'agent');
-          else if (qdata.message) quickAppendMessage(qdata.message, 'agent');
-        } else if (data.error) {
-          // Si la entrevista ya está en modo entrevista, enviar como respuesta normal
-          res = await fetch('/answer', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: 'quick-user', answer: msg })
-          });
-          data = await res.json();
-          if (data.feedback) quickAppendMessage(data.feedback, 'agent');
-          else if (data.next) quickAppendMessage(data.next, 'agent');
-          else if (data.error) quickAppendMessage('<span style="color:#c00;">'+data.error+'</span>', 'agent');
-        }
-      } catch (err) {
-        quickAppendMessage('<span style="color:#c00;">Error de red</span>', 'agent');
-      }
-    };
-
-    // Botón limpiar chat que usa el endpoint utils/clean_chat
-    document.getElementById('clear-chat-btn').onclick = async () => {
-      try {
-        await fetch('/utils/clean_chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: 'quick-user' }) });
-      } catch {}
-      quickChatBox.innerHTML = '';
-      quickInterviewStarted = false;
-      await startQuickInterview();
-    };
-  </script>
 </body>
 </html>
