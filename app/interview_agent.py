@@ -23,7 +23,7 @@ from pathlib import Path
 import time
 # Integración de embeddings
 from app.embeddings.embeddings_manager import EmbeddingsManager
-from app.emotion_analyzer import analyze_emotion
+from app.services.emotion_analyzer import analyze_emotion
 
 class InterviewAgent:
     MAX_HINTS = 3
@@ -407,7 +407,7 @@ class InterviewAgent:
         emotion_label = None
         if emotion_result and isinstance(emotion_result, list) and len(emotion_result) > 0:
             # El pipeline puede devolver [[{label,score},...]] o [{label,score},...]
-            first_elem = emotion_result[0]
+            first_elem = emotion_result[0] # type: ignore
             if isinstance(first_elem, list) and len(first_elem) > 0 and isinstance(first_elem[0], dict) and 'label' in first_elem[0]: # type: ignore
                 emotion_label = first_elem[0].get('label') # type: ignore
             elif isinstance(first_elem, dict) and 'label' in first_elem:

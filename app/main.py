@@ -6,7 +6,7 @@ import os
 from fastapi import FastAPI, HTTPException, Request
 from typing import Optional, Dict, Any
 from app.interview_agent import InterviewAgent
-from app.audio_utils import transcribe_audio, synthesize_text
+from app.services.audio_utils import transcribe_audio, synthesize_text
 from app.utils import clean_text, normalize_unicode
 import re
 
