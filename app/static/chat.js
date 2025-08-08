@@ -98,6 +98,8 @@ let userId = "user-" + Math.random().toString(36).substring(2, 10);
 let interviewType = "technical";
 let mode = "practice";
 let timerInterval = null;
+let timeoutPollInterval = null;
+let timeoutWarningDiv = null;
 let timerStart = null;
 let started = false;
 let questionCount = 0;
@@ -136,6 +138,10 @@ startBtn.onclick = async () => {
     timerDiv.style.display = 'none';
     if (timerInterval) clearInterval(timerInterval);
   }
+  if (timeoutWarningDiv) timeoutWarningDiv.remove();
+  timeoutWarningDiv = null;
+  if (timeoutPollInterval) clearInterval(timeoutPollInterval);
+  timeoutPollInterval = null;
   await startInterview();
 };
 
@@ -185,6 +191,12 @@ function addMessage(sender, text) {
   chatBox.appendChild(msgDiv);
   chatBox.scrollTop = chatBox.scrollHeight;
   if (sender === 'agent') lastAgentMsg = text;
+  // Si llega mensaje de cierre automático, deshabilitar input
+  if (sender === 'agent' && text.includes('cerrado por inactividad')) {
+    userInput.disabled = true;
+    if (timeoutPollInterval) clearInterval(timeoutPollInterval);
+    timeoutPollInterval = null;
+  }
 }
 // Estilos para gamificación (puedes mover esto a tu CSS principal)
 const style = document.createElement('style');
@@ -213,6 +225,7 @@ async function startInterview() {
   });
   const data = await res.json();
   if (data.question) addMessage('agent', data.question);
+  startTimeoutPolling();
 }
 
 async function sendAnswer(answer) {
@@ -238,6 +251,7 @@ async function sendAnswer(answer) {
   } else {
     await endInterview();
   }
+  startTimeoutPolling();
 }
 
 async function nextQuestion() {
@@ -248,6 +262,7 @@ async function nextQuestion() {
   });
   const data = await res.json();
   if (data.question) addMessage('agent', data.question);
+  startTimeoutPolling();
 }
 
 async function endInterview() {
@@ -264,4 +279,42 @@ async function endInterview() {
   const data = await res.json();
   if (data.summary) addMessage('agent', data.summary);
   userInput.disabled = true;
+  if (timeoutPollInterval) clearInterval(timeoutPollInterval);
+  timeoutPollInterval = null;
+}
+
+function startTimeoutPolling() {
+  if (timeoutPollInterval) clearInterval(timeoutPollInterval);
+  timeoutPollInterval = setInterval(async () => {
+    if (userInput.disabled) {
+      clearInterval(timeoutPollInterval);
+      timeoutPollInterval = null;
+      return;
+    }
+    const res = await fetch('/check_timeout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.warning) {
+      if (!timeoutWarningDiv) {
+        timeoutWarningDiv = document.createElement('div');
+        timeoutWarningDiv.className = 'timeout-warning';
+        timeoutWarningDiv.innerText = data.warning;
+        chatBox.appendChild(timeoutWarningDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    } else if (data.closed) {
+      addMessage('agent', data.closed);
+      if (timeoutWarningDiv) timeoutWarningDiv.remove();
+      timeoutWarningDiv = null;
+      clearInterval(timeoutPollInterval);
+      timeoutPollInterval = null;
+    } else {
+      if (timeoutWarningDiv) timeoutWarningDiv.remove();
+      timeoutWarningDiv = null;
+    }
+  }, 5000);
 }

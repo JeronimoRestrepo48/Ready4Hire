@@ -109,7 +109,7 @@ class InterviewAgent:
         Inicia la entrevista preguntando contexto relevante según el tipo de entrevista.
         """
         technical_context_questions = [
-            "¿Para qué rol específico deseas prepararte? (IA, ciberseguridad, devops, infraestructura, etc.)",
+            "¿Para qué rol específico deseas prepararte? (IA, ciberseguridad, DevOps, infraestructura, Backend, Frontend, QA, Cloud Engineer, FullStack, Mobile Developer, Data Science, Security Analyst, Data Engineer, Soporte)",
             "¿Cuál es tu nivel de experiencia profesional (junior, semi-senior, senior)?",
             "¿Cuántos años de experiencia tienes en el rol?",
             "¿Qué conocimientos o tecnologías consideras tus fortalezas?",
@@ -128,6 +128,7 @@ class InterviewAgent:
             context_questions = soft_context_questions
         else:
             context_questions = technical_context_questions
+        now = time.time()
         self.sessions[user_id] = {
             "role": role or None,
             "level": None,
@@ -149,10 +150,18 @@ class InterviewAgent:
             "score": 0,
             "level": 1,
             "achievements": [],
-            "exam_correct_count": 0
+            "exam_correct_count": 0,
+            # Memoria conversacional
+            "conversation": [],  # Guarda todo el historial de turnos (agente/usuario, timestamp)
+            # Control de tiempo
+            "last_question_time": now,
+            "timeout_warning_sent": False,
+            "timeout_closed": False
         }
         question = context_questions[0]
         self.sessions[user_id]["history"].append({"agent": question})
+        self.sessions[user_id]["conversation"].append({"role": "agent", "text": question, "timestamp": now})
+        self.sessions[user_id]["last_question_time"] = now
         return {"question": question}
 
     def _filter_questions(self, questions: List[dict], filters: dict) -> List[dict]:
@@ -176,11 +185,17 @@ class InterviewAgent:
         filtered = [q for q in questions if match(q)]
         return filtered if filtered else questions.copy()
 
-    def next_question(self, user_id: str, user_input: Optional[str] = None):
+    def next_question(self, user_id: str, user_input: Optional[str] = None, current_time: Optional[float] = None):
         """
         Alterna entre preguntas técnicas y de soft skills, según el contexto y el historial.
         """
         session = self.sessions.get(user_id)
+        now = current_time if current_time else time.time()
+        if not session:
+            return {"message": "Sesión no encontrada. Por favor, inicia una nueva entrevista."}
+        # Timeout: si ya se cerró por inactividad, no continuar
+        if session.get("timeout_closed"):
+            return {"message": "La entrevista ha sido cerrada por inactividad. Si deseas continuar, inicia una nueva sesión."}
         if not session:
             return {"error": "Entrevista no iniciada"}
         # Si aún no termina el contexto, seguir preguntando contexto
@@ -191,6 +206,9 @@ class InterviewAgent:
                 question = context_questions[idx]
                 session["context_asked"] = idx
                 session["history"].append({"agent": question})
+                session["conversation"].append({"role": "agent", "text": question, "timestamp": now})
+                session["last_question_time"] = now
+                session["timeout_warning_sent"] = False
                 return {"question": question}
             else:
                 # Al terminar contexto, usar embeddings para seleccionar las 10 preguntas técnicas más relevantes
@@ -202,6 +220,8 @@ class InterviewAgent:
                 soft_similares = self.emb_mgr.find_most_similar_soft(contexto, top_k=10)
                 session["soft_pool"] = soft_similares if soft_similares else self.soft_questions.copy()
                 session["stage"] = "interview"
+                session["last_question_time"] = now
+                session["timeout_warning_sent"] = False
 
         # Alternar tipo de pregunta según preferencia o tipo de entrevista
         if session.get("interview_type") == "soft":
@@ -213,6 +233,7 @@ class InterviewAgent:
 
         # Si el usuario da un input, buscar pregunta relevante por embeddings y contexto
         if user_input:
+            session["conversation"].append({"role": "user", "text": user_input, "timestamp": now})
             contexto = f"{session.get('role','')} {session.get('level','')} {session.get('years','')} " \
                        f"{' '.join(session.get('knowledge',[]))} {' '.join(session.get('tools',[]))} " \
                        f"{' '.join([h.get('user','') for h in session['history'] if 'user' in h][-3:])}"
@@ -250,12 +271,18 @@ class InterviewAgent:
             session["tech_pool"].remove(question)
             session["last_type"] = "technical"
             session["history"].append({"agent": question["question"]})
+            session["conversation"].append({"role": "agent", "text": question["question"], "timestamp": now})
+            session["last_question_time"] = now
+            session["timeout_warning_sent"] = False
             return {"question": question["question"]}
         elif qtype == "soft" and session["soft_pool"]:
             question = random.choice(session["soft_pool"])
             session["soft_pool"].remove(question)
             session["last_type"] = "soft"
             session["history"].append({"agent": question["scenario"]})
+            session["conversation"].append({"role": "agent", "text": question["scenario"], "timestamp": now})
+            session["last_question_time"] = now
+            session["timeout_warning_sent"] = False
             return {"question": question["scenario"]}
         else:
             # Al terminar las 10 preguntas, mostrar encuesta de satisfacción antes del feedback final
@@ -263,10 +290,14 @@ class InterviewAgent:
                 session["satisfaction_pending"] = True
                 session["satisfaction_index"] = 0
                 session["satisfaction_answers"] = []
+                session["last_question_time"] = now
+                session["timeout_warning_sent"] = False
                 return {"satisfaction_survey": self.SATISFACTION_QUESTIONS[0], "index": 1, "total": len(self.SATISFACTION_QUESTIONS)}
             elif session.get("satisfaction_pending") and not session.get("satisfaction_done"):
                 idx = session.get("satisfaction_index", 0)
                 if idx < len(self.SATISFACTION_QUESTIONS):
+                    session["last_question_time"] = now
+                    session["timeout_warning_sent"] = False
                     return {"satisfaction_survey": self.SATISFACTION_QUESTIONS[idx], "index": idx+1, "total": len(self.SATISFACTION_QUESTIONS)}
                 else:
                     session["satisfaction_pending"] = False
@@ -293,7 +324,7 @@ class InterviewAgent:
             return {"message": "Gracias por responder la encuesta. Ahora recibirás tu feedback final."}
 
 
-    def process_answer(self, user_id: str, answer: str):
+    def process_answer(self, user_id: str, answer: str, current_time: Optional[float] = None):
         """
         Procesa la respuesta del usuario a una pregunta:
         - Valida la respuesta usando embeddings y NLP.
@@ -309,12 +340,42 @@ class InterviewAgent:
         Compara embeddings de la respuesta del candidato con la esperada para determinar si es correcta.
         """
         session = self.sessions.get(user_id)
+        now = current_time if current_time else time.time()
+        if not session:
+            return {"message": "Sesión no encontrada. Por favor, inicia una nueva entrevista."}
+        # Timeout: si ya se cerró por inactividad, no continuar
+        if session.get("timeout_closed"):
+            return {"message": "La entrevista ha sido cerrada por inactividad. Si deseas continuar, inicia una nueva sesión."}
+        # Guardar en memoria conversacional
+        session["conversation"].append({"role": "user", "text": answer, "timestamp": now})
         if not session:
             return {"error": "Entrevista no iniciada"}
         # Inicializar hint_count si no existe
         if "hint_count" not in session:
             session["hint_count"] = 0
         session["history"].append({"user": answer})
+        session["last_question_time"] = now
+        session["timeout_warning_sent"] = False
+    def check_timeout(self, user_id: str, current_time: Optional[float] = None):
+        """
+        Verifica si el usuario ha tardado más de 30s en responder. Si es así, envía advertencia.
+        Si pasan 15s adicionales sin respuesta, cierra la entrevista.
+        """
+        session = self.sessions.get(user_id)
+        if not session:
+            return None
+        if session.get("timeout_closed"):
+            return None
+        now = current_time if current_time else time.time()
+        last_time = session.get("last_question_time", now)
+        elapsed = now - last_time
+        if not session.get("timeout_warning_sent") and elapsed > 30:
+            session["timeout_warning_sent"] = True
+            return {"warning": "¿Sigues ahí? Han pasado más de 30 segundos sin respuesta. Si no respondes en 15 segundos, la entrevista se cerrará automáticamente."}
+        if session.get("timeout_warning_sent") and elapsed > 45:
+            session["timeout_closed"] = True
+            return {"closed": "La entrevista se ha cerrado por inactividad. Si deseas continuar, inicia una nueva sesión."}
+        return None
         # Analizar emoción del usuario
         emotion_result = None
         try:
