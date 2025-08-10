@@ -1,0 +1,68 @@
+# Development docker-compose with hot reload
+version: '3.8'
+
+services:
+  # Backend service with hot reload
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: ready4hire-backend-dev
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_RELOAD=true
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=llama3.2
+      - LLM_BASE_URL=http://ollama:11434
+      - DATA_REPOSITORY=filesystem
+      - DATA_PATH=/app/app/datasets
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+    command: ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: ready4hire-frontend-dev
+    ports:
+      - "3000:80"
+    volumes:
+      - ./app/static:/usr/share/nginx/html
+    depends_on:
+      - backend
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+
+  # LLM service (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ready4hire-ollama-dev
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
+
+networks:
+  ready4hire-network:
+    driver: bridge

@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # Backend service
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: ready4hire-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=llama3.2
+      - LLM_BASE_URL=http://ollama:11434
+      - DATA_REPOSITORY=filesystem
+      - DATA_PATH=/app/app/datasets
+    volumes:
+      - ./app/datasets:/app/app/datasets
+      - ./logs:/app/logs
+    depends_on:
+      - ollama
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: ready4hire-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+
+  # LLM service (Ollama)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ready4hire-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # Database service (PostgreSQL) - Optional
+  database:
+    image: postgres:15-alpine
+    container_name: ready4hire-database
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ready4hire
+      - POSTGRES_USER=ready4hire_user
+      - POSTGRES_PASSWORD=ready4hire_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+    profiles:
+      - database
+
+  # Redis service (for caching) - Optional
+  redis:
+    image: redis:7-alpine
+    container_name: ready4hire-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - ready4hire-network
+    restart: unless-stopped
+    profiles:
+      - cache
+
+volumes:
+  ollama-data:
+  postgres-data:
+  redis-data:
+
+networks:
+  ready4hire-network:
+    driver: bridge

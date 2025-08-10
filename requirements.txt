@@ -3,6 +3,7 @@ langchain
 ollama
 uvicorn
 python-dotenv
+python-multipart
 # Opcional para embeddings y datasets
 sentence-transformers
 huggingface_hub
