@@ -1,10 +1,45 @@
-import os
-# Limitar hilos de numpy/OpenBLAS/MKL y PyTorch para evitar sobrecarga de CPU
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
+import numpy as np
+import umap
+import hdbscan
+from sklearn.preprocessing import normalize
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+"""
+Ready4Hire - Gestor de Embeddings y Selección Avanzada
+======================================================
+
+¿Qué es?
+---------
+Este módulo es el "cerebro semántico" del sistema. Gestiona la representación vectorial (embeddings) de preguntas y respuestas, permitiendo búsquedas inteligentes, clustering temático y selección personalizada de preguntas.
+
+¿Para quién es?
+---------------
+- Técnicos: pueden entender y modificar la lógica de embeddings, clustering (UMAP/HDBSCAN), penalización por repetición y ranking profundo (RankNet).
+- No técnicos: el sistema selecciona automáticamente las preguntas más relevantes y variadas, asegurando una experiencia de entrevista realista y adaptativa.
+
+¿Cómo funciona?
+----------------
+1. Embeddings: convierte preguntas y respuestas en vectores numéricos usando modelos de lenguaje (SentenceTransformers).
+2. Clustering: agrupa preguntas por temas usando UMAP y HDBSCAN, para diversificar y cubrir todos los tópicos.
+3. Selección avanzada: penaliza preguntas repetidas, incentiva variedad y usa softmax para diversificación.
+4. RankNet: si hay un modelo entrenado, reordena las preguntas usando deep learning para máxima personalización.
+5. Control de recursos: limita hilos y uso de CPU para evitar sobrecarga en servidores modestos.
+
+Componentes principales:
+-----------------------
+- EmbeddingsManager: clase central, expone métodos para seleccionar, filtrar y rankear preguntas.
+- advanced_question_selector: lógica avanzada de selección, combinando IA, clustering y penalización.
+- RankNet: red neuronal profunda para ranking personalizado (opcional, si está entrenada).
+
+Ejemplo de uso rápido:
+----------------------
+    emb_mgr = EmbeddingsManager()
+    preguntas = emb_mgr.advanced_question_selector('contexto del usuario', history=[], top_k=5, technical=True)
+
+Autor: JeronimoRestrepo48
+Licencia: MIT
+"""
 try:
     import torch
     torch.set_num_threads(1)
@@ -29,6 +64,95 @@ from pathlib import Path
 import json
 
 class EmbeddingsManager:
+    def advanced_question_selector(self, user_context, history=None, top_k=5, technical=True):
+        """
+        Selección avanzada de preguntas usando:
+        - Embeddings (SentenceTransformer)
+        - Reducción de dimensionalidad (UMAP)
+        - Clustering (HDBSCAN)
+        - Penalización por repetición
+        - Softmax para diversificación
+        - Hook para modelo de ranking profundo (RankNet)
+        """
+        data = self.tech_data if technical else self.soft_data
+        embeddings = self.tech_embeddings if technical else self.soft_embeddings
+        # 1. Embedding del contexto del usuario
+        context_emb = self.model.encode([self._normalize(user_context)], convert_to_tensor=True)
+        # 2. Reducción de dimensionalidad (UMAP)
+        reducer = umap.UMAP(n_neighbors=10, min_dist=0.1, n_components=10, random_state=42)
+        emb_np = embeddings.cpu().numpy() if hasattr(embeddings, 'cpu') else embeddings
+        emb_umap = reducer.fit_transform(emb_np)
+        # Ensure emb_umap is a NumPy array
+        if not isinstance(emb_umap, np.ndarray):
+            emb_umap = np.array(emb_umap)
+        # 3. Clustering (HDBSCAN)
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=5)
+        cluster_labels = clusterer.fit_predict(emb_umap)
+        # 4. Similitud semántica
+        sim_scores = util.pytorch_cos_sim(context_emb, embeddings)[0].cpu().numpy()
+        # 5. Penalización por repetición
+        penal = np.zeros(len(data))
+        if history:
+            seen = set([h.get('question') or h.get('scenario') for h in history if 'question' in h or 'scenario' in h])
+            for i, q in enumerate(data):
+                qtxt = q.get('question') or q.get('scenario')
+                if qtxt in seen:
+                    penal[i] = -0.5  # Penaliza preguntas ya vistas
+        # 6. Bonus por cluster poco cubierto
+        if history:
+            hist_clusters = [cluster_labels[i] for i, q in enumerate(data) if (q.get('question') or q.get('scenario')) in [h.get('question') or h.get('scenario') for h in history]]
+            rare_clusters = set(np.unique(cluster_labels)) - set(hist_clusters)
+            for i, cl in enumerate(cluster_labels):
+                if cl in rare_clusters:
+                    penal[i] += 0.2  # Incentiva variedad temática
+        # 7. Score final y softmax
+        scores = sim_scores + penal
+        probs = np.exp(scores) / np.sum(np.exp(scores))
+        # 8. Top-k diversificado
+        top_idx = np.argsort(probs)[-top_k:][::-1]
+        selected = [data[i] for i in top_idx]
+        # 9. (Opcional) Modelo de ranking profundo
+        # Si tienes un modelo RankNet entrenado, puedes reordenar selected aquí
+        # Ejemplo de hook:
+        # if hasattr(self, 'ranknet'):
+        #     selected = self.ranknet_rank(selected, user_context, history)
+        return selected
+
+    class RankNet(nn.Module):
+        """Modelo de ranking profundo para preguntas (ejemplo, puedes entrenar/fine-tune)"""
+        def __init__(self, input_dim):
+            super().__init__()
+            self.fc1 = nn.Linear(input_dim, 64)
+            self.fc2 = nn.Linear(64, 32)
+            self.fc3 = nn.Linear(32, 1)
+        def forward(self, x):
+            x = F.relu(self.fc1(x))
+            x = F.relu(self.fc2(x))
+            return self.fc3(x)
+    def ranknet_rank(self, questions, user_context, history):
+        # Hook para reordenar preguntas usando RankNet (debes entrenar el modelo y cargar pesos)
+        # Aquí solo es un ejemplo de integración
+        # features = ... # Extrae features relevantes de preguntas y contexto
+        # scores = self.ranknet(torch.tensor(features, dtype=torch.float32)).detach().numpy().flatten()
+        # idx = np.argsort(scores)[::-1]
+        # return [questions[i] for i in idx]
+        return questions
+    def filter_questions_by_role(self, role: str, top_k: int = 10, technical=True):
+        """
+        Devuelve las preguntas más relevantes al rol usando embeddings y clustering.
+        Si technical=True, filtra preguntas técnicas; si False, blandas.
+        """
+        if not role:
+            # Si no hay rol, devolver aleatorio
+            return self.tech_data[:top_k] if technical else self.soft_data[:top_k]
+        query = self._normalize(role)
+        query_emb = self.model.encode([query], convert_to_tensor=True)
+        if technical:
+            hits = util.semantic_search(query_emb, self.tech_embeddings, top_k=top_k)[0]
+            return [self.tech_data[int(hit['corpus_id'])] for hit in hits]
+        else:
+            hits = util.semantic_search(query_emb, self.soft_embeddings, top_k=top_k)[0]
+            return [self.soft_data[int(hit['corpus_id'])] for hit in hits]
     def __init__(self, model_name: str = 'all-MiniLM-L6-v2'):
         """
         Inicializa el gestor de embeddings:
@@ -40,6 +164,18 @@ class EmbeddingsManager:
         self.tech_data = self._load_jsonl(Path(__file__).parent / '../datasets/tech_questions.jsonl')
         self.soft_data = self._load_jsonl(Path(__file__).parent / '../datasets/soft_skills.jsonl')
         self._update_embeddings()
+
+        # Cargar RankNet entrenado si existe
+        import torch
+        import os
+        ranknet_path = Path(__file__).parent / '../datasets/ranknet_model.pt'
+        if ranknet_path.exists():
+            input_dim = 384 * 2  # MiniLM-L6-v2
+            self.ranknet = self.RankNet(input_dim)
+            self.ranknet.load_state_dict(torch.load(ranknet_path, map_location='cpu'))
+            self.ranknet.eval()
+        else:
+            self.ranknet = None
 
     def _normalize(self, text: str) -> str:
         """

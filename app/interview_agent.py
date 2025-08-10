@@ -1,21 +1,49 @@
 
+"""
+Ready4Hire - Agente de Entrevista IA
+====================================
 
-# ===============================
-# Ready4Hire - Agente de Entrevista IA
-# ===============================
-# Este módulo implementa la lógica central del agente de entrevistas:
-# - Selección inteligente de preguntas técnicas y blandas
-# - Feedback motivador, emocional y adaptativo
-# - Pistas generadas por LLM
-# - Gamificación avanzada (puntos, niveles, logros)
-# - Análisis emocional y personalización
-# - Aprendizaje continuo y registro para fine-tuning
-#
-# Autor: JeronimoRestrepo48
-# Licencia: MIT
+Este módulo implementa el núcleo inteligente del simulador de entrevistas Ready4Hire.
+
+¿Qué es?
+---------
+Un agente conversacional avanzado que simula entrevistas técnicas y de habilidades blandas, adaptándose al usuario en tiempo real. Utiliza IA generativa, embeddings, clustering, gamificación y análisis emocional para crear una experiencia de aprendizaje personalizada, motivadora y profesional.
+
+¿Para quién es?
+---------------
+- Técnicos: permite practicar entrevistas reales, recibir feedback detallado, pistas conceptuales, ejemplos de industria y medir progreso con gamificación.
+- No técnicos: la interfaz es amigable, las explicaciones son claras y el sistema motiva y guía paso a paso, ayudando a mejorar habilidades blandas y técnicas.
+
+¿Cómo funciona?
+----------------
+1. Selección inteligente de preguntas: el agente alterna entre preguntas técnicas y blandas, adaptando la dificultad y el tema según el perfil y desempeño del usuario.
+2. Feedback motivador y emocional: cada respuesta recibe retroalimentación personalizada, con frases motivacionales, emojis y análisis de emociones.
+3. Pistas conceptuales: si la respuesta es incorrecta, el agente genera pistas explicativas, analogías, ejemplos y casos de uso reales, incluso si el modelo LLM está limitado.
+4. Gamificación avanzada: el usuario gana puntos, sube de nivel, desbloquea logros y recibe insignias por su desempeño, incentivando la mejora continua.
+5. Aprendizaje continuo: todas las interacciones se registran para mejorar el sistema y permitir fine-tuning futuro.
+
+Componentes principales:
+-----------------------
+- Clase InterviewAgent: gestiona sesiones, preguntas, feedback, gamificación y lógica de interacción.
+- Integración con embeddings y RankNet: selecciona preguntas relevantes usando IA profunda y clustering.
+- Análisis emocional: detecta emociones en las respuestas para adaptar el feedback y evitar sesgos.
+
+Ejemplo de uso rápido (técnico):
+--------------------------------
+    agent = InterviewAgent()
+    agent.start_interview('usuario1', role='DevOps', interview_type='technical')
+    agent.process_answer('usuario1', 'Mi respuesta a la pregunta')
+
+Autor: JeronimoRestrepo48
+Licencia: MIT
+"""
 
 
 from langchain.llms import Ollama
+import threading
+import time
+import functools
+import signal
 from typing import Dict, Any, List, Optional
 import random
 import json
@@ -25,62 +53,37 @@ import time
 from app.embeddings.embeddings_manager import EmbeddingsManager
 from app.services.emotion_analyzer import analyze_emotion
 
+
 class InterviewAgent:
-    import threading
-    import time
-
-    # --- Memoria conversacional: historial completo de la sesión ---
-    # Ya se almacena en session['history'], pero se refuerza la estructura y acceso
-
-    # --- Control de tiempo de respuesta ---
-    RESPONSE_TIMEOUT = 30  # segundos
-    INACTIVITY_TIMEOUT = 30  # segundos adicionales tras advertencia
-
-    def _start_response_timer(self, user_id):
+    # Insignias y logros creativos
+    EXAM_BADGES = [
+        ("Racha de aciertos", "🔥", lambda s: s.get('exam_streak',0) >= 3),
+        ("Resiliencia", "💪", lambda s: s.get('exam_incorrect_streak',0) >= 3),
+        ("Velocidad", "⏱️", lambda s: s.get('last_answer_time',99) < 10),
+        ("Variedad", "🌈", lambda s: len(set(s.get('exam_topics',[]))) >= 3),
+        ("Soft Skills Pro", "🧠", lambda s: s.get('soft_correct',0) >= 3),
+        ("Precisión", "🎯", lambda s: s.get('exam_correct_count',0) >= 8),
+        ("Perseverancia", "🏅", lambda s: s.get('exam_attempts',0) >= 10),
+    ]
+    def _get_context_memory(self, session):
         """
-        Inicia un temporizador para controlar el tiempo de respuesta del usuario.
-        Si pasan RESPONSE_TIMEOUT segundos sin respuesta, envía mensaje de actividad.
-        Si pasan INACTIVITY_TIMEOUT segundos más, cierra la entrevista.
-        No interfiere con el análisis de respuestas.
+        Devuelve un resumen de la memoria de contexto relevante para feedback y análisis de emociones/sesgos.
+        Incluye últimas respuestas, emociones y feedback.
         """
-        session = self.sessions.get(user_id)
-        if not session:
-            return
-        # Cancelar temporizador anterior si existe
-        if 'response_timer' in session and session['response_timer']:
-            session['response_timer'].cancel()
-        def timeout_warning():
-            # Enviar mensaje de advertencia por inactividad
-            session['history'].append({"agent": "¿Sigues ahí? Han pasado 30 segundos sin respuesta. Si no respondes pronto, la entrevista se cerrará automáticamente."})
-            session['waiting_warning'] = True
-            # Iniciar segundo temporizador para cierre
-            t2 = self.threading.Timer(self.INACTIVITY_TIMEOUT, timeout_close)
-            session['response_timer'] = t2
-            t2.start()
-        def timeout_close():
-            # Cerrar entrevista por inactividad
-            session['history'].append({"agent": "La entrevista se ha cerrado por inactividad. ¡Gracias por participar!"})
-            session['closed'] = True
-        t1 = self.threading.Timer(self.RESPONSE_TIMEOUT, timeout_warning)
-        session['response_timer'] = t1
-        session['waiting_warning'] = False
-        session['closed'] = False
-        t1.start()
-
-    def _stop_response_timer(self, user_id):
-        """
-        Detiene el temporizador de respuesta cuando el usuario responde.
-        """
-        session = self.sessions.get(user_id)
-        if session and 'response_timer' in session and session['response_timer']:
-            session['response_timer'].cancel()
-            session['response_timer'] = None
-            session['waiting_warning'] = False
-
+        history = session.get('history', [])
+        last_n = 5
+        respuestas = [h['user'] for h in history if 'user' in h][-last_n:]
+        feedbacks = [h['agent'] for h in history if 'agent' in h][-last_n:]
+        emociones = [h.get('emotion') for h in history if h.get('emotion')]  # Guardar emociones si existen
+        return {
+            'respuestas': respuestas,
+            'feedbacks': feedbacks,
+            'emociones': emociones
+        }
+    # Constantes de clase
     MAX_HINTS = 3
-    # Configuración de gamificación
     EXAM_POINTS_PER_CORRECT = 15
-    EXAM_LEVEL_THRESHOLDS = [0, 30, 60, 100, 150, 210, 280, 360, 450, 550, 700, 900]  # Puntos requeridos para cada nivel
+    EXAM_LEVEL_THRESHOLDS = [0, 30, 60, 100, 150, 210, 280, 360, 450, 550, 700, 900]
     EXAM_LEVEL_NAMES = [
         "Novato/a", "Aprendiz", "Competente", "Avanzado/a", "Experto/a", "Mentor/a", "Maestro/a", "Leyenda", "Gurú", "Sensei", "Sabio/a", "Ícono"
     ]
@@ -110,23 +113,141 @@ class InterviewAgent:
         "¿Cómo calificarías tu experiencia general con la entrevista?"
     ]
 
-    """
-    Agente de entrevistas IA para simulación de procesos técnicos y de soft skills.
-    - Alterna preguntas técnicas y blandas según contexto y tipo de entrevista.
-    - Usa embeddings y NLP para seleccionar y validar preguntas/respuestas.
-    - Proporciona feedback emocional, motivador y adaptativo.
-    - Integra gamificación, análisis emocional y aprendizaje continuo.
-    - Registra todas las interacciones relevantes para mejorar el modelo (fine-tuning).
-    """
-
     def __init__(self, model_name: str = "llama3"):
-        """
-        Inicializa el agente de entrevista.
-        - model_name: nombre del modelo LLM a usar (por defecto llama3 vía Ollama).
-        - Carga datasets de preguntas técnicas y blandas.
-        - Inicializa gestor de embeddings y frases motivacionales/emojis.
-        """
+        # LLM rate limiting and timeout attributes (instance-level)
+        self._llm_lock = threading.Lock()
+        self._llm_last_call = 0
+        self._llm_min_interval = 2.0  # seconds between LLM calls (rate limit)
+        self._llm_timeout = 10  # seconds per LLM call
         self.llm = Ollama(model=model_name)
+        self.sessions: Dict[str, Dict[str, Any]] = {}
+        self.tech_questions = self._load_dataset('tech_questions.jsonl')
+        self.soft_questions = self._load_dataset('soft_skills.jsonl')
+        self.emb_mgr = EmbeddingsManager()
+        # Inicialización de frases motivacionales y emojis aprendidos
+        self.motivational_phrases = [
+            "¡Sigue así, vas por un gran camino! 🚀",
+            "¡Tu esfuerzo se nota! 👏",
+            "¡Demuestras dominio y seguridad! 😎",
+            "¡Suma un logro más a tu carrera! 🥇",
+            "¡Inspiras confianza! 💪"
+        ]
+        self.positive_emojis = ["🎉", "✔️", "💡", "🏆", "🙌", "🚀", "👏", "😎", "🥇", "💪", "🌟"]
+        self.negative_phrases = [
+            "No te desanimes, cada error es una oportunidad para aprender. 💡",
+            "¡Ánimo! Repasa el concepto y sigue practicando. 📚",
+            "Recuerda: equivocarse es parte del proceso de mejora. 🔁",
+            "Sigue intentándolo, la perseverancia es clave. 💪",
+            "¡Tú puedes! El siguiente intento será mejor. 🌟"
+        ]
+        self.negative_emojis = ["🤔", "🧐", "😅", "🔄", "💡", "📚", "🔁", "💪", "🌟"]
+
+    def _start_response_timer(self, user_id):
+        session = self.sessions.get(user_id)
+        if not session:
+            return
+        if 'response_timer' in session and session['response_timer']:
+            session['response_timer'].cancel()
+        def timeout_close():
+            session['history'].append({"agent": "La entrevista se ha cerrado por inactividad. ¡Gracias por participar!"})
+            session['closed'] = True
+
+        def timeout_warning():
+            session['history'].append({"agent": "¿Sigues ahí? Han pasado 30 segundos sin respuesta. Si no respondes pronto, la entrevista se cerrará automáticamente."})
+            session['waiting_warning'] = True
+            t2 = threading.Timer(30, timeout_close)
+            session['response_timer'] = t2
+            t2.start()
+
+        t1 = threading.Timer(30, timeout_warning)
+        session['response_timer'] = t1
+        session['waiting_warning'] = False
+        session['closed'] = False
+        t1.start()
+
+    def _stop_response_timer(self, user_id):
+        session = self.sessions.get(user_id)
+        if session and 'response_timer' in session and session['response_timer']:
+            session['response_timer'].cancel()
+            session['response_timer'] = None
+            session['waiting_warning'] = False
+    def _build_prompt(self, question, context, role, level, last_answers, is_correct=None):
+        """
+        Construye un prompt adaptativo para el LLM según contexto, rol, nivel y desempeño.
+        """
+        prompt = f"Eres un entrevistador experto en {role or 'el área correspondiente'}. "
+        prompt += f"Nivel: {level or 'N/A'}. "
+        prompt += f"Pregunta: {question}\n"
+        if context:
+            prompt += f"Contexto del candidato: {context}\n"
+        if last_answers:
+            prompt += f"Respuestas previas del candidato: {' | '.join(last_answers[-3:])}\n"
+        if is_correct is not None:
+            prompt += "La respuesta anterior fue " + ("correcta." if is_correct else "incorrecta.") + "\n"
+        prompt += "Genera feedback motivador, concreto y personalizado. Si la respuesta fue incorrecta, sugiere una pista útil sin dar la solución."
+        return prompt
+
+    def _personalized_advice_template(self, cluster_label, performance):
+        """
+        Devuelve una plantilla de consejo personalizado según el cluster y desempeño.
+        """
+        templates = {
+            0: "Te recomiendo reforzar los conceptos básicos antes de avanzar. Usa recursos introductorios y practica con ejemplos simples.",
+            1: "Vas bien, pero puedes profundizar en los detalles técnicos. Intenta explicar los conceptos con tus propias palabras.",
+            2: "¡Buen desempeño! Ahora enfócate en casos prácticos y escenarios reales para consolidar tu aprendizaje.",
+            3: "Excelente nivel. Busca retos avanzados y comparte tus conocimientos con otros para seguir creciendo.",
+            4: "Eres un referente en el área. Considera mentorizar a otros o contribuir a la comunidad."
+        }
+        base = templates.get(cluster_label, "Sigue practicando y busca feedback específico para tus áreas de mejora.")
+        if performance == 'low':
+            return base + " Recuerda que la perseverancia es clave."
+        elif performance == 'mid':
+            return base + " Estás en el camino correcto, sigue así."
+        else:
+            return base + " ¡Sigue desafiándote!"
+
+    def _score_answer(self, user_answer, expected, similarity_score, soft=False):
+        """
+        Modelo de scoring mejorado: pondera similitud, completitud y precisión.
+        """
+        score = 0
+        if similarity_score > 0.8:
+            score += 2
+        elif similarity_score > 0.65:
+            score += 1
+        if expected and user_answer.strip().lower() == expected.strip().lower():
+            score += 1
+        if not soft and len(user_answer.split()) > 8:
+            score += 1  # Respuestas técnicas más completas
+        if soft and any(x in user_answer.lower() for x in ["equipo", "comunicación", "liderazgo", "conflicto", "empatía"]):
+            score += 1  # Soft skills clave
+        return min(score, 4)
+
+    # (Removed duplicate __init__ and LLM attributes; see top of class for correct implementation)
+    def safe_llm_call(self, prompt, fallback=None):
+        """
+        Call the LLM with global rate limiting and timeout. If busy or slow, return fallback.
+        """
+        def handler(signum, frame):
+            raise TimeoutError("LLM call timed out")
+        with self._llm_lock:
+            now = time.time()
+            wait = self._llm_min_interval - (now - self._llm_last_call)
+            if wait > 0:
+                time.sleep(wait)
+            self._llm_last_call = time.time()
+        # Set timeout
+        old_handler = signal.signal(signal.SIGALRM, handler)
+        signal.alarm(self._llm_timeout)
+        try:
+            result = self.llm(prompt)
+            signal.alarm(0)
+            return result.strip() if isinstance(result, str) else result
+        except Exception:
+            signal.alarm(0)
+            return fallback if fallback is not None else "[Respuesta generada automáticamente: LLM no disponible]"
+        finally:
+            signal.signal(signal.SIGALRM, old_handler)
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.tech_questions = self._load_dataset('tech_questions.jsonl')
         self.soft_questions = self._load_dataset('soft_skills.jsonl')
@@ -160,7 +281,7 @@ class InterviewAgent:
         Inicia la entrevista preguntando contexto relevante según el tipo de entrevista.
         """
         technical_context_questions = [
-            "¿Para qué rol específico deseas prepararte? (IA, ciberseguridad, devops, infraestructura, etc.)",
+            "¿Para qué rol específico deseas prepararte? (IA, ciberseguridad, DevOps, infraestructura, Frontend, Backend, QA, Data Engineer, Soporte, Cloud Engineer, Security Analyst, Fullstack, Mobile Developer, Data Scientist.)",
             "¿Cuál es tu nivel de experiencia profesional (junior, semi-senior, senior)?",
             "¿Cuántos años de experiencia tienes en el rol?",
             "¿Qué conocimientos o tecnologías consideras tus fortalezas?",
@@ -246,13 +367,11 @@ class InterviewAgent:
                 session["history"].append({"agent": question})
                 return {"question": question}
             else:
-                # Al terminar contexto, usar embeddings para seleccionar las 10 preguntas técnicas más relevantes
-                contexto = f"{session.get('role','')} {session.get('level','')} {session.get('years','')} " \
-                           f"{' '.join(session.get('knowledge',[]))} {' '.join(session.get('tools',[]))}"
-                tech_similares = self.emb_mgr.find_most_similar_tech(contexto, top_k=10)
+                # Al terminar contexto, filtrar preguntas técnicas y blandas relevantes al rol usando embeddings
+                role = session.get('role','')
+                tech_similares = self.emb_mgr.filter_questions_by_role(role, top_k=10, technical=True)
                 session["tech_pool"] = tech_similares if tech_similares else self.tech_questions.copy()
-                # Para soft skills, usar embeddings para seleccionar las 10 más relevantes
-                soft_similares = self.emb_mgr.find_most_similar_soft(contexto, top_k=10)
+                soft_similares = self.emb_mgr.filter_questions_by_role(role, top_k=10, technical=False)
                 session["soft_pool"] = soft_similares if soft_similares else self.soft_questions.copy()
                 session["stage"] = "interview"
 
@@ -264,17 +383,19 @@ class InterviewAgent:
         else:
             qtype = "soft" if session["last_type"] == "technical" else "technical"
 
-        # Si el usuario da un input, buscar pregunta relevante por embeddings y contexto
+        # Selección avanzada de preguntas usando embeddings, clustering y RankNet
         if user_input:
             contexto = f"{session.get('role','')} {session.get('level','')} {session.get('years','')} " \
                        f"{' '.join(session.get('knowledge',[]))} {' '.join(session.get('tools',[]))} " \
                        f"{' '.join([h.get('user','') for h in session['history'] if 'user' in h][-3:])}"
             if qtype == "technical" and session["tech_pool"]:
-                # Buscar pregunta relevante considerando contexto y últimas respuestas
-                similar = self.emb_mgr.find_most_similar_tech(user_input + " " + contexto, top_k=2)
-                # Si la última fue correcta, priorizar dificultad mayor si existe
+                # Selección avanzada (UMAP, HDBSCAN, softmax, penalización, RankNet)
+                candidates = self.emb_mgr.advanced_question_selector(user_input + " " + contexto, history=session["history"], top_k=3, technical=True)
+                # Hook RankNet si está disponible
+                if hasattr(self.emb_mgr, 'ranknet'):
+                    candidates = self.emb_mgr.ranknet_rank(candidates, user_input + " " + contexto, session["history"])
                 question = None
-                for q in similar:
+                for q in candidates:
                     if q in session["tech_pool"]:
                         question = q
                         break
@@ -285,9 +406,11 @@ class InterviewAgent:
                 session["history"].append({"agent": question["question"]})
                 return {"question": question["question"]}
             elif qtype == "soft" and session["soft_pool"]:
-                similar = self.emb_mgr.find_most_similar_soft(user_input + " " + contexto, top_k=2)
+                candidates = self.emb_mgr.advanced_question_selector(user_input + " " + contexto, history=session["history"], top_k=3, technical=False)
+                if hasattr(self.emb_mgr, 'ranknet'):
+                    candidates = self.emb_mgr.ranknet_rank(candidates, user_input + " " + contexto, session["history"])
                 question = None
-                for q in similar:
+                for q in candidates:
                     if q in session["soft_pool"]:
                         question = q
                         break
@@ -297,15 +420,35 @@ class InterviewAgent:
                 session["last_type"] = "soft"
                 session["history"].append({"agent": question["scenario"]})
                 return {"question": question["scenario"]}
-        # Si no hay input, seguir flujo aleatorio
+        # Si no hay input, usar selección avanzada sin contexto inmediato
         if qtype == "technical" and session["tech_pool"]:
-            question = random.choice(session["tech_pool"])
+            candidates = self.emb_mgr.advanced_question_selector(
+                session.get('role',''), history=session["history"], top_k=3, technical=True)
+            if hasattr(self.emb_mgr, 'ranknet'):
+                candidates = self.emb_mgr.ranknet_rank(candidates, session.get('role',''), session["history"])
+            question = None
+            for q in candidates:
+                if q in session["tech_pool"]:
+                    question = q
+                    break
+            if not question:
+                question = random.choice(session["tech_pool"])
             session["tech_pool"].remove(question)
             session["last_type"] = "technical"
             session["history"].append({"agent": question["question"]})
             return {"question": question["question"]}
         elif qtype == "soft" and session["soft_pool"]:
-            question = random.choice(session["soft_pool"])
+            candidates = self.emb_mgr.advanced_question_selector(
+                session.get('role',''), history=session["history"], top_k=3, technical=False)
+            if hasattr(self.emb_mgr, 'ranknet'):
+                candidates = self.emb_mgr.ranknet_rank(candidates, session.get('role',''), session["history"])
+            question = None
+            for q in candidates:
+                if q in session["soft_pool"]:
+                    question = q
+                    break
+            if not question:
+                question = random.choice(session["soft_pool"])
             session["soft_pool"].remove(question)
             session["last_type"] = "soft"
             session["history"].append({"agent": question["scenario"]})
@@ -378,32 +521,39 @@ class InterviewAgent:
         except Exception:
             emotion_result = None
         modo = session.get("mode", "practice")
+        # Define last_agent early for use in both exam and practice modes
+        last_agent = next((h["agent"] for h in reversed(session["history"]) if "agent" in h), "")
+        
         # En modo examen, guardar respuestas y sumar puntos si es correcta, sin feedback inmediato
         # Reiniciar temporizador para la siguiente pregunta si la entrevista sigue activa
         if not session.get('closed'):
             self._start_response_timer(user_id)
+        # Define last_agent and determine correctness for both modes
+        last_agent = next((h["agent"] for h in reversed(session["history"]) if "agent" in h), "")
+        similar_tech = self.emb_mgr.find_most_similar_tech(last_agent, top_k=1)
+        similar_soft = self.emb_mgr.find_most_similar_soft(last_agent, top_k=1)
+        expected = None
+        if similar_tech and 'answer' in similar_tech[0]:
+            expected = similar_tech[0]['answer']
+        elif similar_soft and 'expected' in similar_soft[0]:
+            expected = similar_soft[0]['expected']
+        
+        # NLP: comparar embeddings de la respuesta del candidato y la esperada
+        is_correct = False
+        similarity_score = 0.0
+        if expected:
+            try:
+                cand_emb = self.emb_mgr.model.encode([answer], convert_to_tensor=True)
+                exp_emb = self.emb_mgr.model.encode([expected], convert_to_tensor=True)
+                similarity_score = float(self.emb_mgr.model.similarity(cand_emb, exp_emb))
+                is_correct = similarity_score > 0.7
+            except Exception:
+                is_correct = answer.strip().lower() == expected.strip().lower()
+        
         if modo == "exam":
             if session["exam_start_time"] is None:
                 session["exam_start_time"] = time.time()
             session["exam_answers"].append(answer)
-            # Determinar si es correcta (igual que en feedback normal)
-            last_agent = next((h["agent"] for h in reversed(session["history"]) if "agent" in h), "")
-            similar_tech = self.emb_mgr.find_most_similar_tech(last_agent, top_k=1)
-            similar_soft = self.emb_mgr.find_most_similar_soft(last_agent, top_k=1)
-            expected = None
-            if similar_tech and 'answer' in similar_tech[0]:
-                expected = similar_tech[0]['answer']
-            elif similar_soft and 'expected' in similar_soft[0]:
-                expected = similar_soft[0]['expected']
-            is_correct = False
-            if expected:
-                try:
-                    cand_emb = self.emb_mgr.model.encode([answer], convert_to_tensor=True)
-                    exp_emb = self.emb_mgr.model.encode([expected], convert_to_tensor=True)
-                    similarity_score = float(self.emb_mgr.model.similarity(cand_emb, exp_emb))
-                    is_correct = similarity_score > 0.7
-                except Exception:
-                    is_correct = answer.strip().lower() == expected.strip().lower()
             # Gamificación: sumar puntos, calcular nivel y logros personalizados
             if is_correct:
                 session["score"] += self.EXAM_POINTS_PER_CORRECT
@@ -436,34 +586,70 @@ class InterviewAgent:
         modo = session.get("mode", "practice")
         # En modo examen, guardar respuestas y no dar feedback inmediato
         if modo == "exam":
+            # Inicializar campos de gamificación avanzada
+            session.setdefault('exam_streak', 0)
+            session.setdefault('exam_incorrect_streak', 0)
+            session.setdefault('exam_topics', set())
+            session.setdefault('soft_correct', 0)
+            session.setdefault('exam_attempts', 0)
+            session.setdefault('last_answer_time', 99)
+            session.setdefault('last_answer_timestamp', time.time())
             if session["exam_start_time"] is None:
                 session["exam_start_time"] = time.time()
             session["exam_answers"].append(answer)
-            # Solo devolver confirmación, no feedback
-            return {"feedback": "Respuesta registrada. Continúa con la siguiente pregunta."}
-        last_agent = next((h["agent"] for h in reversed(session["history"]) if "agent" in h), "")
-        similar_tech = self.emb_mgr.find_most_similar_tech(last_agent, top_k=1)
-        similar_soft = self.emb_mgr.find_most_similar_soft(last_agent, top_k=1)
-        expected = None
-        if similar_tech and 'answer' in similar_tech[0]:
-            expected = similar_tech[0]['answer']
-        elif similar_soft and 'expected' in similar_soft[0]:
-            expected = similar_soft[0]['expected']
-
-        # NLP: comparar embeddings de la respuesta del candidato y la esperada
-        is_correct = False
-        similarity_score = 0.0
-        if expected:
-            try:
-                cand_emb = self.emb_mgr.model.encode([answer], convert_to_tensor=True)
-                exp_emb = self.emb_mgr.model.encode([expected], convert_to_tensor=True)
-                similarity_score = float(self.emb_mgr.model.similarity(cand_emb, exp_emb))
-                is_correct = similarity_score > 0.7
-            except Exception:
-                is_correct = answer.strip().lower() == expected.strip().lower()
-
-        # Mensaje base
-        # Determinar emoción dominante (si hay)
+            session['exam_attempts'] += 1
+            # Calcular tiempo de respuesta
+            now = time.time()
+            session['last_answer_time'] = now - session.get('last_answer_timestamp', now)
+            session['last_answer_timestamp'] = now
+            # Detectar tema (técnico/soft)
+            if last_agent:
+                if any(q.get('question','') == last_agent for q in self.tech_questions):
+                    session['exam_topics'].add('tech')
+                elif any(q.get('scenario','') == last_agent for q in self.soft_questions):
+                    session['exam_topics'].add('soft')
+            # Puntaje base
+            points = 0
+            if is_correct:
+                points += self.EXAM_POINTS_PER_CORRECT
+                session['exam_streak'] += 1
+                session['exam_incorrect_streak'] = 0
+                if any(q.get('scenario','') == last_agent for q in self.soft_questions):
+                    session['soft_correct'] += 1
+            else:
+                session['exam_streak'] = 0
+                session['exam_incorrect_streak'] += 1
+            # Bonus por racha
+            if session['exam_streak'] >= 3:
+                points += 5
+            # Bonus por rapidez
+            if session['last_answer_time'] < 10:
+                points += 3
+            # Bonus por variedad
+            if len(session['exam_topics']) >= 2:
+                points += 2
+            # Bonus por precisión
+            if is_correct and similarity_score > 0.85:
+                points += 2
+            # Actualizar puntaje y nivel
+            session['score'] = session.get('score',0) + points
+            # Niveles
+            for i, threshold in enumerate(self.EXAM_LEVEL_THRESHOLDS[::-1]):
+                if session['score'] >= threshold:
+                    session['level'] = len(self.EXAM_LEVEL_THRESHOLDS) - i
+                    session['level_name'] = self.EXAM_LEVEL_NAMES[len(self.EXAM_LEVEL_THRESHOLDS) - i - 1]
+                    break
+            # Logros clásicos
+            for req, ach in self.EXAM_ACHIEVEMENTS:
+                if session["exam_correct_count"] == req and ach not in session["achievements"]:
+                    session["achievements"].append(ach)
+            # Insignias creativas
+            for badge, emoji, cond in self.EXAM_BADGES:
+                if cond(session) and badge not in session.get('achievements', []):
+                    session['achievements'].append(f"{badge} {emoji}")
+            # Feedback visual/textual inmediato
+            feedback = f"<b>+{points} puntos</b> | Nivel: <b>{session.get('level_name','')}</b> | Logros: {' '.join([a for a in session.get('achievements',[]) if any(e in a for e in ['🔥','💪','⏱️','🌈','🧠','🎯','🏅'])])}"
+            if is_correct:
                 # Guardar interacción para fine-tuning (respuesta correcta)
                 self._save_interaction_for_finetune(user_id, last_agent, answer, "", hint=None, correct=True)
         emotion_label = None
@@ -475,34 +661,43 @@ class InterviewAgent:
             elif isinstance(first_elem, dict) and 'label' in first_elem:
                 emotion_label = first_elem['label']
 
-        # Feedback adaptativo según emoción
-        # Si detecta tristeza, frustración, miedo, etc., usar frases más empáticas y de apoyo
-        # Si detecta alegría/confianza, usar frases más retadoras o de celebración
+        # --- MEMORIA DE CONTEXTO: analizar historial para feedback y sesgos ---
+        context_memory = self._get_context_memory(session)
+        emociones_hist = context_memory['emociones']
+        emociones_neg = [e for e in emociones_hist if e in ["sadness", "fear", "disgust", "anger"]]
+        emociones_pos = [e for e in emociones_hist if e in ["joy", "surprise"]]
+        # Detectar posible sesgo: si hay 3+ emociones negativas seguidas, sugerir pregunta objetiva
+        sesgo_detectado = len(emociones_neg) >= 3 and emociones_neg[-3:] == emociones_neg[-3:]
+        # Feedback adaptativo según emoción y memoria
         if is_correct:
-            session["hint_count"] = 0  # Reiniciar para la siguiente pregunta
-            # Aprendizaje automático: generar nueva frase motivacional y emoji si es posible
-            base_feedback = random.choice([
-                "¡Respuesta correcta!",
-                "¡Muy bien!",
-                "¡Excelente!",
-                "¡Perfecto!",
-                "¡Eso es!"
-            ])
-            # Feedback adaptativo por emoción
-            if emotion_label in ["sadness", "fear", "disgust", "anger"]:
-                motivacion = "¡Ánimo! Cada paso cuenta, y lo estás haciendo muy bien. Aquí tienes un reto más para seguir creciendo. 💪"
-            elif emotion_label in ["joy", "surprise"]:
-                motivacion = "¡Excelente energía! ¿Listo para un reto aún mayor? 🚀"
-            elif random.random() < 0.5 and len(self.motivational_phrases) > 0:
-                motivacion = random.choice(self.motivational_phrases)
-            else:
-                # Generar nueva frase motivacional con LLM
-                prompt = (
-                    "Genera una frase motivacional breve y positiva para un candidato que acaba de responder correctamente en una entrevista técnica. Incluye un emoji nuevo y diferente a los ya usados: "
-                    f"{','.join(self.positive_emojis)}. Devuelve solo la frase y emoji."
-                )
-                try:
-                    nueva = self.llm(prompt).strip()
+                session["hint_count"] = 0  # Reiniciar para la siguiente pregunta
+                # Aprendizaje automático: generar nueva frase motivacional y emoji si es posible
+                base_feedback = random.choice([
+                    "¡Respuesta correcta!",
+                    "¡Muy bien!",
+                    "¡Excelente!",
+                    "¡Perfecto!",
+                    "¡Eso es!"
+                ])
+                # Feedback adaptativo por emoción
+                if sesgo_detectado:
+                    motivacion = "Detectamos que has tenido varias respuestas con emociones negativas. Recuerda que el objetivo es aprender y mejorar. ¿Te gustaría una pregunta más objetiva para equilibrar el proceso?"
+                elif emotion_label in ["sadness", "fear", "disgust", "anger"]:
+                    motivacion = "¡Ánimo! Cada paso cuenta, y lo estás haciendo muy bien. Aquí tienes un reto más para seguir creciendo. 💪"
+                elif emotion_label in ["joy", "surprise"]:
+                    motivacion = "¡Excelente energía! ¿Listo para un reto aún mayor? 🚀"
+                elif random.random() < 0.5 and len(self.motivational_phrases) > 0:
+                    motivacion = random.choice(self.motivational_phrases)
+                else:
+                    # Generar nueva frase motivacional con LLM
+                    prompt = (
+                        "Genera una frase motivacional breve y positiva para un candidato que acaba de responder correctamente en una entrevista técnica. Incluye un emoji nuevo y diferente a los ya usados: "
+                        f"{','.join(self.positive_emojis)}. Devuelve solo la frase y emoji."
+                    )
+                    nueva = self.safe_llm_call(
+                        prompt,
+                        fallback=random.choice(self.motivational_phrases)
+                    )
                     if nueva and nueva not in self.motivational_phrases:
                         self.motivational_phrases.append(nueva)
                         for char in nueva:
@@ -511,35 +706,37 @@ class InterviewAgent:
                         motivacion = nueva
                     else:
                         motivacion = random.choice(self.motivational_phrases)
-                except Exception:
-                    motivacion = random.choice(self.motivational_phrases)
-            # Añadir emoji aleatorio aprendido
-            if self.positive_emojis:
-                base_feedback += " " + random.choice(self.positive_emojis)
+                # Añadir emoji aleatorio aprendido
+                if self.positive_emojis:
+                    base_feedback += " " + random.choice(self.positive_emojis)
         else:
-            # Siempre definir base_feedback y motivacion ANTES de usarlas
-            base_feedback = random.choice([
-                "La respuesta no es del todo correcta.",
-                "Casi, pero falta un poco más.",
-                "No te preocupes, ¡a todos nos pasa!",
-                "Respuesta incompleta, pero vas bien."
-            ])
-            if 'emotion_label' not in locals():
-                emotion_label = None
-            if emotion_label in ["sadness", "fear", "disgust", "anger"]:
-                motivacion = "No te preocupes, todos aprendemos de los errores. ¡Sigue adelante, lo lograrás! 💡"
-            elif emotion_label in ["joy", "surprise"]:
-                motivacion = "¡Buen ánimo! Repasa el concepto y verás que la próxima será tuya. 📚"
-            elif hasattr(self, 'negative_phrases') and random.random() < 0.5 and len(self.negative_phrases) > 0:
-                motivacion = random.choice(self.negative_phrases)
-            else:
-                # Generar nueva frase de ánimo con LLM
-                prompt = (
-                    "Genera una frase breve de ánimo y refuerzo para un candidato que acaba de fallar una pregunta en una entrevista técnica. Incluye un emoji nuevo y diferente a los ya usados: "
-                    f"{','.join(getattr(self, 'negative_emojis', []))}. Devuelve solo la frase y emoji."
-                )
-                try:
-                    nueva = self.llm(prompt).strip()
+                # Siempre definir base_feedback y motivacion ANTES de usarlas
+                base_feedback = random.choice([
+                    "La respuesta no es del todo correcta.",
+                    "Casi, pero falta un poco más.",
+                    "No te preocupes, ¡a todos nos pasa!",
+                    "Respuesta incompleta, pero vas bien."
+                ])
+                if 'emotion_label' not in locals():
+                    emotion_label = None
+                if sesgo_detectado:
+                    motivacion = "Detectamos varias respuestas con emociones negativas. Para evitar sesgos, aquí tienes una pregunta objetiva y neutral. ¡Tú puedes!"
+                elif emotion_label in ["sadness", "fear", "disgust", "anger"]:
+                    motivacion = "No te preocupes, todos aprendemos de los errores. ¡Sigue adelante, lo lograrás! 💡"
+                elif emotion_label in ["joy", "surprise"]:
+                    motivacion = "¡Buen ánimo! Repasa el concepto y verás que la próxima será tuya. 📚"
+                elif hasattr(self, 'negative_phrases') and random.random() < 0.5 and len(self.negative_phrases) > 0:
+                    motivacion = random.choice(self.negative_phrases)
+                else:
+                    # Generar nueva frase de ánimo con LLM
+                    prompt = (
+                        "Genera una frase breve de ánimo y refuerzo para un candidato que acaba de fallar una pregunta en una entrevista técnica. Incluye un emoji nuevo y diferente a los ya usados: "
+                        f"{','.join(getattr(self, 'negative_emojis', []))}. Devuelve solo la frase y emoji."
+                    )
+                    nueva = self.safe_llm_call(
+                        prompt,
+                        fallback=(random.choice(self.negative_phrases) if hasattr(self, 'negative_phrases') and self.negative_phrases else "¡Ánimo!")
+                    )
                     if hasattr(self, 'negative_phrases') and nueva and nueva not in self.negative_phrases:
                         self.negative_phrases.append(nueva)
                         for char in nueva:
@@ -548,30 +745,36 @@ class InterviewAgent:
                         motivacion = nueva
                     else:
                         motivacion = random.choice(self.negative_phrases) if hasattr(self, 'negative_phrases') and self.negative_phrases else "¡Ánimo!"
-                except Exception:
-                    motivacion = random.choice(self.negative_phrases) if hasattr(self, 'negative_phrases') and self.negative_phrases else "¡Ánimo!"
-            # Si no ha agotado el máximo de pistas, generar pista y no avanzar
-            if session["hint_count"] < self.MAX_HINTS:
+                # Si no ha agotado el máximo de pistas, generar pista y no avanzar
                 session["hint_count"] += 1
                 hint_prompt = (
                     f"Eres un entrevistador experto en {session['role']}. "
                     f"Pregunta: {last_agent}\nRespuesta del candidato: {answer}\n"
                     f"Respuesta esperada: {expected if expected else 'N/A'}\n"
-                    f"Genera una pista breve, útil y concreta para ayudar al candidato a acercarse a la respuesta correcta. "
-                    f"No des la respuesta, pero orienta con un concepto, ejemplo, analogía o palabra clave relevante. "
-                    f"Esta es la pista número {session['hint_count']} de {self.MAX_HINTS}."
+                    f"Genera una pista interactiva y didáctica para ayudar al candidato a acercarse a la respuesta correcta. "
+                    f"No des la respuesta directa, pero explica el concepto clave de la pregunta, proporciona una analogía sencilla, un caso de uso real en la industria y un ejemplo práctico. "
+                    f"Hazlo en tono motivador y dinámico. Si puedes, invita al candidato a reflexionar o a imaginar una situación real. "
+                    f"Esta es la pista número {min(session['hint_count'], self.MAX_HINTS)}/{self.MAX_HINTS}."
                 )
-                pista = self.llm(hint_prompt).strip()
-                feedback = f"{base_feedback}\n{motivacion}\nPista {session['hint_count']}/{self.MAX_HINTS}: {pista}"
-                session["history"].append({"agent": feedback})
+                pista = self.safe_llm_call(
+                    hint_prompt,
+                    fallback=(
+                        f"Concepto clave: {expected if expected else 'Revisa la definición principal del tema.'}\n"
+                        f"Ejemplo práctico: Imagina que aplicas este concepto en un proyecto real, ¿cómo lo usarías?\n"
+                        f"Caso de uso en la industria: Este conocimiento es fundamental en roles como {session.get('role','el área correspondiente')}."
+                    )
+                )
+                if session["hint_count"] <= self.MAX_HINTS:
+                    feedback = f"{base_feedback}\n{motivacion}\nPista {session['hint_count']}/{self.MAX_HINTS}: {pista}"
+                    retry = True
+                else:
+                    feedback = f"{base_feedback}\n{motivacion}\nHas alcanzado el máximo de {self.MAX_HINTS} pistas. La respuesta esperada era: {expected}.\nÚltima pista extra: {pista}"
+                    session["hint_count"] = 0
+                    retry = False
+                # Guardar emoción en el historial para memoria de contexto
+                session["history"].append({"agent": feedback, "emotion": emotion_label})
                 self._save_interaction_for_finetune(user_id, last_agent, answer, base_feedback + "\n" + motivacion, hint=pista, correct=False)
-                return {"feedback": feedback, "retry": True}
-            else:
-                feedback = f"{base_feedback}\n{motivacion}\nHas alcanzado el máximo de {self.MAX_HINTS} pistas. La respuesta esperada era: {expected}."
-                session["history"].append({"agent": feedback})
-                self._save_interaction_for_finetune(user_id, last_agent, answer, base_feedback + "\n" + motivacion, hint=None, correct=False)
-                session["hint_count"] = 0
-                return {"feedback": feedback, "retry": False}
+                return {"feedback": feedback, "retry": retry}
 
     def _save_interaction_for_finetune(self, user_id: str, question: str, answer: str, feedback: str, hint: Optional[str] = None, correct: bool = False):
         """
@@ -618,6 +821,16 @@ class InterviewAgent:
         session = self.sessions.get(user_id)
         if not session:
             return {"error": "Entrevista no iniciada"}
+        # Si la entrevista está cerrada por inactividad, no permitir más preguntas
+        if session and session.get('closed'):
+            mensaje = (
+                "La entrevista ya fue cerrada por inactividad. "
+                "Recuerda que puedes volver a intentarlo cuando quieras. "
+                "Te recomendamos prepararte con calma, repasar los temas clave y regresar cuando estés listo/a. "
+                "¡Gracias por usar Ready4Hire!"
+            )
+            session['history'].append({"agent": mensaje})
+            return {"error": mensaje}
         # Si la encuesta no se ha completado, forzarla antes del feedback final
         if not session.get("satisfaction_done"):
             if not session.get("satisfaction_pending"):
@@ -710,6 +923,9 @@ class InterviewAgent:
             + f"Encuesta de satisfacción (1-5): {session.get('satisfaction_answers',[])}"
             + gamification_text
         )
-        summary = self.llm(prompt)
+        summary = self.safe_llm_call(
+            prompt,
+            fallback="[Resumen generado automáticamente: LLM no disponible]"
+        )
         self.sessions.pop(user_id, None)
         return {"summary": summary}

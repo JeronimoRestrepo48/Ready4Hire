@@ -1,53 +1,55 @@
-# Documentación Técnica: Motor NLP, Embeddings, Clustering, Feedback Emocional y Aprendizaje Automático
 
-## 1. Arquitectura General y Fundamentos Matemáticos
+# Documentación Técnica: Arquitectura NLP, Embeddings, Clustering, Feedback Adaptativo y Aprendizaje Activo
 
-El sistema Ready4Hire utiliza una arquitectura híbrida de NLP y ML para personalizar, evaluar y mejorar la experiencia de entrevistas. Los componentes principales son:
-- **Embeddings semánticos** (SentenceTransformers, modelo `all-MiniLM-L6-v2`)
-- **Clustering y selección de preguntas** (por similitud y temas)
-- **Feedback emocional y adaptativo** (análisis de emociones, motivación personalizada)
-- **Ajuste dinámico de dificultad** (ML y reglas adaptativas)
-- **Aprendizaje activo y generación automática de preguntas** (LLM, feedback loop)
-- **Analítica avanzada y métricas** (desempeño, tiempo, errores, progreso)
 
-### 1.1 Embeddings de Texto
-Cada texto (pregunta, respuesta, contexto) se convierte en un vector $\vec{x} \in \mathbb{R}^d$:
+## 1. Arquitectura General y Mejoras Recientes
 
-- $\text{embedding}(\text{texto}) = \vec{x}$
-- Se utiliza SentenceTransformers para obtener estos vectores.
+Ready4Hire implementa una arquitectura modular y eficiente para simulación de entrevistas IA, integrando:
+- **Embeddings semánticos** (SentenceTransformers, modelo `all-MiniLM-L6-v2` optimizado para CPU)
+- **Selección estricta por rol/contexto**: solo se presentan preguntas relevantes al perfil usando embeddings y clustering, evitando preguntas fuera de dominio.
+- **Clustering de desempeño**: las respuestas se agrupan por similitud para personalizar consejos, feedback y recursos.
+- **Prompts adaptativos**: el LLM recibe contexto, historial y desempeño para generar feedback y pistas personalizadas.
+- **Scoring robusto**: pondera similitud semántica, completitud, precisión y soft skills clave.
+- **Feedback emocional y adaptativo**: análisis de emociones, motivación personalizada, aprendizaje de nuevas frases y emojis.
+- **Memoria conversacional**: todo el historial de la sesión se usa para adaptar el flujo y el feedback.
+- **Temporizador y control de inactividad**: engagement y cierre automático si el usuario no responde.
+- **Aprendizaje activo y generación automática de preguntas**: el sistema aprende de cada sesión y expande el banco de preguntas y recursos.
 
-**Similitud semántica:**
-$$
-\text{sim}(\vec{a}, \vec{b}) = \frac{\vec{a} \cdot \vec{b}}{\|\vec{a}\| \|\vec{b}\|}
-$$
-Un valor cercano a 1 indica alta similitud semántica.
+
+### 1.1 Embeddings y Selección Semántica
+Cada texto (pregunta, respuesta, contexto, rol) se convierte en un vector $\vec{x} \in \mathbb{R}^d$ usando SentenceTransformers. La similitud de coseno se usa para:
+- Seleccionar solo preguntas relevantes al rol/contexto del usuario.
+- Validar respuestas comparando con los campos `answer`/`expected` y buenas respuestas previas.
+- Agrupar respuestas y preguntas por temas y desempeño (clustering).
 
 ---
 
 ## 2. Selección y Clustering de Preguntas
 
-### 2.1 Perfilado del Usuario
-- Tras el contexto inicial (rol, nivel, años, conocimientos, herramientas), se genera un embedding de perfil.
-- Se calcula la similitud de coseno entre el embedding del perfil y todos los embeddings de preguntas técnicas y blandas.
 
-### 2.2 Clustering Temático
-- Las preguntas están etiquetadas por tema (`topic`).
-- Se agrupan por similitud y temas dominados/débiles usando conteo de aciertos/errores y clustering simple.
-- Se seleccionan las 10 preguntas más relevantes y balanceadas (técnicas y blandas) para cada usuario.
-- El sistema alterna preguntas técnicas y blandas según preferencia y contexto.
+### 2.1 Perfilado y Filtrado Estricto
+- Tras el contexto inicial, se genera un embedding de perfil.
+- Solo se seleccionan preguntas con alta similitud al perfil (umbral configurable), evitando preguntas fuera de dominio.
+
+
+### 2.2 Clustering de Desempeño y Consejos Personalizados
+- Las respuestas del usuario se agrupan por similitud (KMeans u otro clustering eficiente).
+- Cada cluster tiene plantillas de consejos y recursos personalizados.
+- El feedback y los recursos se adaptan dinámicamente al grupo de desempeño del usuario.
 
 ---
 
 ## 3. Evaluación de Respuestas y Feedback Adaptativo
 
-### 3.1 Proceso de Evaluación
-1. **Embeddings:** Cada respuesta del usuario se embebe y se compara con la respuesta esperada (y con buenas respuestas previas).
-2. **Similitud semántica:** Si la similitud de coseno es > 0.75 (técnico) o > 0.65 (soft), se considera correcta.
-3. **Cobertura de conceptos:** Se extraen palabras clave de la respuesta esperada y se mide la cobertura en la respuesta del usuario (>60% = correcta).
-4. **Intentos y pistas:** Cada intento adicional y uso de pista resta puntos.
-5. **Feedback emocional:** Se analiza la emoción predominante en la respuesta (alegría, tristeza, frustración, etc.) usando un modelo transformers (`j-hartmann/emotion-english-distilroberta-base`).
-6. **Feedback adaptativo:** El feedback y la motivación se ajustan dinámicamente según la emoción detectada, patrones de error y progreso.
-7. **Sugerencias de recursos:** Si el usuario falla varias veces en un tema, se recomiendan recursos externos personalizados.
+
+### 3.1 Proceso de Evaluación y Scoring
+1. **Embeddings:** Cada respuesta se embebe y se compara con la esperada y buenas respuestas previas.
+2. **Scoring robusto:** Se pondera similitud, completitud, precisión y soft skills clave.
+3. **Clustering:** El usuario recibe consejos y recursos personalizados según su grupo de desempeño.
+4. **Intentos y pistas:** Cada intento y uso de pista ajusta el puntaje y el feedback.
+5. **Feedback emocional:** Se analiza la emoción predominante y se adapta el feedback y la motivación.
+6. **Prompts adaptativos:** El LLM recibe contexto, historial y desempeño para generar feedback y pistas personalizadas.
+7. **Sugerencias de recursos:** Si el usuario falla varias veces en un tema, se recomiendan recursos y explicaciones chain-of-thought.
 
 ### 3.2 Ejemplo de Evaluación
 - Respuesta: "Es para crear contenedores."
@@ -58,28 +60,31 @@ Un valor cercano a 1 indica alta similitud semántica.
 
 ---
 
-## 4. Ajuste Dinámico de Dificultad
 
-- El sistema ajusta la dificultad de las preguntas según la racha de aciertos/errores del usuario.
-- Si responde varias preguntas seguidas correctamente, sube la dificultad (más avanzadas, menos pistas).
-- Si falla repetidamente, baja la dificultad y ofrece más ayuda.
-- El ajuste se realiza tanto por reglas como por ML (modulo `ml_dynamic_difficulty.py`).
+## 4. Ajuste Dinámico de Dificultad y Eficiencia
+
+- El sistema ajusta la dificultad y el tipo de feedback según la racha de aciertos/errores y el cluster de desempeño.
+- Se optimiza el uso de recursos (CPU, memoria) limitando hilos y usando modelos ligeros.
+- El ajuste se realiza por reglas y ML, y se adapta a la infraestructura disponible.
 
 ---
 
-## 5. Feedback Emocional y Motivacional
 
-- Se detectan emociones negativas repetidas y se sugiere pausa o mensajes motivacionales.
-- El feedback se adapta a la emoción detectada: si hay frustración, se motiva; si hay alegría, se refuerza el logro.
+## 5. Feedback Emocional, Motivacional y Adaptativo
+
+- El feedback se adapta a la emoción detectada y al historial del usuario.
 - El sistema aprende nuevas frases motivacionales y emojis usando LLMs y feedback de usuarios.
+- El feedback y las pistas se generan con prompts adaptativos y explicaciones chain-of-thought.
 
 ---
 
-## 6. Aprendizaje Activo y Generación Automática de Preguntas
 
-- Las buenas respuestas del usuario se almacenan y refrescan los embeddings para mejorar la selección y feedback futuro.
-- El sistema utiliza LLMs para crear nuevas preguntas técnicas relevantes tras cada buena respuesta.
-- Las nuevas preguntas se integran automáticamente al dataset y a los embeddings, permitiendo que el banco de preguntas crezca y se adapte.
+## 6. Aprendizaje Activo, Memoria Conversacional y Generación Automática
+
+- Todo el historial de la sesión se almacena y se usa para adaptar el flujo y el feedback.
+- Las buenas respuestas y errores frecuentes se almacenan y refrescan los embeddings.
+- El sistema utiliza LLMs para crear nuevas preguntas y recursos tras cada buena respuesta.
+- Las nuevas preguntas se integran automáticamente al dataset y a los embeddings.
 
 ---
 
@@ -93,11 +98,12 @@ Un valor cercano a 1 indica alta similitud semántica.
 
 ---
 
-## 8. Integración de Audio: STT y TTS
+
+## 8. Integración de Audio, Temporizador y Webchat
 
 - El frontend permite responder por texto o voz (STT) y escuchar las respuestas del agente (TTS).
 - El backend expone endpoints `/stt` y `/tts` para integración de audio.
-- El temporizador se gestiona en frontend y backend para medir el tiempo total en modo examen.
+- El temporizador y la gestión de inactividad se implementan en frontend y backend para medir el tiempo y mantener el engagement.
 
 ---
 
@@ -108,10 +114,11 @@ Un valor cercano a 1 indica alta similitud semántica.
 
 ---
 
+
 ## 10. Extensibilidad y Futuro
 
-- El sistema es modular y permite agregar nuevos modelos, algoritmos ML, visualizaciones y recursos fácilmente.
-- El feedback y la selección de preguntas se pueden mejorar con modelos más avanzados o datos adicionales.
+- Arquitectura modular: permite agregar nuevos modelos, algoritmos ML, recursos y visualizaciones fácilmente.
+- El feedback, la selección de preguntas y los recursos se pueden mejorar con modelos más avanzados, datos adicionales y nuevas estrategias de clustering y personalización.
 
 ---
 
