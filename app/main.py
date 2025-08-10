@@ -1,3 +1,4 @@
+
 from fastapi import UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,23 +10,8 @@ from app.services.audio_utils import transcribe_audio, synthesize_text
 from app.utils import clean_text, normalize_unicode
 import re
 
-from fastapi import Body
-
-
 app = FastAPI()
 agent = InterviewAgent()
-
-# Endpoint para polling de timeout/cierre automático
-@app.post("/check_timeout")
-async def check_timeout_endpoint(payload: dict = Body(...)):
-    user_id = payload.get("user_id")
-    user_id = str(user_id or "")
-    if not user_id:
-        return {"error": "user_id is required"}
-    result = agent.check_timeout(user_id)
-    if result is None:
-        return {}
-    return result
 
 # --- ENDPOINTS DE AUDIO (STT/TTS) ---
 @app.post("/stt")
@@ -195,14 +181,3 @@ def reset_interview(user_id: str):
     if user_id in agent.sessions:
         del agent.sessions[user_id]
     return {"message": "Entrevista reiniciada."}
-
-@app.post("/check_timeout")
-async def check_timeout(payload: dict = Body(...)):
-    user_id = payload.get("user_id")
-    user_id = str(user_id or "")
-    if not user_id:
-        return {"error": "user_id is required"}
-    result = agent.check_timeout(user_id)
-    if result is None:
-        return {}
-    return result
