@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Byte-compiled / optimized / DLL files
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+eggs/
+parts/
+bin/
+var/
+sdist/
+*.egg-info/
+.installed.cfg
+lib/
+lib64/
+__pypackages__/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+
+# Pytest
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Logs and local data
+logs/
+*.log
+*.jsonl
+
+# dotenv
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets
+secrets.json
+
+# Local sqlite db
+*.db
+
+# Requirements lockfiles
+poetry.lock
+Pipfile.lock
+
+# Misc
+*.bak
+*~
+
+# Specific
+audit_log.jsonl
