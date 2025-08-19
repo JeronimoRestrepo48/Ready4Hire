@@ -1,4 +1,3 @@
-
 """
 Ready4Hire - Agente de Entrevista IA
 ====================================
@@ -52,6 +51,7 @@ import time
 # Integración de embeddings
 from app.embeddings.embeddings_manager import EmbeddingsManager
 from app.services.emotion_analyzer import analyze_emotion
+from app import security
 
 
 class InterviewAgent:
@@ -225,9 +225,6 @@ class InterviewAgent:
 
     # (Removed duplicate __init__ and LLM attributes; see top of class for correct implementation)
     def safe_llm_call(self, prompt, fallback=None):
-        """
-        Call the LLM with global rate limiting and timeout. If busy or slow, return fallback.
-        """
         def handler(signum, frame):
             raise TimeoutError("LLM call timed out")
         with self._llm_lock:
@@ -242,6 +239,9 @@ class InterviewAgent:
         try:
             result = self.llm(prompt)
             signal.alarm(0)
+            # --- Seguridad: validar salida del LLM ---
+            if isinstance(result, str):
+                result = security.validate_llm_output(result)
             return result.strip() if isinstance(result, str) else result
         except Exception:
             signal.alarm(0)
@@ -488,10 +488,23 @@ class InterviewAgent:
             session["satisfaction_done"] = True
             return {"message": "Gracias por responder la encuesta. Ahora recibirás tu feedback final."}
 
+    # --- Seguridad LLM: Sanitización y detección de prompt injection ---
+    def _sanitize_and_check_input(self, user_input: str) -> str:
+        sanitized = security.sanitize_input(user_input)
+        if security.detect_prompt_injection(sanitized):
+            security.log_security_event("Prompt injection detectada", sanitized)
+            raise ValueError("Entrada bloqueada por seguridad: posible prompt injection.")
+        return sanitized
+
 
     def process_answer(self, user_id: str, answer: str):
         # Detener temporizador de respuesta al recibir input
         self._stop_response_timer(user_id)
+        # --- Seguridad: sanitizar y bloquear prompt injection ---
+        try:
+            answer = self._sanitize_and_check_input(answer)
+        except ValueError as e:
+            return {"feedback": str(e), "retry": False}
         session = self.sessions.get(user_id)
         # Si la entrevista fue cerrada por inactividad, no procesar más
         if session and session.get('closed'):
@@ -510,7 +523,6 @@ class InterviewAgent:
         Procesa la respuesta del usuario, da feedback humano, motivador y aprende de buenas respuestas.
         Compara embeddings de la respuesta del candidato con la esperada para determinar si es correcta.
         """
-    # ...existing code...
         # Analizar emoción del usuario
         session = self.sessions.get(user_id)
         if not session:

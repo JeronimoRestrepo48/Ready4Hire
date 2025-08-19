@@ -204,3 +204,41 @@ El frontend webchat (`/`) permite:
 ## Documentación Técnica: NLP, Embeddings y Emociones
 
 Ver `NLP_EMBEDDINGS_TECH.md` para detalles matemáticos, estadísticos, de arquitectura y de integración de análisis emocional y aprendizaje automático.
+
+## Seguridad LLM: Protección contra Prompt Injection y Jailbreaking
+
+Ready4Hire implementa un plan robusto para proteger el sistema y los usuarios frente a ataques de prompt injection y jailbreaking en modelos de lenguaje:
+
+- **Sanitización y filtrado de entradas**: Todas las respuestas del usuario se limpian y filtran antes de ser procesadas. Se eliminan o reemplazan patrones peligrosos (regex, listas negras).
+- **Detección automática de patrones maliciosos**: Se detectan frases y estructuras típicas de ataques. Si se detecta, se bloquea la interacción y se registra el intento.
+- **Validación de salidas del modelo**: Toda respuesta generada por el LLM se valida antes de ser mostrada. Si contiene instrucciones internas o frases peligrosas, se bloquea y se registra.
+- **Logging y monitoreo**: Todos los intentos sospechosos quedan registrados para análisis y mejora continua.
+- **Pruebas automáticas de robustez**: El archivo `app/test_security_llm.py` contiene tests unitarios que simulan intentos de prompt injection y validan la protección.
+
+### Ejemplo de integración
+
+```python
+from app import security
+
+# En el pipeline del agente:
+try:
+    entrada_segura = security.sanitize_input(entrada_usuario)
+    if security.detect_prompt_injection(entrada_segura):
+        security.log_security_event("Prompt injection detectada", entrada_segura)
+        raise ValueError("Entrada bloqueada por seguridad.")
+except ValueError as e:
+    print(str(e))
+
+# Validación de salida del LLM
+respuesta = modelo_llm(entrada_segura)
+respuesta_segura = security.validate_llm_output(respuesta)
+```
+
+### Pruebas automáticas
+
+Ejecuta:
+```bash
+python3 -m unittest app/test_security_llm.py
+```
+
+Para más detalles, consulta `SECURITY_LLM.md`.
