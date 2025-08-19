@@ -52,7 +52,6 @@ coverage.xml
 # Logs and local data
 logs/
 *.log
-*.jsonl
 
 # dotenv
 .env
@@ -81,3 +80,5 @@ Pipfile.lock
 
 # Specific
 audit_log.jsonl
+*.txt
+*.flake8
