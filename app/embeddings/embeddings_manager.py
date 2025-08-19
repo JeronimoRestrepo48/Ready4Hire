@@ -64,7 +64,7 @@ from pathlib import Path
 import json
 
 class EmbeddingsManager:
-    def advanced_question_selector(self, user_context, history=None, top_k=5, technical=True):
+    def advanced_question_selector(self, user_context, history=None, top_k=5, technical=True, custom_pool=None):
         """
         Selección avanzada de preguntas usando:
         - Embeddings (SentenceTransformer)
@@ -73,6 +73,7 @@ class EmbeddingsManager:
         - Penalización por repetición
         - Softmax para diversificación
         - Hook para modelo de ranking profundo (RankNet)
+        - custom_pool (optional): lista de preguntas (subset of data) para restringir la selección
         """
         data = self.tech_data if technical else self.soft_data
         embeddings = self.tech_embeddings if technical else self.soft_embeddings
@@ -108,9 +109,32 @@ class EmbeddingsManager:
         # 7. Score final y softmax
         scores = sim_scores + penal
         probs = np.exp(scores) / np.sum(np.exp(scores))
-        # 8. Top-k diversificado
-        top_idx = np.argsort(probs)[-top_k:][::-1]
-        selected = [data[i] for i in top_idx]
+        # 8. Top-k diversificado y maximización de cobertura temática
+        # Selecciona preguntas de clusters distintos primero. Si se proporciona custom_pool,
+        # restringir la selección únicamente a índices que pertenecen a custom_pool.
+        allowed_idxs = None
+        if custom_pool is not None:
+            try:
+                allowed_idxs = set(i for i, q in enumerate(data) if q in custom_pool)
+                if not allowed_idxs:
+                    allowed_idxs = None
+            except Exception:
+                allowed_idxs = None
+
+        cluster_to_idx = {}
+        for idx in np.argsort(probs)[::-1]:
+            if allowed_idxs is not None and idx not in allowed_idxs:
+                continue
+            cl = cluster_labels[idx]
+            if cl not in cluster_to_idx:
+                cluster_to_idx[cl] = idx
+            if len(cluster_to_idx) >= top_k:
+                break
+        # Si no hay suficientes clusters distintos, completa con los siguientes mejores dentro del allowed set
+        extra_needed = top_k - len(cluster_to_idx)
+        extra = [i for i in np.argsort(probs)[::-1] if i not in cluster_to_idx.values() and (allowed_idxs is None or i in allowed_idxs)][:extra_needed]
+        final_idx = list(cluster_to_idx.values()) + extra
+        selected = [data[i] for i in final_idx]
         # 9. (Opcional) Modelo de ranking profundo
         # Si tienes un modelo RankNet entrenado, puedes reordenar selected aquí
         # Ejemplo de hook:
@@ -256,3 +280,53 @@ class EmbeddingsManager:
         self.tech_data = self._load_jsonl(Path(__file__).parent / '../datasets/tech_questions.jsonl')
         self.soft_data = self._load_jsonl(Path(__file__).parent / '../datasets/soft_skills.jsonl')
         self._update_embeddings()
+
+    def explain_selection(self, user_context, history=None, top_k=5, technical=True):
+        """
+        Devuelve las preguntas seleccionadas junto con una explicación de por qué fueron elegidas:
+        - Similitud semántica
+        - Penalización por repetición
+        - Bonus por cluster
+        - Cluster asignado
+        """
+        data = self.tech_data if technical else self.soft_data
+        embeddings = self.tech_embeddings if technical else self.soft_embeddings
+        context_emb = self.model.encode([self._normalize(user_context)], convert_to_tensor=True)
+        reducer = umap.UMAP(n_neighbors=10, min_dist=0.1, n_components=10, random_state=42)
+        emb_np = embeddings.cpu().numpy() if hasattr(embeddings, 'cpu') else embeddings
+        emb_umap = reducer.fit_transform(emb_np)
+        if not isinstance(emb_umap, np.ndarray):
+            emb_umap = np.array(emb_umap)
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=5)
+        cluster_labels = clusterer.fit_predict(emb_umap)
+        sim_scores = util.pytorch_cos_sim(context_emb, embeddings)[0].cpu().numpy()
+        penal = np.zeros(len(data))
+        explanation = []
+        if history:
+            seen = set([h.get('question') or h.get('scenario') for h in history if 'question' in h or 'scenario' in h])
+            for i, q in enumerate(data):
+                qtxt = q.get('question') or q.get('scenario')
+                if qtxt in seen:
+                    penal[i] = -0.5
+        if history:
+            hist_clusters = [cluster_labels[i] for i, q in enumerate(data) if (q.get('question') or q.get('scenario')) in [h.get('question') or h.get('scenario') for h in history]]
+            rare_clusters = set(np.unique(cluster_labels)) - set(hist_clusters)
+            for i, cl in enumerate(cluster_labels):
+                if cl in rare_clusters:
+                    penal[i] += 0.2
+        scores = sim_scores + penal
+        probs = np.exp(scores) / np.sum(np.exp(scores))
+        top_idx = np.argsort(probs)[-top_k:][::-1]
+        for i in top_idx:
+            q = data[i]
+            qtxt = q.get('question') or q.get('scenario')
+            explanation.append({
+                'question': qtxt,
+                'sim_score': float(sim_scores[i]),
+                'penalty': float(penal[i]),
+                'cluster': int(cluster_labels[i]),
+                'final_score': float(scores[i]),
+                'probability': float(probs[i]),
+                'explanation': f"Similitud: {sim_scores[i]:.2f}, Penalización: {penal[i]:.2f}, Cluster: {cluster_labels[i]}, Score final: {scores[i]:.2f}, Probabilidad: {probs[i]:.2f}"
+            })
+        return explanation

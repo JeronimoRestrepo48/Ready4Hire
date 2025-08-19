@@ -1,8 +1,14 @@
-fastapi
-langchain
+langchain==0.0.257
+langchain-community==0.0.19
 ollama
-uvicorn
-python-dotenv
-# Opcional para embeddings y datasets
-sentence-transformers
-huggingface_hub
+fastapi==0.98.0
+uvicorn==0.22.0
+python-dotenv==1.0.0
+sentence-transformers==2.2.2
+huggingface-hub==0.18.0
+torch>=1.13.0
+umap-learn==0.5.3
+hdbscan==0.8.32
+scikit-learn==1.2.2
+numpy==1.26.0
+pytest==7.4.0
