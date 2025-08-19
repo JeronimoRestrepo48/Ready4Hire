@@ -56,7 +56,7 @@ Para asegurar variedad temática y evitar repeticiones, agrupamos preguntas simi
 
 **Ejemplo visual:**
 
-![Diagrama UMAP+HDBSCAN](https://raw.githubusercontent.com/scikit-learn-contrib/hdbscan/master/images/hdbscan_clusters.png)
+![Diagrama UMAP+HDBSCAN](https://www.dailydoseofds.com/content/images/2024/07/hdbscan_hdbscan.jpeg)
 
 **¿Cómo se usa?**
 1. Se calculan los embeddings de todas las preguntas.
@@ -191,7 +191,7 @@ El sistema usa un fallback neutral y sigue generando pistas.
 
 ## Flujo de Datos (Diagrama)
 
-```mermaid
+```python
 flowchart TD
   A[Pregunta del usuario] --> B[Embedding]
   B --> C[Clustering UMAP+HDBSCAN]
