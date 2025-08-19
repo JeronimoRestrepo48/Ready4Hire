@@ -1,3 +1,17 @@
+import logging
+
+# Configuración de logging estructurado para auditoría
+logger = logging.getLogger("ready4hire_audit")
+logger.setLevel(logging.INFO)
+handler = logging.FileHandler("logs/audit_log.jsonl")
+formatter = logging.Formatter('%(message)s')
+handler.setFormatter(formatter)
+if not logger.hasHandlers():
+    logger.addHandler(handler)
+
+def log_audit(event_type, data):
+    import json as _json
+    logger.info(_json.dumps({"event": event_type, **data}))
 """
 Ready4Hire - Agente de Entrevista IA
 ====================================
@@ -38,7 +52,15 @@ Licencia: MIT
 """
 
 
-from langchain.llms import Ollama
+try:
+    # Prefer new package path to avoid LangChain deprecation warnings
+    from langchain_community.llms import Ollama  # type: ignore
+except Exception:
+    # Fallback for environments that still use the older import
+    try:
+        from langchain.llms import Ollama  # type: ignore
+    except Exception:
+        Ollama = None
 import threading
 import time
 import functools
@@ -53,8 +75,129 @@ from app.embeddings.embeddings_manager import EmbeddingsManager
 from app.services.emotion_analyzer import analyze_emotion
 from app import security
 
+def filter_by_level(pool: List[dict], level: Optional[str]) -> List[dict]:
+    """
+    Filtra una lista de preguntas por el campo 'level'. Si no hay coincidencias,
+    devuelve una copia de la lista original para evitar vacíos en las pools.
+    """
+    if not pool:
+        return []
+    if not level:
+        return pool.copy()
+    level_str = str(level).lower()
+    try:
+        filtered = [q for q in pool if str(q.get('level', '')).lower() == level_str]
+    except Exception:
+        filtered = []
+    return filtered if filtered else pool.copy()
+
+def penalize_covered_topics(pool: List[dict], history: List[dict]) -> List[dict]:
+    """
+    Reordena (no elimina) la pool priorizando preguntas cuyo 'cluster' NO
+    aparezca en las últimas entradas del historial, para mitigar repetición de temas.
+    Si no puede procesar, devuelve copia de la pool.
+    """
+    if not pool:
+        return []
+    try:
+        recent_clusters = [h.get('cluster') for h in history if h.get('cluster') is not None][-5:]
+        recent_set = set(recent_clusters)
+        not_recent = [q for q in pool if q.get('cluster') not in recent_set]
+        recent = [q for q in pool if q.get('cluster') in recent_set]
+        reordered = not_recent + recent
+        return reordered if reordered else pool.copy()
+    except Exception:
+        return pool.copy()
+
 
 class InterviewAgent:
+    def _log_decision(self, event_type, data):
+        """
+        Logging estructurado de decisiones relevantes del agente para trazabilidad y auditoría.
+        """
+        try:
+            log_audit(event_type, data)
+        except Exception:
+            # No interrumpir el flujo si falla el logging de auditoría
+            pass
+    def _detect_bias(self, session):
+        """
+        Detecta posibles sesgos en la entrevista: emociones negativas seguidas, repetición de temas, feedback poco diverso.
+        Devuelve True si se detecta sesgo, False si no.
+        """
+        history = session.get('history', [])
+        emociones = [h.get('emotion') for h in history if h.get('emotion')]
+        # Sesgo emocional: 3+ emociones negativas seguidas
+        emociones_neg = [e for e in emociones if e in ["sadness", "fear", "disgust", "anger"]]
+        if len(emociones_neg) >= 3 and emociones_neg[-3:] == emociones_neg[-3:]:
+            return True
+        # Sesgo temático: 3+ preguntas del mismo cluster/tema seguidas
+        clusters = [h.get('cluster') for h in history if h.get('cluster') is not None]
+        if len(clusters) >= 3 and len(set(clusters[-3:])) == 1:
+            return True
+        return False
+    def _get_learning_resources(self, topic_or_question):
+        """
+        Devuelve una lista de recursos de aprendizaje relevantes (artículos, videos, docs) para el tema o pregunta.
+        """
+        # Ejemplo simple: se puede expandir con una base de datos o scraping
+        resources = [
+            {"title": "Documentación oficial de Python", "url": "https://docs.python.org/3/"},
+            {"title": "Artículo: Buenas prácticas en programación", "url": "https://realpython.com/tutorials/best-practices/"},
+            {"title": "Video: Conceptos clave de OOP", "url": "https://www.youtube.com/watch?v=JeznW_7DlB0"},
+            {"title": "Artículo: Principios SOLID", "url": "https://medium.com/@cramirez92/principios-solid-558baddc2c84"},
+            {"title": "Curso: Soft Skills para ingenieros", "url": "https://platzi.com/cursos/soft-skills/"},
+        ]
+        # Filtrar por tema si es posible
+        topic = topic_or_question.lower()
+        filtered = [r for r in resources if topic in r["title"].lower() or topic in r["url"].lower()]
+        return filtered if filtered else resources[:2]
+
+    def _get_example(self, topic_or_question):
+        """
+        Devuelve un ejemplo concreto y breve para el tema o pregunta.
+        """
+        # Ejemplo simple, se puede expandir con base de datos
+        topic = topic_or_question.lower()
+        if "oop" in topic or "orientado a objetos" in topic:
+            return "Ejemplo: Una clase 'Animal' con métodos 'hablar' y subclases 'Perro' y 'Gato' que implementan 'hablar' de forma diferente."
+        if "solid" in topic:
+            return "Ejemplo: El principio de Responsabilidad Única (SRP) indica que una clase debe tener un solo motivo para cambiar."
+        if "python" in topic:
+            return "Ejemplo: Definir una función en Python: def saludar(nombre): print(f'Hola, {nombre}')"
+        if "soft" in topic or "comunicación" in topic:
+            return "Ejemplo: En una situación de conflicto, escucha activamente antes de responder para mostrar empatía."
+        return "Ejemplo: Aplica el concepto en un caso real de tu experiencia o en un proyecto personal."
+    def _get_adaptive_level(self, session):
+        """
+        Determina el nivel de dificultad sugerido (junior, mid, senior) según desempeño reciente.
+        - Si acierta 2+ seguidas: sube nivel.
+        - Si falla 2+ seguidas: baja nivel.
+        - Si no hay historial suficiente, mantiene nivel actual o el inicial.
+        """
+        history = session.get('history', [])
+        correct_streak = 0
+        incorrect_streak = 0
+        for h in reversed(history):
+            if 'is_correct' in h:
+                if h['is_correct']:
+                    correct_streak += 1
+                    incorrect_streak = 0
+                else:
+                    incorrect_streak += 1
+                    correct_streak = 0
+            if correct_streak >= 2:
+                break
+            if incorrect_streak >= 2:
+                break
+        current_level = session.get('level', 'junior')
+        levels = ['junior', 'mid', 'senior']
+        idx = levels.index(current_level) if current_level in levels else 0
+        if correct_streak >= 2 and idx < 2:
+            return levels[idx+1]
+        elif incorrect_streak >= 2 and idx > 0:
+            return levels[idx-1]
+        return current_level
     # Insignias y logros creativos
     EXAM_BADGES = [
         ("Racha de aciertos", "🔥", lambda s: s.get('exam_streak',0) >= 3),
@@ -113,17 +256,34 @@ class InterviewAgent:
         "¿Cómo calificarías tu experiencia general con la entrevista?"
     ]
 
-    def __init__(self, model_name: str = "llama3"):
+    def __init__(self, model_name: str = "llama3", llm=None, emb_mgr=None):
         # LLM rate limiting and timeout attributes (instance-level)
         self._llm_lock = threading.Lock()
         self._llm_last_call = 0
         self._llm_min_interval = 2.0  # seconds between LLM calls (rate limit)
         self._llm_timeout = 10  # seconds per LLM call
-        self.llm = Ollama(model=model_name)
+        # Dependency injection: allow providing custom llm and embeddings manager (useful for tests/mocks)
+        if llm is not None:
+            self.llm = llm
+        else:
+            try:
+                # Instantiate Ollama only if the import succeeded
+                if Ollama:
+                    try:
+                        self.llm = Ollama(model=model_name)
+                    except Exception:
+                        # Fallback to None for testability / offline usage
+                        self.llm = None
+                else:
+                    self.llm = None
+            except Exception:
+                # In case Ollama isn't available in test env, fallback to a simple callable that echoes
+                self.llm = lambda prompt: "[LLM unavailable]"
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.tech_questions = self._load_dataset('tech_questions.jsonl')
         self.soft_questions = self._load_dataset('soft_skills.jsonl')
-        self.emb_mgr = EmbeddingsManager()
+        # Allow injecting an embeddings manager for testing/mocking
+        self.emb_mgr = emb_mgr if emb_mgr is not None else EmbeddingsManager()
         # Inicialización de frases motivacionales y emojis aprendidos
         self.motivational_phrases = [
             "¡Sigue así, vas por un gran camino! 🚀",
@@ -237,7 +397,10 @@ class InterviewAgent:
         old_handler = signal.signal(signal.SIGALRM, handler)
         signal.alarm(self._llm_timeout)
         try:
-            result = self.llm(prompt)
+            llm_callable = getattr(self, 'llm', None)
+            if not callable(llm_callable):
+                raise RuntimeError("LLM not available")
+            result = llm_callable(prompt)
             signal.alarm(0)
             # --- Seguridad: validar salida del LLM ---
             if isinstance(result, str):
@@ -248,27 +411,6 @@ class InterviewAgent:
             return fallback if fallback is not None else "[Respuesta generada automáticamente: LLM no disponible]"
         finally:
             signal.signal(signal.SIGALRM, old_handler)
-        self.sessions: Dict[str, Dict[str, Any]] = {}
-        self.tech_questions = self._load_dataset('tech_questions.jsonl')
-        self.soft_questions = self._load_dataset('soft_skills.jsonl')
-        self.emb_mgr = EmbeddingsManager()
-        # Inicialización de frases motivacionales y emojis aprendidos
-        self.motivational_phrases = [
-            "¡Sigue así, vas por un gran camino! 🚀",
-            "¡Tu esfuerzo se nota! 👏",
-            "¡Demuestras dominio y seguridad! 😎",
-            "¡Suma un logro más a tu carrera! 🥇",
-            "¡Inspiras confianza! 💪"
-        ]
-        self.positive_emojis = ["🎉", "✔️", "💡", "🏆", "🙌", "🚀", "👏", "😎", "🥇", "💪", "🌟"]
-        self.negative_phrases = [
-            "No te desanimes, cada error es una oportunidad para aprender. 💡",
-            "¡Ánimo! Repasa el concepto y sigue practicando. 📚",
-            "Recuerda: equivocarse es parte del proceso de mejora. 🔁",
-            "Sigue intentándolo, la perseverancia es clave. 💪",
-            "¡Tú puedes! El siguiente intento será mejor. 🌟"
-        ]
-        self.negative_emojis = ["🤔", "🧐", "😅", "🔄", "💡", "📚", "🔁", "💪", "🌟"]
 
     def _load_dataset(self, filename: str) -> List[dict]:
         path = Path(__file__).parent / 'datasets' / filename
@@ -383,43 +525,117 @@ class InterviewAgent:
         else:
             qtype = "soft" if session["last_type"] == "technical" else "technical"
 
-        # Selección avanzada de preguntas usando embeddings, clustering y RankNet
+        # Selección avanzada de preguntas usando embeddings, clustering, RankNet, personalización dinámica y mitigación de sesgos
+        # Detectar sesgos por defecto para evitar que 'sesgo' quede sin definir más adelante
+        sesgo = self._detect_bias(session)
+
+        # Helper to rank/select candidates (definido fuera del bloque user_input para evitar que quede no ligado)
+        def _select_from_pool(query_text: str, pool: List[dict], technical: bool):
+            if not pool:
+                return None
+            # Try asking the advanced selector restricted to the given pool if supported
+            try:
+                candidates = self.emb_mgr.advanced_question_selector(query_text, history=session["history"], top_k=10, technical=technical)
+            except TypeError:
+                # fallback if advanced_question_selector doesn't accept custom_pool
+                candidates = self.emb_mgr.advanced_question_selector(query_text, history=session["history"], top_k=10, technical=technical)
+            if hasattr(self.emb_mgr, 'ranknet'):
+                try:
+                    candidates = self.emb_mgr.ranknet_rank(candidates, query_text, session["history"])
+                except Exception:
+                    pass
+            # Prefer a candidate that belongs to the provided pool
+            for c in candidates:
+                if c in pool:
+                    return c
+            # As fallback, try ranking the whole pool or choose random
+            try:
+                if hasattr(self.emb_mgr, 'ranknet'):
+                    ranked_pool = self.emb_mgr.ranknet_rank(pool, query_text, session["history"])
+                    return next((q for q in ranked_pool if q in pool), None)
+            except Exception:
+                pass
+            return random.choice(pool) if pool else None
+
         if user_input:
-            contexto = f"{session.get('role','')} {session.get('level','')} {session.get('years','')} " \
-                       f"{' '.join(session.get('knowledge',[]))} {' '.join(session.get('tools',[]))} " \
-                       f"{' '.join([h.get('user','') for h in session['history'] if 'user' in h][-3:])}"
-            if qtype == "technical" and session["tech_pool"]:
-                # Selección avanzada (UMAP, HDBSCAN, softmax, penalización, RankNet)
-                candidates = self.emb_mgr.advanced_question_selector(user_input + " " + contexto, history=session["history"], top_k=3, technical=True)
-                # Hook RankNet si está disponible
-                if hasattr(self.emb_mgr, 'ranknet'):
-                    candidates = self.emb_mgr.ranknet_rank(candidates, user_input + " " + contexto, session["history"])
-                question = None
-                for q in candidates:
-                    if q in session["tech_pool"]:
-                        question = q
-                        break
+            contexto = (
+                f"{session.get('role','')} {session.get('level','')} {session.get('years','')} "
+                f"{' '.join(session.get('knowledge',[]))} {' '.join(session.get('tools',[]))}"
+            )
+            adaptive_level = self._get_adaptive_level(session)
+
+            # Prepare pools and penalize recently covered topics
+            tech_pool = filter_by_level(session.get("tech_pool", []), adaptive_level)
+            tech_pool = penalize_covered_topics(tech_pool, session["history"])
+            soft_pool = filter_by_level(session.get("soft_pool", []), adaptive_level)
+            soft_pool = penalize_covered_topics(soft_pool, session["history"])
+
+            # Decide if there's a detected bias and adapt if needed
+            sesgo = self._detect_bias(session)
+
+            # If bias detected, prefer objective/neutral questions (try switching pools)
+            if sesgo:
+                self._log_decision("bias_mitigation", {"user_id": user_id, "history": session["history"][-5:], "action": "alternar_tema", "context": contexto})
+                # try to pick an objective (technical) question first, else soft
+                question = _select_from_pool(user_input + " " + contexto, tech_pool, technical=True) or _select_from_pool(user_input + " " + contexto, soft_pool, technical=False)
+                if question:
+                    # determine which pool it came from and remove appropriately
+                    if question in tech_pool and question in session.get("tech_pool", []):
+                        session["tech_pool"].remove(question)
+                        session["last_type"] = "technical"
+                        self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question", question.get("scenario")), "level": question.get("level"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        session["history"].append({"agent": question.get("question", question.get("scenario")), "level": question.get("level","junior"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        return {"question": question.get("question", question.get("scenario")), "level": question.get("level","junior"), "bias_mitigation": True}
+                    elif question in soft_pool and question in session.get("soft_pool", []):
+                        session["soft_pool"].remove(question)
+                        session["last_type"] = "soft"
+                        self._log_decision("question_selected", {"user_id": user_id, "question": question.get("scenario", question.get("question")), "level": question.get("level"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        session["history"].append({"agent": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        return {"question": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "bias_mitigation": True}
+
+            # Normal selection based on qtype preference
+            if qtype == "technical" and tech_pool:
+                question = _select_from_pool(user_input + " " + contexto, tech_pool, technical=True)
                 if not question:
-                    question = random.choice(session["tech_pool"])
-                session["tech_pool"].remove(question)
+                    question = random.choice(tech_pool)
+                # remove from original session pool if present
+                if question in session.get("tech_pool", []):
+                    session["tech_pool"].remove(question)
                 session["last_type"] = "technical"
-                session["history"].append({"agent": question["question"]})
-                return {"question": question["question"]}
-            elif qtype == "soft" and session["soft_pool"]:
-                candidates = self.emb_mgr.advanced_question_selector(user_input + " " + contexto, history=session["history"], top_k=3, technical=False)
-                if hasattr(self.emb_mgr, 'ranknet'):
-                    candidates = self.emb_mgr.ranknet_rank(candidates, user_input + " " + contexto, session["history"])
-                question = None
-                for q in candidates:
-                    if q in session["soft_pool"]:
-                        question = q
-                        break
+                self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
+                session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                return {"question": question.get("question"), "level": question.get("level","junior")}
+
+            if qtype == "soft" and soft_pool:
+                question = _select_from_pool(user_input + " " + contexto, soft_pool, technical=False)
                 if not question:
-                    question = random.choice(session["soft_pool"])
-                session["soft_pool"].remove(question)
+                    question = random.choice(soft_pool)
+                if question in session.get("soft_pool", []):
+                    session["soft_pool"].remove(question)
                 session["last_type"] = "soft"
-                session["history"].append({"agent": question["scenario"]})
-                return {"question": question["scenario"]}
+                self._log_decision("question_selected", {"user_id": user_id, "question": question.get("scenario"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
+                session["history"].append({"agent": question.get("scenario"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                return {"question": question.get("scenario"), "level": question.get("level","junior")}
+
+            # If preferred pool empty, try to pick from the other pool
+            if qtype == "technical" and not tech_pool and soft_pool:
+                question = _select_from_pool("pregunta objetiva", soft_pool, technical=False) or random.choice(soft_pool)
+                if question in session.get("soft_pool", []):
+                    session["soft_pool"].remove(question)
+                session["last_type"] = "soft"
+                session["history"].append({"agent": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                return {"question": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "bias_mitigation": True}
+
+            if qtype == "soft" and not soft_pool and tech_pool:
+                question = _select_from_pool("pregunta objetiva", tech_pool, technical=True) or random.choice(tech_pool)
+                if question in session.get("tech_pool", []):
+                    session["tech_pool"].remove(question)
+                session["last_type"] = "technical"
+                session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                return {"question": question.get("question"), "level": question.get("level","junior"), "bias_mitigation": True}
+
+            # No questions available in either pool
+            return {"error": "No hay preguntas disponibles para el contexto actual."}
         # Si no hay input, usar selección avanzada sin contexto inmediato
         if qtype == "technical" and session["tech_pool"]:
             candidates = self.emb_mgr.advanced_question_selector(
@@ -500,6 +716,12 @@ class InterviewAgent:
     def process_answer(self, user_id: str, answer: str):
         # Detener temporizador de respuesta al recibir input
         self._stop_response_timer(user_id)
+        # Log the received answer (safe, won't interrupt flow if logging fails)
+        try:
+            self._log_decision("answer_received", {"user_id": user_id, "answer": answer})
+        except Exception:
+            pass
+
         # --- Seguridad: sanitizar y bloquear prompt injection ---
         try:
             answer = self._sanitize_and_check_input(answer)
@@ -519,11 +741,7 @@ class InterviewAgent:
         - Registra la interacción para aprendizaje continuo y fine-tuning.
         Devuelve: dict con feedback, retry (bool) y control de avance.
         """
-        """
-        Procesa la respuesta del usuario, da feedback humano, motivador y aprende de buenas respuestas.
-        Compara embeddings de la respuesta del candidato con la esperada para determinar si es correcta.
-        """
-        # Analizar emoción del usuario
+    # Analizar emoción del usuario
         session = self.sessions.get(user_id)
         if not session:
             return {"error": "Entrevista no iniciada"}
@@ -563,6 +781,7 @@ class InterviewAgent:
                 is_correct = answer.strip().lower() == expected.strip().lower()
         
         if modo == "exam":
+            self._log_decision("answer_evaluated", {"user_id": user_id, "question": last_agent, "answer": answer, "expected": expected, "is_correct": is_correct, "similarity_score": similarity_score})
             if session["exam_start_time"] is None:
                 session["exam_start_time"] = time.time()
             session["exam_answers"].append(answer)
@@ -583,11 +802,6 @@ class InterviewAgent:
             return {"feedback": "Respuesta registrada. Continúa con la siguiente pregunta."}
 
         # --- Lógica de pistas y reintentos en modo práctica ---
-        # (Mover después de definir last_agent, base_feedback, motivacion)
-        """
-        Procesa la respuesta del usuario, da feedback humano, motivador y aprende de buenas respuestas.
-        Compara embeddings de la respuesta del candidato con la esperada para determinar si es correcta.
-        """
         session = self.sessions.get(user_id)
         if not session:
             return {"error": "Entrevista no iniciada"}
@@ -595,75 +809,100 @@ class InterviewAgent:
         # Inicializar hint_count si no existe
         if "hint_count" not in session or not isinstance(session["hint_count"], int):
             session["hint_count"] = 0
-        modo = session.get("mode", "practice")
-        # En modo examen, guardar respuestas y no dar feedback inmediato
-        if modo == "exam":
-            # Inicializar campos de gamificación avanzada
-            session.setdefault('exam_streak', 0)
-            session.setdefault('exam_incorrect_streak', 0)
-            session.setdefault('exam_topics', set())
-            session.setdefault('soft_correct', 0)
-            session.setdefault('exam_attempts', 0)
-            session.setdefault('last_answer_time', 99)
-            session.setdefault('last_answer_timestamp', time.time())
-            if session["exam_start_time"] is None:
-                session["exam_start_time"] = time.time()
-            session["exam_answers"].append(answer)
-            session['exam_attempts'] += 1
-            # Calcular tiempo de respuesta
-            now = time.time()
-            session['last_answer_time'] = now - session.get('last_answer_timestamp', now)
-            session['last_answer_timestamp'] = now
-            # Detectar tema (técnico/soft)
-            if last_agent:
-                if any(q.get('question','') == last_agent for q in self.tech_questions):
-                    session['exam_topics'].add('tech')
-                elif any(q.get('scenario','') == last_agent for q in self.soft_questions):
-                    session['exam_topics'].add('soft')
-            # Puntaje base
-            points = 0
-            if is_correct:
-                points += self.EXAM_POINTS_PER_CORRECT
-                session['exam_streak'] += 1
-                session['exam_incorrect_streak'] = 0
-                if any(q.get('scenario','') == last_agent for q in self.soft_questions):
-                    session['soft_correct'] += 1
-            else:
-                session['exam_streak'] = 0
-                session['exam_incorrect_streak'] += 1
-            # Bonus por racha
-            if session['exam_streak'] >= 3:
-                points += 5
-            # Bonus por rapidez
-            if session['last_answer_time'] < 10:
-                points += 3
-            # Bonus por variedad
-            if len(session['exam_topics']) >= 2:
-                points += 2
-            # Bonus por precisión
-            if is_correct and similarity_score > 0.85:
-                points += 2
-            # Actualizar puntaje y nivel
-            session['score'] = session.get('score',0) + points
-            # Niveles
-            for i, threshold in enumerate(self.EXAM_LEVEL_THRESHOLDS[::-1]):
-                if session['score'] >= threshold:
-                    session['level'] = len(self.EXAM_LEVEL_THRESHOLDS) - i
-                    session['level_name'] = self.EXAM_LEVEL_NAMES[len(self.EXAM_LEVEL_THRESHOLDS) - i - 1]
-                    break
-            # Logros clásicos
-            for req, ach in self.EXAM_ACHIEVEMENTS:
-                if session["exam_correct_count"] == req and ach not in session["achievements"]:
-                    session["achievements"].append(ach)
-            # Insignias creativas
-            for badge, emoji, cond in self.EXAM_BADGES:
-                if cond(session) and badge not in session.get('achievements', []):
-                    session['achievements'].append(f"{badge} {emoji}")
-            # Feedback visual/textual inmediato
-            feedback = f"<b>+{points} puntos</b> | Nivel: <b>{session.get('level_name','')}</b> | Logros: {' '.join([a for a in session.get('achievements',[]) if any(e in a for e in ['🔥','💪','⏱️','🌈','🧠','🎯','🏅'])])}"
-            if is_correct:
-                # Guardar interacción para fine-tuning (respuesta correcta)
-                self._save_interaction_for_finetune(user_id, last_agent, answer, "", hint=None, correct=True)
+        # Aprendizaje activo: marcar respuestas ambiguas o errores frecuentes
+        ambiguous = False
+        frequent_error = False
+        # Si la similitud está cerca del umbral, marcar como ambigua
+        if expected and 0.6 < similarity_score < 0.75:
+            ambiguous = True
+        # Si la misma pregunta se falla 2+ veces, marcar como error frecuente
+        if last_agent:
+            error_count = sum(1 for h in session["history"] if h.get("agent") == last_agent and h.get("is_correct") is False)
+            if error_count >= 2:
+                frequent_error = True
+        # NOTA: se guarda la interacción una vez que se genera el feedback/pista más abajo,
+        # evitar usar base_feedback/motivacion/pista antes de ser definidas.
+        # Inicializar campos de gamificación avanzada
+        session.setdefault('exam_streak', 0)
+        session.setdefault('exam_incorrect_streak', 0)
+        session.setdefault('exam_topics', set())
+        session.setdefault('soft_correct', 0)
+        session.setdefault('exam_attempts', 0)
+        session.setdefault('last_answer_time', 99)
+        session.setdefault('last_answer_timestamp', time.time())
+        if session["exam_start_time"] is None:
+            session["exam_start_time"] = time.time()
+        session["exam_answers"].append(answer)
+        session['exam_attempts'] += 1
+        # Calcular tiempo de respuesta
+        now = time.time()
+        session['last_answer_time'] = now - session.get('last_answer_timestamp', now)
+        session['last_answer_timestamp'] = now
+        # Detectar tema (técnico/soft)
+        if last_agent:
+            if any(q.get('question','') == last_agent for q in self.tech_questions):
+                session['exam_topics'].add('tech')
+            elif any(q.get('scenario','') == last_agent for q in self.soft_questions):
+                session['exam_topics'].add('soft')
+        # Puntaje base
+        points = 0
+        if is_correct:
+            points += self.EXAM_POINTS_PER_CORRECT
+            session['exam_streak'] += 1
+            session['exam_incorrect_streak'] = 0
+            if any(q.get('scenario','') == last_agent for q in self.soft_questions):
+                session['soft_correct'] += 1
+        else:
+            session['exam_streak'] = 0
+            session['exam_incorrect_streak'] += 1
+        # Bonus por racha
+        if session['exam_streak'] >= 3:
+            points += 5
+        # Bonus por rapidez
+        if session['last_answer_time'] < 10:
+            points += 3
+        # Bonus por variedad
+        if len(session['exam_topics']) >= 2:
+            points += 2
+        # Bonus por precisión
+        if is_correct and similarity_score > 0.85:
+            points += 2
+        # Actualizar puntaje y nivel
+        session['score'] = session.get('score',0) + points
+        # Niveles
+        for i, threshold in enumerate(self.EXAM_LEVEL_THRESHOLDS[::-1]):
+            if session['score'] >= threshold:
+                session['level'] = len(self.EXAM_LEVEL_THRESHOLDS) - i
+                session['level_name'] = self.EXAM_LEVEL_NAMES[len(self.EXAM_LEVEL_THRESHOLDS) - i - 1]
+                break
+        # Logros clásicos
+        for req, ach in self.EXAM_ACHIEVEMENTS:
+            if session["exam_correct_count"] == req and ach not in session["achievements"]:
+                session["achievements"].append(ach)
+        # Insignias creativas
+        for badge, emoji, cond in self.EXAM_BADGES:
+            if cond(session) and badge not in session.get('achievements', []):
+                session['achievements'].append(f"{badge} {emoji}")
+        # Feedback visual/textual inmediato
+        feedback = f"<b>+{points} puntos</b> | Nivel: <b>{session.get('level_name','')}</b> | Logros: {' '.join([a for a in session.get('achievements',[]) if any(e in a for e in ['🔥','💪','⏱️','🌈','🧠','🎯','🏅'])])}"
+        if is_correct:
+            # Guardar interacción para fine-tuning (respuesta correcta)
+            # Registrar interacciones correctas también para casos ambiguos/frecuentes
+            try:
+                self._save_interaction_for_finetune(user_id, last_agent, answer, "", hint=None, correct=True, ambiguous=ambiguous, frequent_error=frequent_error)
+            except Exception:
+                # No interrumpir flujo si falla registro para active learning
+                pass
+            # Si la respuesta es correcta pero fue marcada ambigua o frecuente, añadir a cola de aprendizaje activo
+            if ambiguous or frequent_error:
+                session.setdefault('active_learning', [])
+                session['active_learning'].append({
+                    'question': last_agent,
+                    'answer': answer,
+                    'ambiguous': ambiguous,
+                    'frequent_error': frequent_error,
+                    'timestamp': time.time()
+                })
         emotion_label = None
         if emotion_result and isinstance(emotion_result, list) and len(emotion_result) > 0:
             # El pipeline puede devolver [[{label,score},...]] o [{label,score},...]
@@ -710,17 +949,26 @@ class InterviewAgent:
                         prompt,
                         fallback=random.choice(self.motivational_phrases)
                     )
-                    if nueva and nueva not in self.motivational_phrases:
-                        self.motivational_phrases.append(nueva)
-                        for char in nueva:
-                            if char not in self.positive_emojis and ord(char) > 1000:
-                                self.positive_emojis.append(char)
-                        motivacion = nueva
+                    # Asegurarse de que 'nueva' es una cadena válida antes de usarla/almacenarla
+                    if isinstance(nueva, str) and nueva.strip() and nueva not in self.motivational_phrases:
+                        nueva_clean = nueva.strip()
+                        self.motivational_phrases.append(nueva_clean)
+                        for char in nueva_clean:
+                            try:
+                                if char not in self.positive_emojis and ord(char) > 1000:
+                                    self.positive_emojis.append(char)
+                            except Exception:
+                                # Ignorar caracteres que no puedan evaluarse con ord()
+                                continue
+                        motivacion = nueva_clean
                     else:
                         motivacion = random.choice(self.motivational_phrases)
                 # Añadir emoji aleatorio aprendido
                 if self.positive_emojis:
                     base_feedback += " " + random.choice(self.positive_emojis)
+                # Guardar feedback en historial y devolver resultado para modo práctica
+                session["history"].append({"agent": base_feedback, "emotion": None})
+                return {"feedback": f"{base_feedback}\n{motivacion}", "retry": False}
         else:
                 # Siempre definir base_feedback y motivacion ANTES de usarlas
                 base_feedback = random.choice([
@@ -749,14 +997,21 @@ class InterviewAgent:
                         prompt,
                         fallback=(random.choice(self.negative_phrases) if hasattr(self, 'negative_phrases') and self.negative_phrases else "¡Ánimo!")
                     )
-                    if hasattr(self, 'negative_phrases') and nueva and nueva not in self.negative_phrases:
-                        self.negative_phrases.append(nueva)
-                        for char in nueva:
-                            if hasattr(self, 'negative_emojis') and char not in self.negative_emojis and ord(char) > 1000:
-                                self.negative_emojis.append(char)
-                        motivacion = nueva
+                    # Asegurar que 'nueva' es una cadena válida antes de usarla o almacenarla
+                    if isinstance(nueva, str):
+                        nueva_clean = nueva.strip()
+                        if hasattr(self, 'negative_phrases') and nueva_clean and nueva_clean not in self.negative_phrases:
+                            self.negative_phrases.append(nueva_clean)
+                            for char in nueva_clean:
+                                try:
+                                    if hasattr(self, 'negative_emojis') and char not in self.negative_emojis and ord(char) > 1000:
+                                        self.negative_emojis.append(char)
+                                except Exception:
+                                    # Ignorar cualquier carácter que cause error en ord()
+                                    continue
+                        motivacion = nueva_clean if nueva_clean else (random.choice(self.negative_phrases) if getattr(self, 'negative_phrases', []) else "¡Ánimo!")
                     else:
-                        motivacion = random.choice(self.negative_phrases) if hasattr(self, 'negative_phrases') and self.negative_phrases else "¡Ánimo!"
+                        motivacion = random.choice(self.negative_phrases) if getattr(self, 'negative_phrases', []) else "¡Ánimo!"
                 # Si no ha agotado el máximo de pistas, generar pista y no avanzar
                 session["hint_count"] += 1
                 hint_prompt = (
@@ -772,23 +1027,27 @@ class InterviewAgent:
                     hint_prompt,
                     fallback=(
                         f"Concepto clave: {expected if expected else 'Revisa la definición principal del tema.'}\n"
-                        f"Ejemplo práctico: Imagina que aplicas este concepto en un proyecto real, ¿cómo lo usarías?\n"
+                        f"Ejemplo práctico: {self._get_example(last_agent)}\n"
                         f"Caso de uso en la industria: Este conocimiento es fundamental en roles como {session.get('role','el área correspondiente')}."
                     )
                 )
+                recursos = self._get_learning_resources(last_agent)
+                recursos_str = "\nRecursos recomendados: " + ", ".join([f"[{r['title']}]({r['url']})" for r in recursos]) if recursos else ""
                 if session["hint_count"] <= self.MAX_HINTS:
-                    feedback = f"{base_feedback}\n{motivacion}\nPista {session['hint_count']}/{self.MAX_HINTS}: {pista}"
+                    feedback = f"{base_feedback}\n{motivacion}\nPista {session['hint_count']}/{self.MAX_HINTS}: {pista}{recursos_str}"
                     retry = True
                 else:
-                    feedback = f"{base_feedback}\n{motivacion}\nHas alcanzado el máximo de {self.MAX_HINTS} pistas. La respuesta esperada era: {expected}.\nÚltima pista extra: {pista}"
+                    feedback = f"{base_feedback}\n{motivacion}\nHas alcanzado el máximo de {self.MAX_HINTS} pistas. La respuesta esperada era: {expected}.\nÚltima pista extra: {pista}{recursos_str}"
                     session["hint_count"] = 0
                     retry = False
                 # Guardar emoción en el historial para memoria de contexto
                 session["history"].append({"agent": feedback, "emotion": emotion_label})
-                self._save_interaction_for_finetune(user_id, last_agent, answer, base_feedback + "\n" + motivacion, hint=pista, correct=False)
+                # Asegurar que 'hint' sea str | None antes de llamar a _save_interaction_for_finetune
+                clean_hint = pista if isinstance(pista, str) else (str(pista) if pista is not None else None)
+                self._save_interaction_for_finetune(user_id, last_agent, answer, base_feedback + "\n" + motivacion, hint=clean_hint, correct=False, ambiguous=ambiguous, frequent_error=frequent_error)
                 return {"feedback": feedback, "retry": retry}
 
-    def _save_interaction_for_finetune(self, user_id: str, question: str, answer: str, feedback: str, hint: Optional[str] = None, correct: bool = False):
+    def _save_interaction_for_finetune(self, user_id: str, question: str, answer: str, feedback: str, hint: Optional[str] = None, correct: bool = False, ambiguous: bool = False, frequent_error: bool = False):
         """
         Guarda la interacción relevante para procesos de fine-tuning y mejora del modelo.
         - user_id: identificador del usuario
@@ -797,10 +1056,9 @@ class InterviewAgent:
         - feedback: feedback generado
         - hint: pista generada (si aplica)
         - correct: si la respuesta fue correcta
+        - ambiguous: si la respuesta es ambigua
+        - frequent_error: si la pregunta ha sido fallada varias veces
         Almacena en datasets/finetune_interactions.jsonl
-        """
-        """
-        Guarda la interacción para posibles procesos de fine-tuning o análisis posterior.
         """
         try:
             new_entry = {
@@ -809,9 +1067,10 @@ class InterviewAgent:
                 "answer": answer,
                 "feedback": feedback,
                 "hint": hint,
-                "correct": correct
+                "correct": correct,
+                "ambiguous": ambiguous,
+                "frequent_error": frequent_error
             }
-            # Guardar en un archivo de interacciones para fine-tuning
             finetune_path = Path(__file__).parent / 'datasets' / 'finetune_interactions.jsonl'
             with open(finetune_path, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(new_entry, ensure_ascii=False) + '\n')

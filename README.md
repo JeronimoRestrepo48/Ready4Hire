@@ -242,3 +242,91 @@ python3 -m unittest app/test_security_llm.py
 ```
 
 Para más detalles, consulta `SECURITY_LLM.md`.
+
+## Explicabilidad (XAI) en la Selección de Preguntas y Feedback
+
+## Diversidad y Cobertura Temática en la Selección de Preguntas
+
+## Personalización Dinámica y Trayectoria del Usuario
+
+## Feedback Enriquecido: Ejemplos y Recursos Personalizados
+
+## Detección y Mitigación de Sesgos
+
+## Robustez y Resiliencia ante Errores
+
+## Trazabilidad y Auditoría (Logging Estructurado)
+
+Cada decisión relevante del agente (selección de pregunta, feedback, detección de sesgo, adaptaciones, etc.) se registra en un log estructurado (`audit_log.jsonl`). Esto permite auditar, analizar y mejorar el comportamiento del sistema, garantizando transparencia y facilitando la mejora continua basada en datos reales de uso.
+
+El sistema maneja de forma robusta los errores de dependencias externas (por ejemplo, caídas del LLM, fallos de red o de recursos). Si ocurre un error, el agente utiliza respuestas automáticas de respaldo, registra el incidente y permite continuar la entrevista sin interrumpir la experiencia del usuario. Esto garantiza una experiencia fluida y resiliente incluso ante fallos inesperados.
+
+El sistema detecta patrones de sesgo durante la entrevista, como secuencias de emociones negativas, repetición de temas o feedback poco diverso. Cuando se detecta un posible sesgo, el agente alterna el tipo de pregunta (técnica/blanda), sugiere preguntas objetivas y ajusta el feedback para equilibrar la experiencia, promoviendo una evaluación más justa, variada y libre de sesgos.
+
+Cuando el usuario comete un error o muestra un área de mejora, el agente ahora sugiere ejemplos concretos y recursos de aprendizaje personalizados (artículos, videos, documentación, cursos, etc.) relevantes al tema y al error detectado. Esto permite que cada feedback sea más útil, práctico y orientado a la mejora continua, facilitando el aprendizaje autónomo y la profundización en los conceptos clave.
+
+El sistema ahora adapta la selección de preguntas no solo al contexto inicial (rol, nivel, intereses), sino también al desempeño histórico y la trayectoria del usuario durante la entrevista. Se penalizan temas ya cubiertos y se ajusta la dificultad en tiempo real según aciertos, errores y patrones detectados, personalizando la experiencia de aprendizaje y evaluación.
+
+Esto permite que cada entrevista evolucione de forma única, maximizando el valor formativo y la relevancia para cada usuario.
+
+Para maximizar la diversidad y cobertura temática, el sistema prioriza la variedad de temas (clusters) en cada ronda de preguntas. El selector avanzado (`advanced_question_selector`) utiliza los resultados de clustering (UMAP + HDBSCAN) para asegurar que las preguntas seleccionadas provengan de la mayor cantidad posible de clusters distintos, evitando repeticiones de tema y maximizando la cobertura del conocimiento evaluado. Si no hay suficientes clusters distintos, se completan los cupos con las preguntas más relevantes restantes.
+
+Esto garantiza entrevistas más completas, variadas y representativas del dominio, mejorando la experiencia y la robustez del proceso de evaluación.
+
+Ready4Hire ahora explica por qué selecciona cada pregunta relevante para el usuario:
+
+- Para cada pregunta sugerida, se muestra:
+  - Similitud semántica con el contexto del usuario.
+  - Penalización por repetición (si ya fue vista).
+  - Bonus por pertenecer a un cluster temático poco cubierto.
+  - Cluster temático asignado.
+  - Score final y probabilidad de selección.
+
+Esto permite a usuarios técnicos auditar y entender el proceso de selección, y a usuarios no técnicos confiar en la transparencia del sistema.
+
+**Ejemplo de uso:**
+```python
+explanations = emb_mgr.explain_selection('contexto del usuario', history=[], top_k=3, technical=True)
+for exp in explanations:
+    print(exp['question'], exp['explanation'])
+```
+
+Esta función facilita la depuración, la mejora continua y la confianza en el sistema de IA.
+
+## Ajuste Dinámico de Dificultad (Adaptive Testing)
+
+El agente Ready4Hire ahora adapta automáticamente la dificultad de las preguntas (junior, mid, senior) según el desempeño reciente del usuario:
+
+- Si el usuario responde correctamente 2 o más veces seguidas, sube el nivel de dificultad.
+- Si falla 2 o más veces seguidas, baja el nivel de dificultad.
+- Si no hay historial suficiente, mantiene el nivel actual o el inicial.
+
+Esto permite una experiencia personalizada y retadora, acelerando el aprendizaje y evitando frustración o aburrimiento.
+
+**Ejemplo:**
+- Usuario acierta 2 preguntas junior → recibe una pregunta mid.
+- Usuario falla 2 preguntas senior → recibe una pregunta mid o junior.
+
+La lógica es transparente y auditable en el código (`_get_adaptive_level`).
+
+## Aprendizaje Activo y Auto-Fine-Tuning
+
+El sistema Ready4Hire ahora identifica y registra automáticamente:
+- **Respuestas ambiguas**: aquellas cuya similitud semántica está cerca del umbral de corrección, para revisión o feedback adicional.
+- **Errores frecuentes**: preguntas que el usuario falla varias veces, marcadas para priorizar en ciclos de mejora.
+
+Estas interacciones se almacenan en el dataset de fine-tuning (`finetune_interactions.jsonl`) con flags `ambiguous` y `frequent_error`.
+
+Esto permite:
+- Mejorar el modelo y el dataset con ejemplos reales y casos límite.
+- Solicitar feedback adicional al usuario o a expertos para refinar la evaluación.
+- Automatizar el ciclo de aprendizaje y adaptación del agente.
+
+## Mejoras Recientes (resumen y documentación)
+
+- `advanced_question_selector` ahora acepta un parámetro opcional `custom_pool` para restringir la selección a un subconjunto de preguntas provisto por el llamador. Esto facilita integraciones donde el frontend o la lógica de sesión ya han pre-filtrado preguntas.
+- `process_answer` fue corregido y robustecido: sanitización, logging, detección de emociones, cálculo de similitud y manejo de pistas quedan dentro del alcance correcto y protegidos contra fallos de logging/IO.
+- Aprendizaje activo mejorado: se registran interacciones ambiguas y errores frecuentes tanto para respuestas incorrectas como para aciertos que resultaron ambiguos, y se exponen en `session['active_learning']` para revisión humana o procesos automáticos de etiquetado.
+- Se añadieron pruebas unitarias básicas para los helpers `filter_by_level` y `penalize_covered_topics` en `tests/test_helpers.py`.
+
+Estas mejoras están orientadas a confiabilidad en producción y a facilitar ciclos de mejora supervisada para los datasets y modelos.
