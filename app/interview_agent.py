@@ -308,18 +308,23 @@ class InterviewAgent:
             return
         if 'response_timer' in session and session['response_timer']:
             session['response_timer'].cancel()
+        # Configure inactivity durations
+        close_after = 120  # total inactivity seconds (2 minutes)
+        warning_before = 30  # seconds before close to warn the user
+        warning_after = max(0, close_after - warning_before)
+
         def timeout_close():
             session['history'].append({"agent": "La entrevista se ha cerrado por inactividad. ¡Gracias por participar!"})
             session['closed'] = True
 
         def timeout_warning():
-            session['history'].append({"agent": "¿Sigues ahí? Han pasado 30 segundos sin respuesta. Si no respondes pronto, la entrevista se cerrará automáticamente."})
+            session['history'].append({"agent": f"¿Sigues ahí? Han pasado {warning_after} segundos sin respuesta. Si no respondes en {warning_before} segundos, la entrevista se cerrará automáticamente."})
             session['waiting_warning'] = True
-            t2 = threading.Timer(30, timeout_close)
+            t2 = threading.Timer(warning_before, timeout_close)
             session['response_timer'] = t2
             t2.start()
 
-        t1 = threading.Timer(30, timeout_warning)
+        t1 = threading.Timer(warning_after, timeout_warning)
         session['response_timer'] = t1
         session['waiting_warning'] = False
         session['closed'] = False
@@ -585,12 +590,14 @@ class InterviewAgent:
                         session["last_type"] = "technical"
                         self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question", question.get("scenario")), "level": question.get("level"), "cluster": question.get("cluster"), "bias_mitigation": True})
                         session["history"].append({"agent": question.get("question", question.get("scenario")), "level": question.get("level","junior"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        self._start_response_timer(user_id)
                         return {"question": question.get("question", question.get("scenario")), "level": question.get("level","junior"), "bias_mitigation": True}
                     elif question in soft_pool and question in session.get("soft_pool", []):
                         session["soft_pool"].remove(question)
                         session["last_type"] = "soft"
                         self._log_decision("question_selected", {"user_id": user_id, "question": question.get("scenario", question.get("question")), "level": question.get("level"), "cluster": question.get("cluster"), "bias_mitigation": True})
                         session["history"].append({"agent": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        self._start_response_timer(user_id)
                         return {"question": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "bias_mitigation": True}
 
             # Normal selection based on qtype preference
@@ -604,6 +611,7 @@ class InterviewAgent:
                 session["last_type"] = "technical"
                 self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
                 session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("question"), "level": question.get("level","junior")}
 
             if qtype == "soft" and soft_pool:
@@ -615,6 +623,7 @@ class InterviewAgent:
                 session["last_type"] = "soft"
                 self._log_decision("question_selected", {"user_id": user_id, "question": question.get("scenario"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
                 session["history"].append({"agent": question.get("scenario"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("scenario"), "level": question.get("level","junior")}
 
             # If preferred pool empty, try to pick from the other pool
@@ -624,6 +633,7 @@ class InterviewAgent:
                     session["soft_pool"].remove(question)
                 session["last_type"] = "soft"
                 session["history"].append({"agent": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "bias_mitigation": True}
 
             if qtype == "soft" and not soft_pool and tech_pool:
@@ -632,6 +642,7 @@ class InterviewAgent:
                     session["tech_pool"].remove(question)
                 session["last_type"] = "technical"
                 session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("question"), "level": question.get("level","junior"), "bias_mitigation": True}
 
             # No questions available in either pool
@@ -652,6 +663,7 @@ class InterviewAgent:
             session["tech_pool"].remove(question)
             session["last_type"] = "technical"
             session["history"].append({"agent": question["question"]})
+            self._start_response_timer(user_id)
             return {"question": question["question"]}
         elif qtype == "soft" and session["soft_pool"]:
             candidates = self.emb_mgr.advanced_question_selector(
@@ -668,6 +680,7 @@ class InterviewAgent:
             session["soft_pool"].remove(question)
             session["last_type"] = "soft"
             session["history"].append({"agent": question["scenario"]})
+            self._start_response_timer(user_id)
             return {"question": question["scenario"]}
         else:
             # Al terminar las 10 preguntas, mostrar encuesta de satisfacción antes del feedback final
