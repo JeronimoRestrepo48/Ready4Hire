@@ -64,6 +64,19 @@ from pathlib import Path
 import json
 
 class EmbeddingsManager:
+    """
+    EmbeddingsManager: gestor de representaciones semánticas y selector avanzado de preguntas.
+
+    Responsabilidades:
+    - Mantener y actualizar embeddings para preguntas técnicas y de soft skills.
+    - Proveer búsquedas semánticas, selección diversificada y explicaciones de selección.
+    - Soportar hooks de ranking avanzado (RankNet) y restricción opcional a un subconjunto (custom_pool).
+
+    API principal:
+    - advanced_question_selector(user_context, history, top_k, technical, custom_pool)
+      devuelve una lista de preguntas seleccionadas según contexto y políticas internas.
+    """
+
     def advanced_question_selector(self, user_context, history=None, top_k=5, technical=True, custom_pool=None):
         """
         Selección avanzada de preguntas usando:

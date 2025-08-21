@@ -9,9 +9,16 @@ handler.setFormatter(formatter)
 if not logger.hasHandlers():
     logger.addHandler(handler)
 
-def log_audit(event_type, data):
-    import json as _json
-    logger.info(_json.dumps({"event": event_type, **data}))
+def log_audit(event_type: str, data: dict):
+    """
+    Registro estructurado seguro para auditoría (JSONL).
+    No debe interrumpir el flujo si falla el logging.
+    """
+    try:
+        logger.info(json.dumps({"event": event_type, **data}, ensure_ascii=False))
+    except Exception:
+        # No interrumpir la ejecución si falla el logging
+        pass
 """
 Ready4Hire - Agente de Entrevista IA
 ====================================
@@ -61,6 +68,26 @@ except Exception:
         from langchain.llms import Ollama  # type: ignore
     except Exception:
         Ollama = None
+    
+    # Lightweight local fallback LLM used when an external LLM is not available.
+class SimpleFallbackLLM:
+    def __init__(self, name: str = "fallback"):
+        self.name = name
+
+    def __call__(self, prompt: str) -> str:
+        # Heuristics to return useful fallback text for the common prompts used by the agent.
+        p = prompt.lower()
+        if "genera una pista" in p or "pista" in p:
+            return (
+                "Pista (fallback): Centra tu respuesta en el concepto clave y un ejemplo práctico. "
+                "Piensa en cómo aplicarías el concepto en una situación real: pasos, riesgos y comprobaciones."
+            )
+        if "frase motivacional" in p or "motivacion" in p:
+            return "¡Buen trabajo! Sigue así 🚀"
+        if "analiz" in p and "emoc" in p:
+            return "[emocion: neutral]"
+        # Default: return a short helpful summary
+        return "Respuesta generada (fallback): resume los puntos clave y ofrece un ejemplo práctico."
 import threading
 import time
 import functools
@@ -70,6 +97,7 @@ import random
 import json
 from pathlib import Path
 import time
+import os
 # Integración de embeddings
 from app.embeddings.embeddings_manager import EmbeddingsManager
 from app.services.emotion_analyzer import analyze_emotion
@@ -111,6 +139,21 @@ def penalize_covered_topics(pool: List[dict], history: List[dict]) -> List[dict]
 
 
 class InterviewAgent:
+    """
+    InterviewAgent: gestor principal de entrevistas Ready4Hire.
+
+    Responsabilidades principales:
+    - Gestionar sesiones de usuarios (contexto, historial, puntuación, encuestas).
+    - Seleccionar preguntas técnicas y de soft skills usando un EmbeddingsManager.
+    - Evaluar respuestas, generar feedback motivador y pistas progresivas (hasta 3 pistas).
+    - Controlar temporizadores de inactividad con aviso previo y cierre automático.
+    - Registrar interacciones relevantes para aprendizaje activo y fine-tuning.
+
+    Contrato mínimo:
+    - Entradas: identificador de usuario (user_id), texto de respuesta o comandos del usuario.
+    - Salidas: diccionarios con claves como 'question', 'feedback', 'summary' o 'error'.
+    - Errores: las llamadas a LLM, I/O y cálculos costosos se aíslan y no interrumpen el flujo.
+    """
     def _log_decision(self, event_type, data):
         """
         Logging estructurado de decisiones relevantes del agente para trazabilidad y auditoría.
@@ -147,6 +190,7 @@ class InterviewAgent:
             {"title": "Video: Conceptos clave de OOP", "url": "https://www.youtube.com/watch?v=JeznW_7DlB0"},
             {"title": "Artículo: Principios SOLID", "url": "https://medium.com/@cramirez92/principios-solid-558baddc2c84"},
             {"title": "Curso: Soft Skills para ingenieros", "url": "https://platzi.com/cursos/soft-skills/"},
+            {"title": "Video: Comunicación efectiva en equipos", "url": "https://www.youtube.com/watch?v=HAnw168huqA"},
         ]
         # Filtrar por tema si es posible
         topic = topic_or_question.lower()
@@ -256,29 +300,31 @@ class InterviewAgent:
         "¿Cómo calificarías tu experiencia general con la entrevista?"
     ]
 
-    def __init__(self, model_name: str = "llama3", llm=None, emb_mgr=None):
-        # LLM rate limiting and timeout attributes (instance-level)
+    def __init__(self, model_name: str = "llama3", llm=None, emb_mgr=None, force_fallback: bool = False):
+    # LLM rate limiting and timeout attributes (instance-level)
         self._llm_lock = threading.Lock()
+        self.force_fallback = force_fallback
         self._llm_last_call = 0
         self._llm_min_interval = 2.0  # seconds between LLM calls (rate limit)
         self._llm_timeout = 10  # seconds per LLM call
         # Dependency injection: allow providing custom llm and embeddings manager (useful for tests/mocks)
-        if llm is not None:
-            self.llm = llm
+        # Allow forcing the local fallback via parameter or environment variable
+        env_force = os.getenv('READY4HIRE_FORCE_FALLBACK', '0') in ('1', 'true', 'True')
+        if force_fallback or env_force:
+            # Force the local safe fallback LLM
+            self.llm = SimpleFallbackLLM()
         else:
-            try:
-                # Instantiate Ollama only if the import succeeded
-                if Ollama:
+            if llm is not None:
+                self.llm = llm
+            else:
+                # Prefer real Ollama client when available, otherwise use fallback
+                if 'Ollama' in globals() and Ollama:
                     try:
                         self.llm = Ollama(model=model_name)
                     except Exception:
-                        # Fallback to None for testability / offline usage
-                        self.llm = None
+                        self.llm = SimpleFallbackLLM()
                 else:
-                    self.llm = None
-            except Exception:
-                # In case Ollama isn't available in test env, fallback to a simple callable that echoes
-                self.llm = lambda prompt: "[LLM unavailable]"
+                    self.llm = SimpleFallbackLLM()
         self.sessions: Dict[str, Dict[str, Any]] = {}
         self.tech_questions = self._load_dataset('tech_questions.jsonl')
         self.soft_questions = self._load_dataset('soft_skills.jsonl')
@@ -308,18 +354,23 @@ class InterviewAgent:
             return
         if 'response_timer' in session and session['response_timer']:
             session['response_timer'].cancel()
+        # Configure inactivity durations
+        close_after = 120  # total inactivity seconds (2 minutes)
+        warning_before = 30  # seconds before close to warn the user
+        warning_after = max(0, close_after - warning_before)
+
         def timeout_close():
             session['history'].append({"agent": "La entrevista se ha cerrado por inactividad. ¡Gracias por participar!"})
             session['closed'] = True
 
         def timeout_warning():
-            session['history'].append({"agent": "¿Sigues ahí? Han pasado 30 segundos sin respuesta. Si no respondes pronto, la entrevista se cerrará automáticamente."})
+            session['history'].append({"agent": f"¿Sigues ahí? Han pasado {warning_after} segundos sin respuesta. Si no respondes en {warning_before} segundos, la entrevista se cerrará automáticamente."})
             session['waiting_warning'] = True
-            t2 = threading.Timer(30, timeout_close)
+            t2 = threading.Timer(warning_before, timeout_close)
             session['response_timer'] = t2
             t2.start()
 
-        t1 = threading.Timer(30, timeout_warning)
+        t1 = threading.Timer(warning_after, timeout_warning)
         session['response_timer'] = t1
         session['waiting_warning'] = False
         session['closed'] = False
@@ -385,6 +436,15 @@ class InterviewAgent:
 
     # (Removed duplicate __init__ and LLM attributes; see top of class for correct implementation)
     def safe_llm_call(self, prompt, fallback=None):
+        """
+        Llama al LLM de forma segura con control de tiempo y lock.
+
+        - prompt: texto a enviar al LLM.
+        - fallback: valor retornado si el LLM falla o se agota el tiempo.
+
+        Devuelve la respuesta como cadena. Aísla excepciones y respetará el
+        atributo self._llm_timeout para la alarma de timeout.
+        """
         def handler(signum, frame):
             raise TimeoutError("LLM call timed out")
         with self._llm_lock:
@@ -585,12 +645,14 @@ class InterviewAgent:
                         session["last_type"] = "technical"
                         self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question", question.get("scenario")), "level": question.get("level"), "cluster": question.get("cluster"), "bias_mitigation": True})
                         session["history"].append({"agent": question.get("question", question.get("scenario")), "level": question.get("level","junior"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        self._start_response_timer(user_id)
                         return {"question": question.get("question", question.get("scenario")), "level": question.get("level","junior"), "bias_mitigation": True}
                     elif question in soft_pool and question in session.get("soft_pool", []):
                         session["soft_pool"].remove(question)
                         session["last_type"] = "soft"
                         self._log_decision("question_selected", {"user_id": user_id, "question": question.get("scenario", question.get("question")), "level": question.get("level"), "cluster": question.get("cluster"), "bias_mitigation": True})
                         session["history"].append({"agent": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "cluster": question.get("cluster"), "bias_mitigation": True})
+                        self._start_response_timer(user_id)
                         return {"question": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "bias_mitigation": True}
 
             # Normal selection based on qtype preference
@@ -604,6 +666,7 @@ class InterviewAgent:
                 session["last_type"] = "technical"
                 self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
                 session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("question"), "level": question.get("level","junior")}
 
             if qtype == "soft" and soft_pool:
@@ -615,6 +678,7 @@ class InterviewAgent:
                 session["last_type"] = "soft"
                 self._log_decision("question_selected", {"user_id": user_id, "question": question.get("scenario"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
                 session["history"].append({"agent": question.get("scenario"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("scenario"), "level": question.get("level","junior")}
 
             # If preferred pool empty, try to pick from the other pool
@@ -624,6 +688,7 @@ class InterviewAgent:
                     session["soft_pool"].remove(question)
                 session["last_type"] = "soft"
                 session["history"].append({"agent": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("scenario", question.get("question")), "level": question.get("level","junior"), "bias_mitigation": True}
 
             if qtype == "soft" and not soft_pool and tech_pool:
@@ -632,6 +697,7 @@ class InterviewAgent:
                     session["tech_pool"].remove(question)
                 session["last_type"] = "technical"
                 session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
+                self._start_response_timer(user_id)
                 return {"question": question.get("question"), "level": question.get("level","junior"), "bias_mitigation": True}
 
             # No questions available in either pool
@@ -652,6 +718,7 @@ class InterviewAgent:
             session["tech_pool"].remove(question)
             session["last_type"] = "technical"
             session["history"].append({"agent": question["question"]})
+            self._start_response_timer(user_id)
             return {"question": question["question"]}
         elif qtype == "soft" and session["soft_pool"]:
             candidates = self.emb_mgr.advanced_question_selector(
@@ -668,6 +735,7 @@ class InterviewAgent:
             session["soft_pool"].remove(question)
             session["last_type"] = "soft"
             session["history"].append({"agent": question["scenario"]})
+            self._start_response_timer(user_id)
             return {"question": question["scenario"]}
         else:
             # Al terminar las 10 preguntas, mostrar encuesta de satisfacción antes del feedback final
@@ -731,17 +799,8 @@ class InterviewAgent:
         # Si la entrevista fue cerrada por inactividad, no procesar más
         if session and session.get('closed'):
             return {"feedback": "La entrevista ya fue cerrada por inactividad."}
-        """
-        Procesa la respuesta del usuario a una pregunta:
-        - Valida la respuesta usando embeddings y NLP.
-        - Si es incorrecta, genera feedback motivador y una pista (modo práctica).
-        - Si es correcta, motiva y avanza a la siguiente pregunta.
-        - En modo práctica: no avanza hasta respuesta correcta o agotar pistas.
-        - En modo examen: solo confirma y suma puntos, sin feedback inmediato.
-        - Registra la interacción para aprendizaje continuo y fine-tuning.
-        Devuelve: dict con feedback, retry (bool) y control de avance.
-        """
-    # Analizar emoción del usuario
+
+        # Analizar emoción del usuario
         session = self.sessions.get(user_id)
         if not session:
             return {"error": "Entrevista no iniciada"}
@@ -753,7 +812,7 @@ class InterviewAgent:
         modo = session.get("mode", "practice")
         # Define last_agent early for use in both exam and practice modes
         last_agent = next((h["agent"] for h in reversed(session["history"]) if "agent" in h), "")
-        
+
         # En modo examen, guardar respuestas y sumar puntos si es correcta, sin feedback inmediato
         # Reiniciar temporizador para la siguiente pregunta si la entrevista sigue activa
         if not session.get('closed'):
@@ -767,7 +826,7 @@ class InterviewAgent:
             expected = similar_tech[0]['answer']
         elif similar_soft and 'expected' in similar_soft[0]:
             expected = similar_soft[0]['expected']
-        
+
         # NLP: comparar embeddings de la respuesta del candidato y la esperada
         is_correct = False
         similarity_score = 0.0
@@ -779,7 +838,7 @@ class InterviewAgent:
                 is_correct = similarity_score > 0.7
             except Exception:
                 is_correct = answer.strip().lower() == expected.strip().lower()
-        
+
         if modo == "exam":
             self._log_decision("answer_evaluated", {"user_id": user_id, "question": last_agent, "answer": answer, "expected": expected, "is_correct": is_correct, "similarity_score": similarity_score})
             if session["exam_start_time"] is None:
@@ -1015,22 +1074,58 @@ class InterviewAgent:
                 # Si no ha agotado el máximo de pistas, generar pista y no avanzar
                 session["hint_count"] += 1
                 hint_prompt = (
-                    f"Eres un entrevistador experto en {session['role']}. "
+                    f"Eres un entrevistador experto en {session['role']}.\n"
                     f"Pregunta: {last_agent}\nRespuesta del candidato: {answer}\n"
-                    f"Respuesta esperada: {expected if expected else 'N/A'}\n"
-                    f"Genera una pista interactiva y didáctica para ayudar al candidato a acercarse a la respuesta correcta. "
-                    f"No des la respuesta directa, pero explica el concepto clave de la pregunta, proporciona una analogía sencilla, un caso de uso real en la industria y un ejemplo práctico. "
-                    f"Hazlo en tono motivador y dinámico. Si puedes, invita al candidato a reflexionar o a imaginar una situación real. "
-                    f"Esta es la pista número {min(session['hint_count'], self.MAX_HINTS)}/{self.MAX_HINTS}."
+                    f"Respuesta esperada: {expected if expected else 'N/A'}\n\n"
+                    "Genera TRES pistas diferenciadas y progresivas (Pista 1, Pista 2, Pista 3) en español, cada una en un párrafo separado. "
+                    "Pista 1: ayuda general, no revelar conceptos clave. "
+                    "Pista 2: más concreta, sugiere pasos o palabras clave pero aún no la respuesta completa. "
+                    "Pista 3: la pista más cercana a la respuesta (sin dar la respuesta exacta), incluye analogía, ejemplo práctico y cómo verificar la solución. "
+                    "Cada pista debe ser creativa, breve (2-4 frases), y estructurada en párrafos distintos. No devuelvas un solo párrafo largo. "
+                    f"Además incluye al final un bloque pequeño 'Recursos' con 2-3 recomendaciones y URLs si las conoces."
                 )
-                pista = self.safe_llm_call(
-                    hint_prompt,
-                    fallback=(
-                        f"Concepto clave: {expected if expected else 'Revisa la definición principal del tema.'}\n"
-                        f"Ejemplo práctico: {self._get_example(last_agent)}\n"
-                        f"Caso de uso en la industria: Este conocimiento es fundamental en roles como {session.get('role','el área correspondiente')}."
-                    )
-                )
+                raw_pistas = self.safe_llm_call(hint_prompt, fallback=None)
+                # Fallback content builder
+                if not raw_pistas:
+                    # Build 3 fallback hints progressively
+                    fallback_hints = [
+                        f"Pista 1: Centra tu respuesta en el concepto general: {expected if expected else 'revisa la definición clave'}.",
+                        f"Pista 2: Considera estos pasos o palabras clave: {', '.join((self._get_example(last_agent) or '').split()[:6])}.",
+                        f"Pista 3: Piensa en esta analogía y cómo aplicarlo en un caso real para llegar a la respuesta."
+                    ]
+                    raw_pistas = "\n\n".join(fallback_hints)
+
+                # Parse the multi-hint output into separate hints
+                def _parse_hints(text: str):
+                    parts = [p.strip() for p in text.split('\n\n') if p.strip()]
+                    # If not separated, try splitting by lines with 'Pista'
+                    if len(parts) < 3:
+                        lines = [l.strip() for l in text.splitlines() if l.strip()]
+                        parts = []
+                        cur = []
+                        for line in lines:
+                            if line.lower().startswith('pista') and cur:
+                                parts.append(' '.join(cur).strip())
+                                cur = [line]
+                            else:
+                                cur.append(line)
+                        if cur:
+                            parts.append(' '.join(cur).strip())
+                    # Ensure exactly 3 hints
+                    if len(parts) >= 3:
+                        return parts[:3]
+                    # Fallback: chunk heuristically
+                    text = text.strip()
+                    approx = []
+                    ln = max(1, len(text)//3)
+                    for i in range(0, len(text), ln):
+                        approx.append(text[i:i+ln].strip())
+                    return approx[:3]
+
+                pistas_list = _parse_hints(str(raw_pistas))
+                # Choose which hint to show based on hint_count (1-indexed)
+                idx = max(1, min(session['hint_count'], self.MAX_HINTS)) - 1
+                pista = pistas_list[idx] if idx < len(pistas_list) else pistas_list[-1]
                 recursos = self._get_learning_resources(last_agent)
                 recursos_str = "\nRecursos recomendados: " + ", ".join([f"[{r['title']}]({r['url']})" for r in recursos]) if recursos else ""
                 if session["hint_count"] <= self.MAX_HINTS:
