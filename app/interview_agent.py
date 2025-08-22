@@ -98,6 +98,11 @@ import json
 from pathlib import Path
 import time
 import os
+import numpy as np
+import torch
+import umap
+import hdbscan
+from sentence_transformers import util
 # Integración de embeddings
 from app.embeddings.embeddings_manager import EmbeddingsManager
 from app.services.emotion_analyzer import analyze_emotion
@@ -569,11 +574,15 @@ class InterviewAgent:
                 session["history"].append({"agent": question})
                 return {"question": question}
             else:
-                # Al terminar contexto, filtrar preguntas técnicas y blandas relevantes al rol usando embeddings
-                role = session.get('role','')
-                tech_similares = self.emb_mgr.filter_questions_by_role(role, top_k=10, technical=True)
+                # Al terminar contexto, construir contexto completo del candidato
+                context_full = (
+                    f"{session.get('role','')} {session.get('level','')} {session.get('years','')} "
+                    f"{' '.join(session.get('knowledge',[]))} {' '.join(session.get('tools',[]))}"
+                ).strip()
+                # Filtrar preguntas técnicas y blandas relevantes usando embeddings y contexto completo
+                tech_similares = self.emb_mgr.advanced_question_selector(context_full, history=session["history"], top_k=10, technical=True)
                 session["tech_pool"] = tech_similares if tech_similares else self.tech_questions.copy()
-                soft_similares = self.emb_mgr.filter_questions_by_role(role, top_k=10, technical=False)
+                soft_similares = self.emb_mgr.advanced_question_selector(context_full, history=session["history"], top_k=10, technical=False)
                 session["soft_pool"] = soft_similares if soft_similares else self.soft_questions.copy()
                 session["stage"] = "interview"
 
@@ -657,14 +666,121 @@ class InterviewAgent:
 
             # Normal selection based on qtype preference
             if qtype == "technical" and tech_pool:
-                question = _select_from_pool(user_input + " " + contexto, tech_pool, technical=True)
+                # --- Dominant cluster/topic filtering ---
+                # Use embeddings manager to get cluster labels for tech_pool
+                # 1. Get context embedding
+                context_str = user_input + " " + contexto
+                emb_mgr = self.emb_mgr
+                data = tech_pool
+                best_cluster = None
+                cluster_labels = None
+                if hasattr(emb_mgr, 'model') and hasattr(emb_mgr, 'tech_embeddings'):
+                    # Only cluster if enough questions for UMAP/HDBSCAN, else skip clustering
+                    n_neighbors = 10
+                    n_components = 10
+                    if len(data) > max(n_neighbors, n_components):
+                        # Build context embedding
+                        context_emb = emb_mgr.model.encode([emb_mgr._normalize(context_str)], convert_to_tensor=True)
+                        # Get embeddings for tech_pool questions
+                        tech_texts = [emb_mgr._normalize(f"{q.get('question','')} {q.get('level','')} {q.get('role','')}") for q in data]
+                        tech_embs = emb_mgr.model.encode(tech_texts, convert_to_tensor=True)
+                        # UMAP + HDBSCAN clustering
+                        reducer = umap.UMAP(n_neighbors=n_neighbors, min_dist=0.1, n_components=n_components, random_state=42)
+                        # Ensure embeddings are NumPy arrays with correct shape (2D)
+                        if hasattr(tech_embs, 'cpu'):
+                            emb_np = tech_embs.cpu().numpy()
+                        else:
+                            emb_np = np.asarray(tech_embs)
+                        emb_np = np.asarray(emb_np)
+                        if emb_np.ndim == 1:
+                            emb_np = np.expand_dims(emb_np, 0)
+                        # Fit-transform UMAP and ensure result is a 2D array
+                        emb_umap = np.asarray(reducer.fit_transform(emb_np))
+                        if emb_umap.ndim == 1:
+                            emb_umap = np.expand_dims(emb_umap, 1)
+                        clusterer = hdbscan.HDBSCAN(min_cluster_size=3)
+                        cluster_labels = clusterer.fit_predict(emb_umap)
+                        # Find the cluster whose centroid is closest to the context embedding
+                        # Compute mean embedding for each cluster
+                        clusters = {}
+                        for idx, cl in enumerate(cluster_labels):
+                            if cl not in clusters:
+                                clusters[cl] = []
+                            clusters[cl].append(tech_embs[idx])
+                        cluster_centroids = {cl: np.mean([e.cpu().numpy() if hasattr(e, 'cpu') else e for e in embs], axis=0) for cl, embs in clusters.items() if cl != -1}
+                        # Compute similarity to context (convert centroid to a tensor with same dtype/device as context_emb)
+                        best_cluster = None
+                        best_sim = -float('inf')
+                        for cl, centroid in cluster_centroids.items():
+                            try:
+                                # centroid is a NumPy array; convert to torch tensor matching context_emb dtype and device
+                                if isinstance(centroid, np.ndarray):
+                                    cent_t = torch.from_numpy(centroid)
+                                else:
+                                    cent_t = torch.tensor(centroid)
+                                # Align dtype with context embedding if possible
+                                try:
+                                    cent_t = cent_t.to(context_emb.dtype)
+                                except Exception:
+                                    cent_t = cent_t.float()
+                                # Move to same device as context_emb if it has one
+                                try:
+                                    cent_t = cent_t.to(context_emb.device)
+                                except Exception:
+                                    pass
+                                # Ensure shape is (1, dim)
+                                if cent_t.dim() == 1:
+                                    cent_t = cent_t.unsqueeze(0)
+                                sim = float(util.pytorch_cos_sim(context_emb, cent_t)[0][0])
+                            except Exception:
+                                # Fallback: compute cosine via NumPy if torch path fails
+                                try:
+                                    ctx_np = context_emb.cpu().numpy() if hasattr(context_emb, 'cpu') else np.asarray(context_emb)
+                                    c = np.asarray(centroid)
+                                    # ensure 1D vectors
+                                    if ctx_np.ndim > 1:
+                                        ctx_vec = np.asarray(ctx_np).reshape(-1)
+                                    else:
+                                        ctx_vec = ctx_np
+                                    if c.ndim > 1:
+                                        c_vec = c.reshape(-1)
+                                    else:
+                                        c_vec = c
+                                    denom = (np.linalg.norm(ctx_vec) * np.linalg.norm(c_vec))
+                                    sim = float(np.dot(ctx_vec, c_vec) / (denom if denom != 0 else 1e-8))
+                                except Exception:
+                                    sim = -1.0
+                            if sim > best_sim:
+                                best_sim = sim
+                                best_cluster = cl
+                        # Filter tech_pool to only questions in the dominant cluster
+                        if best_cluster is not None and isinstance(cluster_labels, (list, np.ndarray)):
+                            filtered_pool = [q for idx, q in enumerate(data) if cluster_labels[idx] == best_cluster]
+                            if filtered_pool:
+                                tech_pool = filtered_pool
+                    # Filter tech_pool to only questions in the dominant cluster (safety: ensure cluster_labels is indexable)
+                    if best_cluster is not None and cluster_labels is not None:
+                        try:
+                            # If labels length matches data length, use direct indexing
+                            if len(cluster_labels) == len(data):
+                                filtered_pool = [q for idx, q in enumerate(data) if cluster_labels[idx] == best_cluster]
+                            else:
+                                # If lengths differ, safely iterate up to the minimum length
+                                min_len = min(len(cluster_labels), len(data))
+                                filtered_pool = [q for idx, q in enumerate(data[:min_len]) if cluster_labels[idx] == best_cluster]
+                        except Exception:
+                            filtered_pool = []
+                        if filtered_pool:
+                            tech_pool = filtered_pool
+                # --- End dominant cluster filtering ---
+                question = _select_from_pool(context_str, tech_pool, technical=True)
                 if not question:
                     question = random.choice(tech_pool)
                 # remove from original session pool if present
                 if question in session.get("tech_pool", []):
                     session["tech_pool"].remove(question)
                 session["last_type"] = "technical"
-                self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto})
+                self._log_decision("question_selected", {"user_id": user_id, "question": question.get("question"), "level": question.get("level"), "cluster": question.get("cluster"), "context": contexto, "dominant_cluster": best_cluster})
                 session["history"].append({"agent": question.get("question"), "level": question.get("level","junior"), "cluster": question.get("cluster")})
                 self._start_response_timer(user_id)
                 return {"question": question.get("question"), "level": question.get("level","junior")}
@@ -1123,6 +1239,14 @@ class InterviewAgent:
                     return approx[:3]
 
                 pistas_list = _parse_hints(str(raw_pistas))
+                # Si el LLM/fallback no devuelve 3 pistas válidas, forzar 3 pistas de fallback
+                if len(pistas_list) < 3 or any('[respuesta generad' in p.lower() or '[respuesta' in p.lower() or p.strip().startswith('[') for p in pistas_list):
+                    fallback_hints = [
+                        f"Pista 1: Centra tu respuesta en el concepto general: {expected if expected else 'revisa la definición clave'}.",
+                        f"Pista 2: Considera estos pasos o palabras clave: {', '.join((self._get_example(last_agent) or '').split()[:6])}.",
+                        f"Pista 3: Piensa en esta analogía y cómo aplicarlo en un caso real para llegar a la respuesta."
+                    ]
+                    pistas_list = fallback_hints
                 # Choose which hint to show based on hint_count (1-indexed)
                 idx = max(1, min(session['hint_count'], self.MAX_HINTS)) - 1
                 pista = pistas_list[idx] if idx < len(pistas_list) else pistas_list[-1]

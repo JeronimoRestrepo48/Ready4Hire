@@ -4,3 +4,49 @@
 {"event": "answer_received", "user_id": "user-ee595522", "answer": "entonces es un recopilador de eventos de Security para monitorear cada transaccion de red y en los dispositivos finales"}
 {"event": "answer_received", "user_id": "test_user2", "answer": "mi respuesta de prueba"}
 {"event": "answer_received", "user_id": "test_user3", "answer": "mi respuesta de prueba"}
+{"event": "answer_received", "user_id": "user-cu8s22wg", "answer": "estandar para manejar identidades y accesos en una Infrastructure de Cloud"}
+{"event": "answer_received", "user_id": "user-cu8s22wg", "answer": "hola"}
+{"event": "answer_received", "user_id": "user-en1qjeln", "answer": "una forma de registrar y validar identidades y accesos en una Infrastructure de Cloud"}
+{"event": "answer_received", "user_id": "user-xjwmomja", "answer": "con escaner de vulnerabilidades como nessus o qualys"}
+{"event": "answer_received", "user_id": "user-rsaw21wp", "answer": "es una bodega donde se guardan los datos"}
+{"event": "answer_received", "user_id": "user-a7a0dp17", "answer": "un sistema de eventos y de informacion de Security para monitorear trafico"}
+{"event": "question_selected", "user_id": "testuser", "question": "¿Cómo diseñarías una API RESTful escalable?", "level": "senior", "cluster": null, "context": "Backend 1 None  "}
+{"event": "question_selected", "user_id": "testuser", "question": "¿Qué es una API REST?", "level": "junior", "cluster": null, "context": "Backend 1 None  "}
+{"event": "answer_received", "user_id": "testuser", "answer": "Respuesta incorrecta"}
+{"event": "answer_received", "user_id": "testuser", "answer": "Respuesta incorrecta"}
+{"event": "answer_received", "user_id": "testuser", "answer": "Respuesta incorrecta"}
+{"event": "answer_received", "user_id": "testuser", "answer": "Respuesta incorrecta"}
+{"event": "question_selected", "user_id": "test_ia", "question": "¿Qué es el algoritmo K-means?", "level": "junior", "cluster": null, "context": "IA 1 None  "}
+{"event": "question_selected", "user_id": "test_user_full", "question": "¿Qué es IAM en AWS?", "level": "junior", "cluster": null, "context": "IA 1 None  ", "dominant_cluster": null}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "question_selected", "user_id": "test_user_full", "question": "¿Cómo realizarías un análisis forense digital?", "level": "mid", "cluster": null, "context": "Ciberseguridad 1 None  ", "dominant_cluster": null}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "question_selected", "user_id": "test_user_full", "question": "¿Cómo realizarías un análisis forense digital?", "level": "mid", "cluster": null, "context": "Ciberseguridad 1 None  ", "dominant_cluster": null}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
+{"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}

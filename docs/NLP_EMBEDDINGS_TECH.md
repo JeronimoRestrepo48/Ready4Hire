@@ -58,11 +58,32 @@ Para asegurar variedad temática y evitar repeticiones, agrupamos preguntas simi
 
 ![Diagrama UMAP+HDBSCAN](https://www.dailydoseofds.com/content/images/2024/07/hdbscan_hdbscan.jpeg)
 
+
 **¿Cómo se usa?**
 1. Se calculan los embeddings de todas las preguntas.
 2. UMAP reduce la dimensionalidad.
 3. HDBSCAN agrupa las preguntas.
 4. El sistema selecciona preguntas de clusters poco cubiertos para diversificar.
+5. **Clusters avanzados de ML**: Ahora el sistema identifica y prioriza clusters temáticos como:
+   - *Visión Computacional*: preguntas sobre YOLO, OpenCV, procesamiento de imágenes, detección de objetos.
+   - *Reinforcement Learning*: Gym, Stable-Baselines3, PPO, entornos y recompensas.
+   - *MLOps*: MLflow, pipelines, versionado, despliegue y monitoreo de modelos.
+   - *Fairness & Bias*: técnicas para mitigar sesgos, evaluación de equidad, métricas de fairness.
+   - *Explainability (XAI)*: SHAP, LIME, interpretabilidad de modelos complejos.
+   - Otros clusters tradicionales: backend, frontend, cloud, QA, data, etc.
+
+**Ejemplo de selección avanzada:**
+El sistema prioriza preguntas de clusters poco cubiertos en la sesión, maximizando la diversidad temática. Si el usuario ya respondió varias de backend, la siguiente será de visión computacional, RL, fairness, etc., si están disponibles y son relevantes al contexto.
+
+**Explicabilidad (XAI) en la selección:**
+Para cada pregunta seleccionada, se puede mostrar:
+  - Similitud semántica con el contexto del usuario.
+  - Penalización por repetición (si ya fue vista).
+  - Bonus por cluster poco cubierto.
+  - Cluster temático asignado.
+  - Score final y probabilidad de selección.
+
+Esto permite auditar y entender el proceso, y facilita la mejora continua.
 
 **Ejemplo de código:**
 ```python

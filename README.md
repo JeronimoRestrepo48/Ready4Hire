@@ -193,12 +193,23 @@ El frontend webchat (`/`) permite:
 - Interfaz moderna, responsiva y accesible.
 
   
+
 ## Aprendizaje Automático y Deep Learning
 
 - `app/emotion_analyzer.py`: Análisis de emociones en texto usando modelos transformers de HuggingFace.
 - Feedback adaptativo: el agente ajusta su respuesta y motivación según la emoción detectada en el usuario.
 - Aprendizaje automático de frases motivacionales y emojis: el sistema expande dinámicamente su repertorio usando LLMs.
 - Generación automática de nuevas preguntas técnicas: el agente crea preguntas inéditas y las integra al dataset y embeddings.
+- **Cobertura avanzada de clusters de ML**: El sistema ahora incluye preguntas y clusters para *Visión Computacional*, *Reinforcement Learning (RL)*, *MLOps*, *Fairness & Bias*, y *Explainability (XAI)*, permitiendo entrevistas especializadas y actualizadas en los temas más avanzados de IA y ciencia de datos.
+- **Selección estricta y explicable**: El selector avanzado utiliza embeddings, reducción de dimensionalidad (UMAP), clustering (HDBSCAN) y penalización por repetición para asegurar variedad temática y relevancia. Se priorizan preguntas de clusters poco cubiertos y se explica cada decisión de selección.
+- **Personalización dinámica**: La dificultad, el tipo de pregunta y los temas se adaptan en tiempo real al desempeño y emociones del usuario, maximizando el aprendizaje y la motivación.
+- **Explicabilidad (XAI) integrada**: Para cada pregunta seleccionada, el sistema puede mostrar la similitud semántica, penalización, bonus de cluster, cluster temático y score final, facilitando la auditoría y confianza en el proceso.
+- **Ejemplo de clusters avanzados**:
+   - *Visión Computacional*: YOLO, OpenCV, procesamiento de imágenes, detección de objetos.
+   - *Reinforcement Learning*: Gym, Stable-Baselines3, PPO, entornos y recompensas.
+   - *MLOps*: MLflow, pipelines, versionado, despliegue y monitoreo de modelos.
+   - *Fairness & Bias*: técnicas para mitigar sesgos, evaluación de equidad, métricas de fairness.
+   - *Explainability (XAI)*: SHAP, LIME, interpretabilidad de modelos complejos.
 
   
 ## Documentación Técnica: NLP, Embeddings y Emociones
@@ -237,61 +248,35 @@ respuesta_segura = security.validate_llm_output(respuesta)
 ### Pruebas automáticas
 
 Ejecuta:
+  
 ```bash
 python3 -m unittest app/test_security_llm.py
 ```
 
 Para más detalles, consulta `SECURITY_LLM.md`.
 
-## Explicabilidad (XAI) en la Selección de Preguntas y Feedback
 
-## Diversidad y Cobertura Temática en la Selección de Preguntas
+## Explicabilidad (XAI), Diversidad y Personalización en la Selección de Preguntas
 
-## Personalización Dinámica y Trayectoria del Usuario
+Ready4Hire implementa un pipeline de selección de preguntas que maximiza la diversidad temática, la cobertura de clusters avanzados y la personalización dinámica:
 
-## Feedback Enriquecido: Ejemplos y Recursos Personalizados
+- **Explicabilidad (XAI)**: Para cada pregunta seleccionada, se puede mostrar una explicación detallada: similitud semántica, penalización por repetición, bonus de cluster, cluster temático y score final. Esto permite auditar y confiar en el proceso, tanto para usuarios técnicos como no técnicos.
+- **Diversidad y cobertura temática**: El sistema prioriza la variedad de temas (clusters) en cada ronda, asegurando que se cubran áreas como visión computacional, RL, MLOps, fairness y explainability, además de los temas tradicionales de ingeniería.
+- **Personalización dinámica**: La selección se adapta en tiempo real al desempeño, emociones y preferencias del usuario, ajustando dificultad, tipo de pregunta y recursos sugeridos.
+- **Feedback enriquecido**: Cuando el usuario comete un error, el agente sugiere ejemplos concretos y recursos personalizados (artículos, videos, documentación, cursos) relevantes al tema y al error detectado.
+- **Detección y mitigación de sesgos**: El sistema alterna tipo de pregunta, ajusta feedback y promueve una evaluación justa y variada si detecta patrones de sesgo (emociones negativas, repetición de temas, etc.).
+- **Robustez y resiliencia**: Ante errores de dependencias externas (LLM, red, recursos), el agente utiliza respuestas de respaldo y registra incidentes, garantizando una experiencia fluida.
+- **Trazabilidad y auditoría**: Cada decisión relevante (selección, feedback, detección de sesgo, adaptaciones) se registra en un log estructurado (`audit_log.jsonl`) para análisis y mejora continua.
 
-## Detección y Mitigación de Sesgos
-
-## Robustez y Resiliencia ante Errores
-
-## Trazabilidad y Auditoría (Logging Estructurado)
-
-Cada decisión relevante del agente (selección de pregunta, feedback, detección de sesgo, adaptaciones, etc.) se registra en un log estructurado (`audit_log.jsonl`). Esto permite auditar, analizar y mejorar el comportamiento del sistema, garantizando transparencia y facilitando la mejora continua basada en datos reales de uso.
-
-El sistema maneja de forma robusta los errores de dependencias externas (por ejemplo, caídas del LLM, fallos de red o de recursos). Si ocurre un error, el agente utiliza respuestas automáticas de respaldo, registra el incidente y permite continuar la entrevista sin interrumpir la experiencia del usuario. Esto garantiza una experiencia fluida y resiliente incluso ante fallos inesperados.
-
-El sistema detecta patrones de sesgo durante la entrevista, como secuencias de emociones negativas, repetición de temas o feedback poco diverso. Cuando se detecta un posible sesgo, el agente alterna el tipo de pregunta (técnica/blanda), sugiere preguntas objetivas y ajusta el feedback para equilibrar la experiencia, promoviendo una evaluación más justa, variada y libre de sesgos.
-
-Cuando el usuario comete un error o muestra un área de mejora, el agente ahora sugiere ejemplos concretos y recursos de aprendizaje personalizados (artículos, videos, documentación, cursos, etc.) relevantes al tema y al error detectado. Esto permite que cada feedback sea más útil, práctico y orientado a la mejora continua, facilitando el aprendizaje autónomo y la profundización en los conceptos clave.
-
-El sistema ahora adapta la selección de preguntas no solo al contexto inicial (rol, nivel, intereses), sino también al desempeño histórico y la trayectoria del usuario durante la entrevista. Se penalizan temas ya cubiertos y se ajusta la dificultad en tiempo real según aciertos, errores y patrones detectados, personalizando la experiencia de aprendizaje y evaluación.
-
-Esto permite que cada entrevista evolucione de forma única, maximizando el valor formativo y la relevancia para cada usuario.
-
-Para maximizar la diversidad y cobertura temática, el sistema prioriza la variedad de temas (clusters) en cada ronda de preguntas. El selector avanzado (`advanced_question_selector`) utiliza los resultados de clustering (UMAP + HDBSCAN) para asegurar que las preguntas seleccionadas provengan de la mayor cantidad posible de clusters distintos, evitando repeticiones de tema y maximizando la cobertura del conocimiento evaluado. Si no hay suficientes clusters distintos, se completan los cupos con las preguntas más relevantes restantes.
-
-Esto garantiza entrevistas más completas, variadas y representativas del dominio, mejorando la experiencia y la robustez del proceso de evaluación.
-
-Ready4Hire ahora explica por qué selecciona cada pregunta relevante para el usuario:
-
-- Para cada pregunta sugerida, se muestra:
-  - Similitud semántica con el contexto del usuario.
-  - Penalización por repetición (si ya fue vista).
-  - Bonus por pertenecer a un cluster temático poco cubierto.
-  - Cluster temático asignado.
-  - Score final y probabilidad de selección.
-
-Esto permite a usuarios técnicos auditar y entender el proceso de selección, y a usuarios no técnicos confiar en la transparencia del sistema.
-
-**Ejemplo de uso:**
+**Ejemplo de explicación de selección:**
+  
 ```python
 explanations = emb_mgr.explain_selection('contexto del usuario', history=[], top_k=3, technical=True)
 for exp in explanations:
-    print(exp['question'], exp['explanation'])
+   print(exp['question'], exp['explanation'])
 ```
 
-Esta función facilita la depuración, la mejora continua y la confianza en el sistema de IA.
+Esto facilita la depuración, la mejora continua y la confianza en el sistema de IA.
 
 ## Ajuste Dinámico de Dificultad (Adaptive Testing)
 
@@ -304,6 +289,7 @@ El agente Ready4Hire ahora adapta automáticamente la dificultad de las pregunta
 Esto permite una experiencia personalizada y retadora, acelerando el aprendizaje y evitando frustración o aburrimiento.
 
 **Ejemplo:**
+
 - Usuario acierta 2 preguntas junior → recibe una pregunta mid.
 - Usuario falla 2 preguntas senior → recibe una pregunta mid o junior.
 
@@ -312,12 +298,14 @@ La lógica es transparente y auditable en el código (`_get_adaptive_level`).
 ## Aprendizaje Activo y Auto-Fine-Tuning
 
 El sistema Ready4Hire ahora identifica y registra automáticamente:
+
 - **Respuestas ambiguas**: aquellas cuya similitud semántica está cerca del umbral de corrección, para revisión o feedback adicional.
 - **Errores frecuentes**: preguntas que el usuario falla varias veces, marcadas para priorizar en ciclos de mejora.
 
 Estas interacciones se almacenan en el dataset de fine-tuning (`finetune_interactions.jsonl`) con flags `ambiguous` y `frequent_error`.
 
 Esto permite:
+
 - Mejorar el modelo y el dataset con ejemplos reales y casos límite.
 - Solicitar feedback adicional al usuario o a expertos para refinar la evaluación.
 - Automatizar el ciclo de aprendizaje y adaptación del agente.
