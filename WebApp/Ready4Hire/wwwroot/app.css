@@ -58,3 +58,13 @@ h1:focus {
 .form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
     text-align: start;
 }
+
+main .top-row.px-4 h1 {
+    text-align: center !important;
+    width: 100%;
+}
+
+.sidebar{
+        background-color: black !important;
+        background: black !important;
+}
