@@ -50,3 +50,4 @@
 {"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
 {"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta correcta de IA relevante."}
 {"event": "answer_received", "user_id": "test_user_full", "answer": "Respuesta incorrecta o irrelevante."}
+{"event": "answer_received", "user_id": "user-uzz4g707", "answer": "sistema de gestion de identidades y manejo de accesos en Cloud"}
