@@ -1,7 +1,53 @@
 ﻿@page "/"
+@using System.Collections.Generic
+@inject IJSRuntime JS
 
-<h1>Nuevo Chat</h1>
+<script>
+    //Script para scroll automatico
+    window.scrollToBottom = () => 
+    {
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    };
+</script>
 
-@code {
+<div class="chat-container">
 
-}
+    <div class="chat-header">
+        <span>Habilidades blandas y tecnicas, practico o examen</span>
+        <!--post/-->
+    </div>
+
+    <div class="chat-body" @ref="chatBodyRef">
+        <!-- Lista de mensajes -->
+        @foreach (var message in Messages)
+        {
+            <div class="chat-message @(message.IsUser ? "user-message" : "agent-message")">
+
+                <div class="message-content">
+                    @if (!message.IsUser)
+                    {
+                        <span class="icon-agent"><i class="bi bi-robot"></i></span>
+                    }
+                    @message.Text
+                    @if (message.IsUser)
+                    {
+                        <img src="images/user-avatar.png" class="avatar" alt="Usuario" />
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="chat-input-bar">
+
+        <textarea class="chat-input"
+                  placeholder="Pregunta lo que quieras"
+                  @bind="UserInput"
+                  rows="2">
+        </textarea>
+
+        <button class="chat-tools">Herramientas</button>
+        <button class="chat-send" @onclick="SendMessage">Enviar</button>
+    </div>
+
+</div>
