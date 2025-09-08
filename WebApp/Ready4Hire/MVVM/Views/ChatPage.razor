@@ -1,6 +1,8 @@
 ﻿@page "/"
 @using System.Collections.Generic
+
 @inject IJSRuntime JS
+
 
 <script>
     //Script para scroll automatico
@@ -40,14 +42,39 @@
 
     <div class="chat-input-bar">
 
-        <textarea class="chat-input"
-                  placeholder="Pregunta lo que quieras"
-                  @bind="UserInput"
-                  rows="2">
-        </textarea>
 
-        <button class="chat-tools">Herramientas</button>
+    <textarea class="chat-input"
+          placeholder="Escribe tu respuesta..."
+          @bind="UserInput"
+          rows="2">
+    </textarea>
+
+        <button class="chat-tools" @onclick="ShowSetup">Configurar</button>
         <button class="chat-send" @onclick="SendMessage">Enviar</button>
+        <button class="chat-start" @onclick="StartInterview" disabled="@(!IsConfigured)">Comenzar Entrevista</button>
+
+        @if (ShowConfig)
+        {
+            <div class="config-modal">
+                <div class="config-content">
+                    <h4>Configurar Entrevista</h4>
+                    <label>Tipo de entrevista:</label>
+                    <select @bind="SelectedInterviewType">
+                        <option value="technical">Técnica</option>
+                        <option value="soft">Habilidades Blandas</option>
+                    </select>
+                    <label>Modo:</label>
+                    <select @bind="SelectedMode">
+                        <option value="practice">Práctica</option>
+                        <option value="exam">Examen</option>
+                    </select>
+                    <div style="margin-top:10px;">
+                        <button @onclick="SaveConfig">Guardar</button>
+                        <button @onclick="HideSetup">Cancelar</button>
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 
 </div>
