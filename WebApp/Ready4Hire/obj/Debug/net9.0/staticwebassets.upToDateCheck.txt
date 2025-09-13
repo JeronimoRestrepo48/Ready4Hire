@@ -1,3 +1,4 @@
+wwwroot\app.css
 wwwroot\favicon.png
 wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css
 wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.map
@@ -43,7 +44,7 @@ wwwroot\lib\bootstrap\dist\js\bootstrap.js
 wwwroot\lib\bootstrap\dist\js\bootstrap.js.map
 wwwroot\lib\bootstrap\dist\js\bootstrap.min.js
 wwwroot\lib\bootstrap\dist\js\bootstrap.min.js.map
-wwwroot\app.css
+E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\app.css
 E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css
 E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\css\bootstrap-grid.css.map
 E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\css\bootstrap-grid.min.css
@@ -88,4 +89,3 @@ E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\js\bootstra
 E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\js\bootstrap.js.map
 E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\js\bootstrap.min.js
 E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\lib\bootstrap\dist\js\bootstrap.min.js.map
-E:\Proyectos\Ready4Hire\WebApp\Ready4Hire\wwwroot\app.css

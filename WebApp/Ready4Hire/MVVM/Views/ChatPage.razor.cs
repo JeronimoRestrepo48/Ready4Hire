@@ -23,8 +23,6 @@ namespace Ready4Hire.MVVM.Views
         [Inject]
         public Ready4Hire.MVVM.Models.InterviewApiService InterviewApi { get; set; }
 
-        [Inject]
-        public IJSRuntime JS { get; set; }
 
         private List<ChatMessage> Messages = new();
         private string UserInput { get; set; } = "";

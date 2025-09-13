@@ -1,26 +1,32 @@
 {
   "format": 1,
   "restore": {
-    "/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Ready4Hire.csproj": {}
+    "E:\\Proyectos\\Ready4Hire\\WebApp\\Ready4Hire\\Ready4Hire.csproj": {}
   },
   "projects": {
-    "/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Ready4Hire.csproj": {
+    "E:\\Proyectos\\Ready4Hire\\WebApp\\Ready4Hire\\Ready4Hire.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Ready4Hire.csproj",
+        "projectUniqueName": "E:\\Proyectos\\Ready4Hire\\WebApp\\Ready4Hire\\Ready4Hire.csproj",
         "projectName": "Ready4Hire",
-        "projectPath": "/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Ready4Hire.csproj",
-        "packagesPath": "/home/jeronimorestrepoangel/.nuget/packages/",
-        "outputPath": "/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/",
+        "projectPath": "E:\\Proyectos\\Ready4Hire\\WebApp\\Ready4Hire\\Ready4Hire.csproj",
+        "packagesPath": "C:\\Users\\emanu\\.nuget\\packages\\",
+        "outputPath": "E:\\Proyectos\\Ready4Hire\\WebApp\\Ready4Hire\\obj\\",
         "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "E:\\Apps\\VisualH\\NuGetPackages"
+        ],
         "configFilePaths": [
-          "/home/jeronimorestrepoangel/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\emanu\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
         ],
         "sources": {
-          "/usr/lib64/dotnet/library-packs": {},
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -39,7 +45,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.100"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net9.0": {
@@ -63,7 +69,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/lib64/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
