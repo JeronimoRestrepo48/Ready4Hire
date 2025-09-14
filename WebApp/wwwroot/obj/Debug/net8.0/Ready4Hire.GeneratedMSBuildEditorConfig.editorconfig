@@ -1,0 +1,59 @@
+is_global = true
+build_property.TargetFramework = net8.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = true
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = 
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property._SupportedPlatformList = Linux,macOS,Windows
+build_property.RootNamespace = Ready4Hire
+build_property.RootNamespace = Ready4Hire
+build_property.ProjectDir = /home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.RazorLangVersion = 8.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = /home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire
+build_property._RazorSourceGeneratorDebug = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Components/App.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50cy9BcHAucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Components/Routes.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50cy9Sb3V0ZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Components/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50cy9fSW1wb3J0cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/MVVM/Views/ChatPage.razor]
+build_metadata.AdditionalFiles.TargetPath = TVZWTS9WaWV3cy9DaGF0UGFnZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/MVVM/Views/Counter.razor]
+build_metadata.AdditionalFiles.TargetPath = TVZWTS9WaWV3cy9Db3VudGVyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/MVVM/Views/Error.razor]
+build_metadata.AdditionalFiles.TargetPath = TVZWTS9WaWV3cy9FcnJvci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/MVVM/Views/Weather.razor]
+build_metadata.AdditionalFiles.TargetPath = TVZWTS9WaWV3cy9XZWF0aGVyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/MVVM/Views/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = TVZWTS9WaWV3cy9fSW1wb3J0cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Components/Layout/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50cy9MYXlvdXQvTWFpbkxheW91dC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-avn3v9u0x2
+
+[/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/Components/Layout/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50cy9MYXlvdXQvTmF2TWVudS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-z1ukjpiixt

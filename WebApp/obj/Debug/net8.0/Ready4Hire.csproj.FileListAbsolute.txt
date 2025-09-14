@@ -1,0 +1,6 @@
+/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/Debug/net8.0/Ready4Hire.GeneratedMSBuildEditorConfig.editorconfig
+/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/Debug/net8.0/Ready4Hire.AssemblyInfoInputs.cache
+/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/Debug/net8.0/Ready4Hire.AssemblyInfo.cs
+/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/Debug/net8.0/Ready4Hire.csproj.CoreCompileInputs.cache
+/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/Debug/net8.0/Ready4Hire.MvcApplicationPartsAssemblyInfo.cache
+/home/jeronimorestrepoangel/Documentos/Integracion/Ready4Hire/WebApp/Ready4Hire/obj/Debug/net8.0/Ready4Hire.sourcelink.json
