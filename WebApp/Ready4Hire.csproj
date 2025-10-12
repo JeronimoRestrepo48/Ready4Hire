@@ -10,8 +10,4 @@
     <Folder Include="MVVM\ViewModels\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Blazor.Bootstrap" Version="3.4.0" />
-  </ItemGroup>
-
 </Project>
