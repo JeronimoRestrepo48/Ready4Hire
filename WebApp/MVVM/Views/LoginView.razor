@@ -1,0 +1,319 @@
+﻿@page "/login"
+
+<div class="login-bg">
+    <div class="login-container">
+        <img src="images/logo.jpg" alt="Ready4Hire Logo" class="login-logo" />
+
+        <div class="login-title">Ready4Hire</div>
+        <div class="login-welcome">Bienvenido de nuevo</div>
+
+        <form class="login-form">
+            <input class="login-input" type="email" placeholder="Dirección de correo electronico" required />
+            <input class="login-input" type="password" placeholder="Contraseña" required />
+            <button type="submit" class="login-btn">Continuar</button>
+        </form>
+
+        <div class="login-register">
+            ¿No tienes una cuenta?
+            <button type="button" class="register-link" @onclick="ShowRegisterModal">Regístrate</button>
+        </div>
+
+        <div class="login-divider">
+            <hr />
+            <span>o</span>
+            <hr />
+        </div>
+
+        <div class="login-social-group">
+            <button class="login-social-btn">
+                <img src="images/googlelogo.png" alt="Google" />
+                Continuar con Google
+            </button>
+            <button class="login-social-btn">
+                <img src="images/microsoftlogo.png" alt="Microsoft" />
+                Continuar con una cuenta de Microsoft
+            </button>
+        </div>
+
+        <div class="login-footer">
+            Términos de uso &nbsp;|&nbsp; <a href="#">Política de privacidad</a>
+        </div>
+    </div>
+</div>
+
+@if (showRegisterModal)
+{
+    <div class="register-modal-bg" @onclick="HideRegisterModal">
+        <div class="register-modal" @onclick:stopPropagation>
+            <button class="register-close-btn" @onclick="HideRegisterModal">×</button>
+            <div class="register-steps">
+                <div class="register-step @(Step == 1 ? "active" : "")">
+                    <span>1</span>
+                    <div>Cuenta</div>
+                </div>
+                <div class="register-step @(Step == 2 ? "active" : "")">
+                    <span>2</span>
+                    <div>Perfil</div>
+                </div>
+                <div class="register-step @(Step == 3 ? "active" : "")">
+                    <span>3</span>
+                    <div>Intereses</div>
+                </div>
+            </div>
+            <div class="register-step-content">
+                @if (Step == 1)
+                {
+                    <div>
+                        <h2>Paso 1: Cuenta</h2>
+                        <p class="register-subtitle">Empieza tu viaje de aprendizaje hoy mismo.</p>
+                        <div class="register-form-group">
+                            <label>Correo electrónico</label>
+                            <input class="register-input" type="email" placeholder="tu@ejemplo.com" />
+                        </div>
+                        <div class="register-form-group">
+                            <label>Contraseña</label>
+                            <input class="register-input" type="password" placeholder="Crea una contraseña segura" />
+                            <small>Debe tener al menos 8 caracteres y una combinación de letras, números y símbolos.</small>
+                        </div>
+                        <div class="register-form-group">
+                            <label>Confirmar contraseña</label>
+                            <input class="register-input" type="password" placeholder="Repite tu contraseña" />
+                        </div>
+                        <button class="register-btn" @onclick="NextStep">Continuar &rarr;</button>
+                        <div class="register-divider">
+                            <hr />
+                            <span>o</span>
+                            <hr />
+                        </div>
+                        <div class="register-social-group">
+                            <button class="register-social-btn">
+                                <img src="images/googlelogo.png" alt="Google" />
+                                Google
+                            </button>
+                            <button class="register-social-btn">
+                                <img src="images/microsoftlogo.png" alt="Microsoft" />
+                                Microsoft
+                            </button>
+                        </div>
+                        <div class="register-terms">
+                            Al registrarte, aceptas nuestros <a href="#">Términos de servicio</a> y nuestra <a href="#">Política de privacidad</a>.
+                        </div>
+                    </div>
+                }
+                else if (Step == 2)
+                {
+                    <div>
+                        <h2>Paso 2: Perfil</h2>
+                        <p class="register-subtitle">Completa tu perfil para continuar tu viaje de aprendizaje.</p>
+                        <div class="register-form-group">
+                            <label>Nombre</label>
+                            <input class="register-input" type="text" placeholder="Nombre" />
+                        </div>
+                        <div class="register-form-group">
+                            <label>Apellido</label>
+                            <input class="register-input" type="text" placeholder="Apellido" />
+                        </div>
+                        <div class="register-form-group">
+                            <label>País</label>
+                            <select class="register-input">
+                                <option value="Colombia">Colombia</option>
+                            </select>
+                        </div>
+                        <div class="register-form-group">
+                            <label>Trabajo actual</label>
+                            <input class="register-input" type="text" placeholder="Desarrollador de Software" />
+                        </div>
+                        <button class="register-btn" @onclick="NextStep">Continuar &rarr;</button>
+                    </div>
+                }
+                else if (Step == 3)
+                {
+                    <div>
+                        <h2>Paso 3: Confirmación</h2>
+                        <p class="register-subtitle">Selecciona tus habilidades e intereses para personalizar tu experiencia.</p>
+                        <div class="register-form-group">
+                            <label>Habilidades Duras</label>
+                            <div class="register-search-group">
+                                <span class="register-search-icon">&#128269;</span>
+                                <input class="register-input" type="text" placeholder="Busca y añade habilidades duras" @bind="hardSkillSearch" @oninput="FilterHardSkills" />
+                            </div>
+                            @if (filteredHardSkills.Any())
+                            {
+                                <ul class="register-dropdown-list">
+                                    @foreach (var skill in filteredHardSkills)
+                                    {
+                                        <li @onclick="() => AddHardSkill(skill)">@skill</li>
+                                    }
+                                </ul>
+                            }
+                            <div class="register-selected-list">
+                                @foreach (var skill in selectedHardSkills)
+                                {
+                                    <span class="register-selected-item">@skill <button type="button" @onclick="() => RemoveHardSkill(skill)">×</button></span>
+                                }
+                            </div>
+                        </div>
+                        <div class="register-form-group">
+                            <label>Habilidades Blandas</label>
+                            <div class="register-search-group">
+                                <span class="register-search-icon">&#128269;</span>
+                                <input class="register-input" type="text" placeholder="Busca y añade habilidades blandas" @bind="softSkillSearch" @oninput="FilterSoftSkills" />
+                            </div>
+                            @if (filteredSoftSkills.Any())
+                            {
+                                <ul class="register-dropdown-list">
+                                    @foreach (var skill in filteredSoftSkills)
+                                    {
+                                        <li @onclick="() => AddSoftSkill(skill)">@skill</li>
+                                    }
+                                </ul>
+                            }
+                            <div class="register-selected-list">
+                                @foreach (var skill in selectedSoftSkills)
+                                {
+                                    <span class="register-selected-item">@skill <button type="button" @onclick="() => RemoveSoftSkill(skill)">×</button></span>
+                                }
+                            </div>
+                        </div>
+                        <div class="register-form-group">
+                            <label>Intereses</label>
+                            <div class="register-search-group">
+                                <span class="register-search-icon">&#128269;</span>
+                                <input class="register-input" type="text" placeholder="Busca y añade intereses" @bind="interestSearch" @oninput="FilterInterests" />
+                            </div>
+                            @if (filteredInterests.Any())
+                            {
+                                <ul class="register-dropdown-list">
+                                    @foreach (var interest in filteredInterests)
+                                    {
+                                        <li @onclick="() => AddInterest(interest)">@interest</li>
+                                    }
+                                </ul>
+                            }
+                            <div class="register-selected-list">
+                                @foreach (var interest in selectedInterests)
+                                {
+                                    <span class="register-selected-item">@interest <button type="button" @onclick="() => RemoveInterest(interest)">×</button></span>
+                                }
+                            </div>
+                        </div>
+                        <button class="register-btn">Continuar &rarr;</button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool showRegisterModal = false;
+    private int Step = 1;
+
+    // Paso 3: Habilidades e intereses
+    private string hardSkillSearch = "";
+    private string softSkillSearch = "";
+    private string interestSearch = "";
+
+    private List<string> hardSkills = new() { "C#", "Java", "SQL", "JavaScript", "Python", "Docker", "Kubernetes" };
+    private List<string> softSkills = new() { "Comunicación", "Trabajo en equipo", "Liderazgo", "Adaptabilidad", "Pensamiento crítico" };
+    private List<string> interests = new() { "Inteligencia Artificial", "Desarrollo Web", "Videojuegos", "Ciberseguridad", "Cloud Computing" };
+
+    private List<string> filteredHardSkills = new();
+    private List<string> filteredSoftSkills = new();
+    private List<string> filteredInterests = new();
+
+    private List<string> selectedHardSkills = new();
+    private List<string> selectedSoftSkills = new();
+    private List<string> selectedInterests = new();
+
+    void ShowRegisterModal()
+    {
+        showRegisterModal = true;
+        Step = 1;
+        ResetSearch();
+    }
+
+    void HideRegisterModal()
+    {
+        showRegisterModal = false;
+        Step = 1;
+        ResetSearch();
+    }
+
+    void NextStep()
+    {
+        if (Step < 3)
+            Step++;
+        ResetSearch();
+    }
+
+    void ResetSearch()
+    {
+        hardSkillSearch = "";
+        softSkillSearch = "";
+        interestSearch = "";
+        filteredHardSkills.Clear();
+        filteredSoftSkills.Clear();
+        filteredInterests.Clear();
+    }
+
+    void FilterHardSkills(ChangeEventArgs e)
+    {
+        hardSkillSearch = e.Value?.ToString() ?? "";
+        filteredHardSkills = hardSkills
+            .Where(s => s.Contains(hardSkillSearch, StringComparison.OrdinalIgnoreCase) && !selectedHardSkills.Contains(s))
+            .ToList();
+    }
+
+    void FilterSoftSkills(ChangeEventArgs e)
+    {
+        softSkillSearch = e.Value?.ToString() ?? "";
+        filteredSoftSkills = softSkills
+            .Where(s => s.Contains(softSkillSearch, StringComparison.OrdinalIgnoreCase) && !selectedSoftSkills.Contains(s))
+            .ToList();
+    }
+
+    void FilterInterests(ChangeEventArgs e)
+    {
+        interestSearch = e.Value?.ToString() ?? "";
+        filteredInterests = interests
+            .Where(s => s.Contains(interestSearch, StringComparison.OrdinalIgnoreCase) && !selectedInterests.Contains(s))
+            .ToList();
+    }
+
+    void AddHardSkill(string skill)
+    {
+        selectedHardSkills.Add(skill);
+        hardSkillSearch = "";
+        filteredHardSkills.Clear();
+    }
+
+    void RemoveHardSkill(string skill)
+    {
+        selectedHardSkills.Remove(skill);
+    }
+
+    void AddSoftSkill(string skill)
+    {
+        selectedSoftSkills.Add(skill);
+        softSkillSearch = "";
+        filteredSoftSkills.Clear();
+    }
+
+    void RemoveSoftSkill(string skill)
+    {
+        selectedSoftSkills.Remove(skill);
+    }
+
+    void AddInterest(string interest)
+    {
+        selectedInterests.Add(interest);
+        interestSearch = "";
+        filteredInterests.Clear();
+    }
+
+    void RemoveInterest(string interest)
+    {
+        selectedInterests.Remove(interest);
+    }
+}

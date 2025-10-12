@@ -1,14 +1,17 @@
 using Ready4Hire.Components;
+using Ready4Hire.MVVM.Models;
 
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Registrar el servicio de consumo de la API Python
-builder.Services.AddHttpClient<Ready4Hire.MVVM.Models.InterviewApiService>();
+builder.Services.AddHttpClient<InterviewApiService>();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddBlazorBootstrap();
 
 var app = builder.Build();
 

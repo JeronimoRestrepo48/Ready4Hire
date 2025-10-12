@@ -1,81 +1,58 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using Ready4Hire.MVVM.Models;
 
 namespace Ready4Hire.MVVM.Views
 {
     public partial class ChatPage : ComponentBase
     {
-        /// <summary>
-        /// Representa un mensaje en el chat (usuario o agente).
-        /// </summary>
-        public class ChatMessage
-        {
-            /// <summary>
-            /// Texto del mensaje.
-            /// </summary>
-            public string Text { get; set; }
-            /// <summary>
-            /// Indica si el mensaje es del usuario (true) o del agente (false).
-            /// </summary>
-            public bool IsUser { get; set; }
-        }
 
         [Inject]
-        public Ready4Hire.MVVM.Models.InterviewApiService InterviewApi { get; set; }
+        public InterviewApiService InterviewApi { get; set; }
 
 
-    private List<ChatMessage> Messages = new();
-    private string UserInput { get; set; } = "";
-    private string userId = $"user-{Guid.NewGuid().ToString().Substring(0, 8)}";
-    private string interviewType = "technical";
-    private string mode = "practice";
-    private string currentQuestion = "";
-    private int questionCount = 0;
-    private const int MAX_QUESTIONS = 10;
-    private bool started = false;
-    private ElementReference chatBodyRef;
-    private bool isExamMode = false;
-    private System.Timers.Timer? examTimer;
-    private int elapsedSeconds = 0;
-    private string timerDisplay = "00:00";
-    private string? errorMessage = null;
+        private List<Message> Messages = new();
 
-    /// <summary>
-    /// Indica si se muestra el modal de configuración.
-    /// </summary>
-    public bool ShowConfig { get; set; } = false;
-    /// <summary>
-    /// Tipo de entrevista seleccionado ("technical" o "soft").
-    /// </summary>
-    public string SelectedInterviewType { get; set; } = "technical";
-    /// <summary>
-    /// Modo de entrevista seleccionado ("practice" o "exam").
-    /// </summary>
-    public string SelectedMode { get; set; } = "practice";
-    /// <summary>
-    /// Indica si la configuración fue guardada y es válida.
-    /// </summary>
-    public bool IsConfigured { get; set; } = false;
+        private string UserInput { get; set; } = "";
+        private string userId = $"user-{Guid.NewGuid().ToString().Substring(0, 8)}";
+        private string interviewType = "technical";
+        private string mode = "practice";
+        private string currentQuestion = "";
+        private int questionCount = 0;
+        private bool started = false;
+        private ElementReference chatBodyRef;
+        private bool isExamMode = false;
+        private System.Timers.Timer? examTimer;
+        private int elapsedSeconds = 0;
+        private string timerDisplay = "00:00";
+        private string? errorMessage = null;
 
-        /// <summary>
+        /// Indica si se muestra el modal de configuración.
+        public bool ShowConfig { get; set; } = false;
+
+        /// Tipo de entrevista seleccionado ("technical" o "soft").
+        public string SelectedInterviewType { get; set; } = "technical";
+
+        /// Modo de entrevista seleccionado ("practice" o "exam").
+        public string SelectedMode { get; set; } = "practice";
+
+        /// Indica si la configuración fue guardada y es válida.
+        public bool IsConfigured { get; set; } = false;
+
+        
         /// Muestra el modal de configuración de entrevista.
-        /// </summary>
         private void ShowSetup()
         {
             ShowConfig = true;
         }
 
-        /// <summary>
         /// Oculta el modal de configuración de entrevista.
-        /// </summary>
         private void HideSetup()
         {
             ShowConfig = false;
         }
 
-        /// <summary>
         /// Guarda la configuración seleccionada y habilita el inicio de la entrevista.
-        /// </summary>
         private void SaveConfig()
         {
             interviewType = SelectedInterviewType;
@@ -113,7 +90,7 @@ namespace Ready4Hire.MVVM.Views
                     if (!string.IsNullOrEmpty(qStr))
                     {
                         currentQuestion = qStr;
-                        Messages.Add(new ChatMessage { Text = currentQuestion, IsUser = false });
+                        Messages.Add(new Message { Text = currentQuestion, IsUser = false });
                     }
                 }
             }
@@ -132,7 +109,7 @@ namespace Ready4Hire.MVVM.Views
             if (!string.IsNullOrWhiteSpace(UserInput) && started)
             {
                 var sanitized = SanitizeInput(UserInput);
-                Messages.Add(new ChatMessage { Text = sanitized, IsUser = true });
+                Messages.Add(new Message { Text = sanitized, IsUser = true });
                 var answer = sanitized;
                 UserInput = "";
                 errorMessage = null;
@@ -154,7 +131,7 @@ namespace Ready4Hire.MVVM.Views
                         if (!string.IsNullOrEmpty(nextStr))
                         {
                             currentQuestion = nextStr;
-                            Messages.Add(new ChatMessage { Text = currentQuestion, IsUser = false });
+                            Messages.Add(new Message { Text = currentQuestion, IsUser = false });
                         }
                         if (!retry)
                         {
@@ -167,11 +144,11 @@ namespace Ready4Hire.MVVM.Views
                         // Gamificación: si contiene el bloque especial, mostrarlo resaltado
                         if (feedbackText.Contains("🎮 Sistema de Gamificación Avanzada 🎮"))
                         {
-                            Messages.Add(new ChatMessage { Text = feedbackText, IsUser = false });
+                            Messages.Add(new Message { Text = feedbackText, IsUser = false });
                         }
                         else
                         {
-                            Messages.Add(new ChatMessage { Text = feedbackText, IsUser = false });
+                            Messages.Add(new Message { Text = feedbackText, IsUser = false });
                         }
                         if (!retry)
                         {
@@ -179,7 +156,7 @@ namespace Ready4Hire.MVVM.Views
                         }
                     }
                     // Solo avanzar si retry es false
-                    if (!retry && questionCount >= MAX_QUESTIONS)
+                    if (!retry)
                     {
                         await EndInterview();
                     }
@@ -207,11 +184,11 @@ namespace Ready4Hire.MVVM.Views
                     // Gamificación: si contiene el bloque especial, mostrarlo resaltado
                     if (summaryText.Contains("🎮 Sistema de Gamificación Avanzada 🎮"))
                     {
-                        Messages.Add(new ChatMessage { Text = summaryText, IsUser = false });
+                        Messages.Add(new Message { Text = summaryText, IsUser = false });
                     }
                     else
                     {
-                        Messages.Add(new ChatMessage { Text = summaryText, IsUser = false });
+                        Messages.Add(new Message { Text = summaryText, IsUser = false });
                     }
                 }
             }
