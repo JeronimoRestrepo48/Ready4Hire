@@ -1,21 +1,27 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">Ready4Hire</a>
+﻿<div class="sidebar-nav">
+    <div class="sidebar-header">
+        <img src="images/logo.jpg" alt="Logo" class="sidebar-icon" />
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+    <div class="sidebar-menu">
+        <NavLink class="sidebar-link" href="/chat">
+            Nuevo chat
+        </NavLink>
+    </div>
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-
-    <nav class="nav flex-column">
-
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/chat" Match="NavLinkMatch.All">
-                <span class="bi bi-" aria-hidden="true"></span> Nuevo Chat
-            </NavLink>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <img src="images/user-avatar.png" alt="Avatar" class="sidebar-avatar" />
+            <span class="sidebar-username">Nombre Usuario</span>
         </div>
-    </nav>
 
+        <NavLink class="sidebar-action" href="/settings">
+            <span class="bi bi-gear"></span> Ajustes
+        </NavLink>
+
+        <NavLink class="sidebar-action" href="/logout">
+            <span class="bi bi-box-arrow-left"></span> Cerrar Sesión
+        </NavLink>
+    </div>
 </div>
 

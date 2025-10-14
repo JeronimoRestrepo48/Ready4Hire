@@ -5,6 +5,9 @@ namespace Ready4Hire.MVVM.Views
 {
     public partial class LoginView : ComponentBase
     {
+        [Inject]
+        private NavigationManager Navigation { get; set; }
+
         private LoginViewModel vm = new LoginViewModel();
 
         private bool showRegisterModal = false;
@@ -103,6 +106,10 @@ namespace Ready4Hire.MVVM.Views
                 // Prevent continue if any required selection is missing
                 if (isHardskillsInvalid || isSoftskillsInvalid || isInterestsInvalid)
                     return;
+                else
+                {
+                    Navigation.NavigateTo("/chat");
+                }
             }
             if (Step < 3)
                 Step++;
