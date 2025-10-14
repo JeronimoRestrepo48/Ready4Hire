@@ -297,7 +297,7 @@ body, .login-bg {
         font-size: 1rem;
         color: #ccc;
     }
-/* NUEVO: Contenedor para los botones sociales */
+
 .login-social-group {
     display: flex;
     flex-direction: column;
@@ -352,7 +352,6 @@ body, .login-bg {
 /*#endregion */
 
 /* Modal de registro */
-/* MODAL: Fondo y modal centrado */
 .register-modal-bg {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -573,4 +572,8 @@ body, .login-bg {
 .register-link:hover {
     color: #217dbb;
     text-decoration: underline;
+}
+
+.input-invalid {
+    border: 2px solid #e74c3c !important;
 }
