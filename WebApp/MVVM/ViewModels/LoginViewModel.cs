@@ -1,4 +1,7 @@
-﻿using System.Text.RegularExpressions;
+﻿using Microsoft.EntityFrameworkCore;
+using Ready4Hire.Data;
+using Ready4Hire.MVVM.Models;
+using System.Text.RegularExpressions;
 
 namespace Ready4Hire.MVVM.ViewModels
 {
@@ -8,11 +11,28 @@ namespace Ready4Hire.MVVM.ViewModels
         string Password { get; set; }
         string Name { get; set; }
         string LastName { get; set; }
-        //string Country { get; set; }
+        string Country { get; set; }
         string Job { get; set; }
         List<string> Skills { get; set; }
         List<string> Softskills { get; set; }
         List<string> Interests { get; set; }
+
+        private readonly AppDbContext _db;
+
+        public LoginViewModel(AppDbContext db)
+        {
+            _db = db;
+        }
+
+        public async Task<bool> IsUserLoggedIn()
+        {
+            var users = await _db.Users.ToListAsync();
+
+            if(users.Count > 0)
+                return true;
+            else
+                return false;
+        }
 
         public bool ValidateEmail(string email)
         {
@@ -39,6 +59,7 @@ namespace Ready4Hire.MVVM.ViewModels
                 return false;
             }
         }
+
         public bool ValidatePassword(string password)
         {
             if (string.IsNullOrWhiteSpace(password))
@@ -65,6 +86,12 @@ namespace Ready4Hire.MVVM.ViewModels
             return true;
         }
 
+        string EncryptPassword(string password)
+        {
+            //Implementar en el futuro
+            return password;
+        }
+
         // Verifica que el nombre o apellido no sea vacío y no contenga números ni caracteres especiales.
         public bool ValidateString(string value)
         {
@@ -89,5 +116,56 @@ namespace Ready4Hire.MVVM.ViewModels
             // Capitaliza la primera letra, el resto minúsculas
             return char.ToUpper(trimmed[0]) + trimmed.Substring(1).ToLower();
         }
+
+        //Finaliza el registro del usuario con la información adicional.
+        public async Task FinishRegistration(string name, string lastName, string job,string country ,List<string> skills, List<string> softskills, List<string> interests)
+        {
+            //Volver a validar nombre y apellido
+            if (!ValidateString(name) || !ValidateString(lastName) || !ValidateString(job))
+                throw new ArgumentException("Invalid name, last name or job name.");
+            else if (skills == null || softskills == null || interests == null)
+                throw new ArgumentException("Skills, softskills, and interests cannot be null.");
+
+            Name = FormatNameOrLastName(name);
+            LastName = FormatNameOrLastName(lastName);
+            Job = FormatNameOrLastName(job);
+            Country = country;
+
+            Skills = skills ?? new List<string>();
+            Softskills = softskills ?? new List<string>();
+            Interests = interests ?? new List<string>();
+
+            // Save user info securely
+            try
+            {
+                await SaveUserInfo();
+            }
+            catch (Exception)
+            {
+                throw;
+            }
+        }
+
+        private async Task SaveUserInfo()
+        {
+            Password = EncryptPassword(Password);
+
+            User user = new User
+            {
+                Email = Email,
+                Password = Password,
+                Name = Name,
+                LastName = LastName,
+                Country = Country,
+                Job = Job,
+                Skills = Skills,
+                Softskills = Softskills,
+                Interests = Interests
+            };
+
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync();
+        }
+
     }
 }

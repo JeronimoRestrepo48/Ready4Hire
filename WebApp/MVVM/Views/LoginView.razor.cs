@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Ready4Hire.Data;
 using Ready4Hire.MVVM.ViewModels;
 
 namespace Ready4Hire.MVVM.Views
@@ -7,8 +8,19 @@ namespace Ready4Hire.MVVM.Views
     {
         [Inject]
         private NavigationManager Navigation { get; set; }
+        [Inject]
+        private AppDbContext Db { get; set; }
 
-        private LoginViewModel vm = new LoginViewModel();
+        private LoginViewModel vm;
+
+        protected override async Task OnInitializedAsync()
+        {
+            vm = new LoginViewModel(Db);
+
+            bool userLoggedIn = await vm.IsUserLoggedIn();
+            if (userLoggedIn)
+                Navigation.NavigateTo("/chat");
+        }
 
         private bool showRegisterModal = false;
         private int Step = 1;
@@ -103,6 +115,7 @@ namespace Ready4Hire.MVVM.Views
             Step = 1;
             ResetSearch();
             ResetValidation();
+
             registerEmail = "";
             registerPassword = "";
             registerConfirmPassword = "";
@@ -112,7 +125,7 @@ namespace Ready4Hire.MVVM.Views
             registerJob = "";
         }
 
-        void NextStep()
+        async void NextStep()
         {
             if (Step == 1)
             {
@@ -135,7 +148,7 @@ namespace Ready4Hire.MVVM.Views
                 if (isNameInvalid || isLastNameInvalid || isCountryInvalid || isJobInvalid)
                     return;
             }
-            if (Step == 3)
+            else if (Step == 3)
             {
                 // Validate skills and interests
                 isHardskillsInvalid = selectedHardSkills.Count == 0;
@@ -147,11 +160,16 @@ namespace Ready4Hire.MVVM.Views
                     return;
                 else
                 {
+                    await vm.FinishRegistration(registerName, registerLastName, registerJob, registerCountry,
+                        selectedHardSkills, selectedSoftSkills, selectedInterests);
+
                     Navigation.NavigateTo("/chat");
                 }
             }
+
             if (Step < 3)
                 Step++;
+
             ResetSearch();
             ResetValidation();
         }
