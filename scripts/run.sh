@@ -260,7 +260,7 @@ start_api() {
     fi
     
     API_PID=$!
-    sleep 8
+    sleep 30
     
     # Verificar que la API inició
     if lsof -ti:$API_PORT > /dev/null 2>&1; then
