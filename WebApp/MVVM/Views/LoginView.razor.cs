@@ -45,9 +45,48 @@ namespace Ready4Hire.MVVM.Views
         private bool isInterestsInvalid = false;
 
         #region Listas de habilidades e intereses
-        private List<string> hardSkills = new() { "C#", "Java", "SQL", "JavaScript", "Python", "Docker", "Kubernetes" };
-        private List<string> softSkills = new() { "Comunicación", "Trabajo en equipo", "Liderazgo", "Adaptabilidad", "Pensamiento crítico" };
-        private List<string> interests = new() { "Inteligencia Artificial", "Desarrollo Web", "Videojuegos", "Ciberseguridad", "Cloud Computing" };
+        private List<string> hardSkills = new()
+        {
+            "C#", "Java", "SQL", "JavaScript", "Python", "Docker", "Kubernetes",
+            "Go", "TypeScript", "Rust", "Scala", "Ruby", "Swift", "React",
+            "Angular", "Node.js", "AWS", "Azure", "Google Cloud", "PostgreSQL",
+            "MongoDB", "GraphQL", "ElasticSearch", "Terraform", "CI/CD", "Jenkins",
+            "Git", "Bash", "PowerShell", "Unity", "Unreal Engine", "F#", "Objective-C",
+            "PHP", "Laravel", "Django", "Flask", "Spring Boot", "ASP.NET Core",
+            "Hibernate", "Redis", "RabbitMQ", "Kafka", "Microservices",
+            "Data Engineering", "Machine Learning", "Computer Vision", "Hadoop",
+            "Spark", "Airflow"
+        };
+        private List<string> softSkills = new()
+        {
+            "Comunicación", "Trabajo en equipo", "Liderazgo", "Adaptabilidad", "Pensamiento crítico",
+            "Creatividad", "Gestión del tiempo", "Resolución de problemas", "Empatía",
+            "Pensamiento estratégico", "Comunicación intercultural", "Negociación",
+            "Gestión del estrés", "Capacidad de aprendizaje", "Orientación al detalle",
+            "Inteligencia emocional", "Gestión de conflictos", "Proactividad",
+            "Pensamiento analítico", "Autoconfianza", "Toma de decisiones", "Mentoría",
+            "Escucha activa", "Colaboración", "Gestión del cambio", "Planificación estratégica",
+            "Resiliencia", "Responsabilidad", "Orientación al cliente", "Networking",
+            "Coaching", "Delegación", "Capacidad de síntesis", "Comunicación escrita",
+            "Oratoria", "Gestión de proyectos", "Innovación", "Flexibilidad", "Autogestión",
+            "Mentalidad de crecimiento", "Disciplina", "Motivación", "Diplomacia",
+            "Ética profesional", "Perseverancia", "Cultura de feedback", "Pensamiento sistémico",
+            "Orientación a resultados", "Gestión de prioridades", "Aprendizaje continuo"
+        };
+        private List<string> interests = new()
+        {
+            "Inteligencia Artificial", "Desarrollo Web", "Videojuegos", "Ciberseguridad", "Cloud Computing",
+            "Realidad Aumentada", "Realidad Virtual", "Blockchain", "Data Science", "Internet of Things",
+            "Machine Learning", "Robótica", "Automatización", "FinTech", "EdTech", "Análisis de Datos",
+            "DevOps", "Emprendimiento tecnológico", "Computación Cuántica", "Bioinformática",
+            "Diseño de UX/UI", "Desarrollo Mobile", "Sistemas Embebidos", "Big Data", "Agrotech",
+            "Greentech", "Realidad Mixta", "Ciencia Ciudadana", "Economía Digital", "Smart Cities",
+            "Automoción autónoma", "Energías Renovables", "eSports", "Realidad Extendida",
+            "Computación Edge", "Seguridad de Datos", "Criptografía", "Computación Distribuida",
+            "Ingeniería de Datos", "Narrativa Interactiva", "Impresión 3D", "Educación en Línea",
+            "Microservicios", "Tecnología Sanitaria", "Automatización de Procesos", "Gobernanza de Datos",
+            "Metaverso", "Nanotecnología", "Tecnologías Vestibles", "Analítica Predictiva"
+        };
         #endregion
 
         private List<string> filteredHardSkills = new();

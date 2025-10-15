@@ -58,16 +58,46 @@
             <div class="config-modal">
                 <div class="config-content">
                     <h4>Configurar Entrevista</h4>
+                    
+                    <label>Rol/Posición:</label>
+                    <select @bind="SelectedRole">
+                        <option value="Backend Developer - .NET">Backend Developer (.NET)</option>
+                        <option value="Backend Developer - Java">Backend Developer (Java)</option>
+                        <option value="Frontend Developer - React">Frontend Developer (React)</option>
+                        <option value="Frontend Developer - Angular">Frontend Developer (Angular)</option>
+                        <option value="Full Stack Developer">Full Stack Developer</option>
+                        <option value="DevOps Engineer - Azure">DevOps Engineer (Azure)</option>
+                        <option value="DevOps Engineer - AWS">DevOps Engineer (AWS)</option>
+                        <option value="Data Scientist">Data Scientist</option>
+                        <option value="Data Engineer">Data Engineer</option>
+                        <option value="QA Engineer - Manual">QA Engineer (Manual)</option>
+                        <option value="QA Engineer - Automation">QA Engineer (Automation)</option>
+                        <option value="Cybersecurity Analyst">Cybersecurity Analyst</option>
+                        <option value="Mobile Developer - Android">Mobile Developer (Android)</option>
+                        <option value="Mobile Developer - iOS">Mobile Developer (iOS)</option>
+                        <option value="Product Manager">Product Manager</option>
+                        <option value="Scrum Master">Scrum Master</option>
+                    </select>
+                    
                     <label>Tipo de entrevista:</label>
                     <select @bind="SelectedInterviewType">
                         <option value="technical">Técnica</option>
-                        <option value="soft">Habilidades Blandas</option>
+                        <option value="soft_skills">Habilidades Blandas</option>
                     </select>
+                    
+                    <label>Dificultad:</label>
+                    <select @bind="SelectedDifficulty">
+                        <option value="junior">Junior</option>
+                        <option value="mid">Mid</option>
+                        <option value="senior">Senior</option>
+                    </select>
+                    
                     <label>Modo:</label>
                     <select @bind="SelectedMode">
                         <option value="practice">Práctica</option>
                         <option value="exam">Examen</option>
                     </select>
+                    
                     <div style="margin-top:10px;">
                         <button @onclick="SaveConfig">Guardar</button>
                         <button @onclick="HideSetup">Cancelar</button>

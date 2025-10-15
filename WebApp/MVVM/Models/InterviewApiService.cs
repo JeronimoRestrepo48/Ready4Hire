@@ -20,12 +20,83 @@ namespace Ready4Hire.MVVM.Models
         public InterviewApiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
-            _baseUrl = configuration["Ready4HireApi:BaseUrl"] ?? "http://localhost:8001";
+            _baseUrl = configuration["Ready4HireApi:BaseUrl"] ?? "http://localhost:8000";
         }
+
+        // ============================================================================
+        // API V2 ENDPOINTS - Flujo Conversacional con Fases de Contexto
+        // ============================================================================
+
+        /// <summary>
+        /// [V2] Inicia una nueva entrevista con fase de contexto.
+        /// Retorna la primera pregunta de contexto para conocer al candidato.
+        /// </summary>
+        /// <param name="userId">ID del usuario</param>
+        /// <param name="role">Rol/posición (ej: Backend Developer)</param>
+        /// <param name="category">Categoría: technical o soft_skills</param>
+        /// <param name="difficulty">Dificultad: junior, mid, senior</param>
+        public async Task<JsonElement> StartInterviewV2Async(string userId, string role, string category, string difficulty)
+        {
+            var payload = new 
+            { 
+                user_id = userId, 
+                role = role, 
+                category = category, 
+                difficulty = difficulty 
+            };
+            var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/v2/interviews", payload);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Procesa una respuesta del candidato.
+        /// Maneja tanto preguntas de contexto como preguntas técnicas/soft skills.
+        /// Incluye detección de emoción, evaluación, feedback y siguiente pregunta.
+        /// </summary>
+        /// <param name="interviewId">ID de la entrevista</param>
+        /// <param name="answer">Respuesta del candidato</param>
+        /// <param name="timeTaken">Tiempo en segundos (opcional)</param>
+        public async Task<JsonElement> ProcessAnswerV2Async(string interviewId, string answer, int? timeTaken = null)
+        {
+            var payload = new 
+            { 
+                answer = answer, 
+                time_taken = timeTaken 
+            };
+            var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/v2/interviews/{interviewId}/answers", payload);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Finaliza la entrevista y genera resumen completo.
+        /// </summary>
+        /// <param name="interviewId">ID de la entrevista</param>
+        public async Task<JsonElement> EndInterviewV2Async(string interviewId)
+        {
+            var response = await _httpClient.PostAsync($"{_baseUrl}/api/v2/interviews/{interviewId}/end", null);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Health check del sistema.
+        /// </summary>
+        public async Task<JsonElement> HealthCheckV2Async()
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/health");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        // ============================================================================
+        // API V1 ENDPOINTS - Legacy (mantener para compatibilidad)
+        // ============================================================================
 
         // 1. Start Interview
     /// <summary>
-    /// Inicia una nueva entrevista para un usuario.
+    /// [V1 LEGACY] Inicia una nueva entrevista para un usuario.
     /// </summary>
     /// <param name="userId">ID del usuario</param>
     /// <param name="role">Rol (puede ser null)</param>
