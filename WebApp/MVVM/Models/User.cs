@@ -3,15 +3,21 @@
     public class User
     {
         public int Id { get; set; }
-        public string Email { get; set; }
-        public string Password { get; set; }
-        public string Name { get; set; }
-        public string LastName { get; set; }
-        public string Country { get; set; }
-        public string Job { get; set; }
-        public List<string> Skills { get; set; }
-        public List<string> Softskills { get; set; }
-        public List<string> Interests { get; set; }
-        public bool isAdmin { get; set; }
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Country { get; set; } = string.Empty;
+        public string Job { get; set; } = string.Empty;
+
+        // Convertidos a JSON
+        public List<string> Skills { get; set; } = new();
+        public List<string> Softskills { get; set; } = new();
+        public List<string> Interests { get; set; } = new();
+
+        public bool IsAdmin { get; set; }
+
+        // Relación uno-a-muchos
+        public List<Chat> Chats { get; set; } = new();
     }
 }

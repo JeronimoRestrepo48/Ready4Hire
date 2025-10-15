@@ -2,8 +2,13 @@
 {
     public class Message
     {
-        public string Text { get; set; }
-        //Saber si el mensaje es del usuario o del sistema
+        public int Id { get; set; }
+        public string Text { get; set; } = string.Empty;
         public bool IsUser { get; set; }
+
+        // Clave foránea
+        public int ChatId { get; set; }
+        public Chat Chat { get; set; } = null!;
+
     }
 }
