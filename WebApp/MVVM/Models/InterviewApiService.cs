@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 
 namespace Ready4Hire.MVVM.Models
 {
@@ -14,11 +15,12 @@ namespace Ready4Hire.MVVM.Models
     public class InterviewApiService
     {
         private readonly HttpClient _httpClient;
-        private readonly string _baseUrl = "http://localhost:8000";
+        private readonly string _baseUrl;
 
-        public InterviewApiService(HttpClient httpClient)
+        public InterviewApiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
+            _baseUrl = configuration["Ready4HireApi:BaseUrl"] ?? "http://localhost:8001";
         }
 
         // 1. Start Interview

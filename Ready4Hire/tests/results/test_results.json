@@ -1,0 +1,29 @@
+{
+  "model": "ready4hire:latest",
+  "results": {
+    "total": 3,
+    "passed": 2,
+    "failed": 1,
+    "accuracy": 66.66666666666666
+  },
+  "details": [
+    {
+      "test": "Explica la diferencia entre let, const y var en JavaScript",
+      "good_score": 8.5,
+      "bad_score": 7.0,
+      "passed": true
+    },
+    {
+      "test": "\u00bfQu\u00e9 es el Virtual DOM en React?",
+      "good_score": 7.4,
+      "bad_score": 7.6,
+      "passed": false
+    },
+    {
+      "test": "Cu\u00e9ntame sobre un proyecto desafiante que completaste",
+      "good_score": 9.5,
+      "bad_score": 5.3,
+      "passed": true
+    }
+  ]
+}
