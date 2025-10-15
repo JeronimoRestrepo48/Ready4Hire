@@ -2,10 +2,18 @@
 {
     public class Chat
     {
-        int Id { get; set; }
-        List<Message> Messages { get; set; }
-        string ChatMode { get; set; } // practice or exam
-        int questionCount { get; set; }
-        int score { get; set; }
+        public int Id { get; set; }
+
+        public string ChatMode { get; set; } = string.Empty;
+        public int QuestionCount { get; set; }
+        public int Score { get; set; }
+
+        // Relación uno-a-muchos
+        public List<Message> Messages { get; set; } = new();
+
+        // Clave foránea
+        public int UserId { get; set; }
+        public User User { get; set; } = null!;
+
     }
 }
