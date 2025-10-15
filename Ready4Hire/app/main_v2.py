@@ -12,6 +12,7 @@ from datetime import datetime
 
 from app.container import Container
 from app.domain.value_objects.emotion import Emotion
+from app.domain.value_objects.context_questions import get_context_questions
 
 # Configurar logging
 logging.basicConfig(
@@ -163,63 +164,54 @@ async def get_metrics():
 @app.post("/api/v2/interviews", response_model=StartInterviewResponse, tags=["Interviews"])
 async def start_interview(request: StartInterviewRequest):
     """
-    Inicia una nueva entrevista.
+    Inicia una nueva entrevista con preguntas de contexto.
     
-    - Crea sesión de entrevista
-    - Selecciona primera pregunta según rol y dificultad
-    - Retorna pregunta inicial
+    - Crea sesión de entrevista en fase de contexto
+    - Retorna primera pregunta de contexto para conocer al candidato
+    - Las preguntas técnicas se seleccionarán después del análisis de contexto
     """
     try:
         c = get_container()
-        
-        # Obtener primera pregunta
-        import asyncio
-        questions = await c.question_repository.find_by_role(
-            role=request.role,
-            category=request.category
-        )
-        
-        if not questions:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No se encontraron preguntas para rol '{request.role}'"
-            )
-        
-        # Filtrar por dificultad
-        filtered = [q for q in questions if q.difficulty == request.difficulty]
-        if not filtered:
-            filtered = questions  # Fallback a todas las preguntas
-        
-        first_question = filtered[0]
-        
-        # Crear entrevista
         from app.domain.entities.interview import Interview
         from app.domain.value_objects.skill_level import SkillLevel
         
+        # Crear nueva entrevista en fase de contexto
         interview = Interview(
             id=f"interview_{request.user_id}_{datetime.utcnow().timestamp()}",
             user_id=request.user_id,
             role=request.role,
             skill_level=SkillLevel.from_string(request.difficulty),
-            interview_type=request.category
+            interview_type=request.category,
+            current_phase="context",
+            mode="practice"
         )
         
         # Guardar en repositorio
         await c.interview_repository.save(interview)
+        logger.info(f"Entrevista iniciada: {interview.id} para {request.user_id} - Fase: contexto")
         
-        logger.info(f"Entrevista iniciada: {interview.id} para {request.user_id}")
+        # Obtener preguntas de contexto
+        context_questions = get_context_questions(interview.interview_type)
+        if not context_questions or len(context_questions) == 0:
+            raise HTTPException(
+                status_code=500, 
+                detail="No hay preguntas de contexto definidas para este tipo de entrevista."
+            )
         
+        first_context_question = context_questions[0]
+        
+        # Estructura de respuesta para frontend conversacional
         return StartInterviewResponse(
             interview_id=interview.id,
             first_question={
-                "id": first_question.id,
-                "text": first_question.text,
-                "category": first_question.category,
-                "difficulty": first_question.difficulty,
-                "expected_concepts": first_question.expected_concepts,
-                "topic": first_question.topic
+                "id": "context_0",
+                "text": first_context_question,
+                "category": "context",
+                "difficulty": "context",
+                "expected_concepts": [],
+                "topic": "context"
             },
-            status="active"
+            status="context"  # Indicar que está en fase de contexto
         )
         
     except HTTPException:
@@ -255,7 +247,8 @@ async def process_answer(interview_id: str, request: ProcessAnswerRequest):
         
         # Detectar emoción
         emotion_result = c.emotion_detector.detect(request.answer)
-        emotion = Emotion.from_string(emotion_result['emotion'])
+        # emotion_result['emotion'] ya es un objeto Emotion, no un string
+        emotion = emotion_result['emotion'] if isinstance(emotion_result['emotion'], Emotion) else Emotion.NEUTRAL
         
         # Evaluar respuesta
         # (Simplificado - en producción usar la pregunta actual)

@@ -13,6 +13,16 @@ from app.domain.repositories.question_repository import QuestionRepository
 
 @dataclass
 class StartInterviewRequest:
+    """
+    Request DTO para iniciar una entrevista.
+    
+    Attributes:
+        user_id: Identificador único del usuario
+        role: Rol para el que se realiza la entrevista (ej: "Backend Developer")
+        interview_type: Tipo de entrevista ("technical", "soft_skills", "mixed")
+        skill_level: Nivel de habilidad ("junior", "mid", "senior")
+        mode: Modo de entrevista ("practice", "exam")
+    """
     user_id: str
     role: str
     interview_type: str = "technical"  # technical | soft_skills | mixed
@@ -22,6 +32,16 @@ class StartInterviewRequest:
 
 @dataclass
 class StartInterviewResponse:
+    """
+    Response DTO para la respuesta de iniciar entrevista.
+    
+    Attributes:
+        interview_id: ID único de la entrevista creada
+        first_question: Texto de la primera pregunta
+        message: Mensaje informativo para el usuario
+        success: Indica si la operación fue exitosa
+        error: Mensaje de error si success=False
+    """
     interview_id: str
     first_question: str
     message: str
@@ -46,6 +66,13 @@ class StartInterviewUseCase:
         interview_repo: InterviewRepository,
         question_repo: QuestionRepository
     ):
+        """
+        Inicializa el caso de uso con los repositorios necesarios.
+        
+        Args:
+            interview_repo: Repositorio para persistir entrevistas
+            question_repo: Repositorio para acceder a preguntas
+        """
         self.interview_repo = interview_repo
         self.question_repo = question_repo
     

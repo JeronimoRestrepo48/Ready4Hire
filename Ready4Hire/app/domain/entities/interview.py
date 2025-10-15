@@ -31,6 +31,11 @@ class Interview:
     skill_level: SkillLevel = SkillLevel.JUNIOR
     mode: str = "practice"  # practice | exam
     
+    # Fase de la entrevista: context o questions
+    current_phase: str = "context"  # context | questions | completed
+    context_question_index: int = 0  # Índice de la pregunta de contexto actual
+    context_answers: List[str] = field(default_factory=list)  # Respuestas de contexto
+    
     current_question: Optional[Question] = None
     questions_history: List[Question] = field(default_factory=list)
     answers_history: List[Answer] = field(default_factory=list)
@@ -46,6 +51,7 @@ class Interview:
     current_streak: int = 0
     max_streak: int = 0
     total_hints_used: int = 0
+    attempts_on_current_question: int = 0  # Contador de intentos en pregunta actual
     
     def start(self) -> None:
         """Inicia la entrevista"""
@@ -185,6 +191,34 @@ class Interview:
         """Verifica si la entrevista está completa"""
         return self.status == InterviewStatus.COMPLETED
     
+    def is_in_context_phase(self) -> bool:
+        """Verifica si está en fase de preguntas de contexto"""
+        return self.current_phase == "context"
+    
+    def is_in_questions_phase(self) -> bool:
+        """Verifica si está en fase de preguntas principales"""
+        return self.current_phase == "questions"
+    
+    def advance_context_question(self) -> None:
+        """Avanza al siguiente índice de pregunta de contexto"""
+        self.context_question_index += 1
+    
+    def add_context_answer(self, answer: str) -> None:
+        """Añade una respuesta de contexto"""
+        self.context_answers.append(answer)
+    
+    def transition_to_questions_phase(self) -> None:
+        """Transiciona de fase de contexto a fase de preguntas"""
+        self.current_phase = "questions"
+    
+    def increment_attempt(self) -> None:
+        """Incrementa el contador de intentos de la pregunta actual"""
+        self.attempts_on_current_question += 1
+    
+    def reset_attempts(self) -> None:
+        """Resetea el contador de intentos"""
+        self.attempts_on_current_question = 0
+    
     def to_dict(self) -> dict:
         """Convierte a diccionario para serialización"""
         return {
@@ -195,6 +229,10 @@ class Interview:
             'status': self.status.value,
             'skill_level': self.skill_level.value,
             'mode': self.mode,
+            'current_phase': self.current_phase,
+            'context_question_index': self.context_question_index,
+            'context_answers': self.context_answers,
+            'attempts_on_current_question': self.attempts_on_current_question,
             'current_question': self.current_question.to_dict() if self.current_question else None,
             'questions_history': [q.to_dict() for q in self.questions_history],
             'answers_history': [a.to_dict() for a in self.answers_history],

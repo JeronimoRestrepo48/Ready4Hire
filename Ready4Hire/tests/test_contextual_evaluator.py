@@ -110,6 +110,7 @@ def interview_with_declining_trend():
                 "missing_concepts": []
             }
         )
+        interview.add_answer(answer)
     
     return interview
 

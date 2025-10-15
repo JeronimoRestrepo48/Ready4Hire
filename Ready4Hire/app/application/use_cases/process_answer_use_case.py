@@ -52,6 +52,16 @@ class ProcessAnswerUseCase:
         feedback_service: 'FeedbackService',
         question_selector: 'QuestionSelectorService'
     ):
+        """
+        Inicializa el caso de uso con todas las dependencias necesarias.
+        
+        Args:
+            interview_repo: Repositorio para gestionar entrevistas
+            emotion_detector: Servicio para detectar emociones
+            evaluation_service: Servicio para evaluar respuestas
+            feedback_service: Servicio para generar feedback
+            question_selector: Servicio para seleccionar preguntas
+        """
         self.interview_repo = interview_repo
         self.emotion_detector = emotion_detector
         self.evaluation_service = evaluation_service

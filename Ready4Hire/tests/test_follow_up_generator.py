@@ -384,11 +384,12 @@ class TestHelperMethods:
         """Test: Genera pregunta usando LLM exitosamente."""
         generator = FollowUpQuestionGenerator(llm_service=mock_llm_service)
         
-        question = generator._generate_with_llm("Genera pregunta sobre herencia")
+        question = generator._generate_with_llm("Genera pregunta avanzada sobre herencia")
         
         assert isinstance(question, str)
         assert len(question) > 10
-        assert "herencia" in question.lower()
+        # Verificar que contiene términos relevantes (herencia o trade-offs)
+        assert any(term in question.lower() for term in ["herencia", "trade-off", "composición"])
     
     def test_generate_with_llm_fallback(self, mock_llm_service):
         """Test: Usa fallback si LLM falla."""

@@ -16,6 +16,11 @@ class MemoryInterviewRepository(InterviewRepository):
     """
     
     def __init__(self):
+        """
+        Inicializa el repositorio en memoria.
+        
+        Crea estructuras de almacenamiento para entrevistas e índices por usuario.
+        """
         self._storage: Dict[str, Interview] = {}
         self._user_index: Dict[str, List[str]] = {}  # user_id -> [interview_ids]
     

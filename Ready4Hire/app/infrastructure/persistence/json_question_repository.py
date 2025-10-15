@@ -18,6 +18,13 @@ class JsonQuestionRepository(QuestionRepository):
     
     def __init__(self, tech_file: str = "app/datasets/tech_questions.jsonl", 
                  soft_file: str = "app/datasets/soft_skills.jsonl"):
+        """
+        Inicializa el repositorio con archivos JSONL.
+        
+        Args:
+            tech_file: Ruta al archivo de preguntas técnicas
+            soft_file: Ruta al archivo de preguntas de soft skills
+        """
         self.tech_file = Path(tech_file)
         self.soft_file = Path(soft_file)
         self._tech_cache: List[Question] = []

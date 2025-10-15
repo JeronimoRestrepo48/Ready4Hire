@@ -77,11 +77,11 @@ def test_ollama_client():
         print_info(f"Successful: {metrics['successful_requests']}")
         print_info(f"Avg latency: {metrics['avg_latency']:.0f}ms")
         
-        return True
+        assert True  # Test passed
         
     except Exception as e:
         print_error(f"Error: {str(e)}")
-        return False
+        assert False, f"Test failed: {str(e)}"
 
 
 # ============================================================================
@@ -110,11 +110,11 @@ def test_llm_service():
         print_success("Generación exitosa")
         print_info(f"Respuesta: {response[:100]}")
         
-        return True
+        assert True  # Test passed
         
     except Exception as e:
         print_error(f"Error: {str(e)}")
-        return False
+        assert False, f"Test failed: {str(e)}"
 
 
 # ============================================================================
@@ -159,13 +159,13 @@ def test_evaluation_service():
             print_info(f"  - {key}: {value}")
         print_info(f"Justificación: {result['justification'][:80]}...")
         
-        return True
+        assert True  # Test passed
         
     except Exception as e:
         print_error(f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Test failed: {str(e)}"
 
 
 # ============================================================================
@@ -214,13 +214,13 @@ def test_feedback_service():
         print_success("Feedback generado")
         print_info(f"Feedback: {feedback[:100]}...")
         
-        return True
+        assert True  # Test passed
         
     except Exception as e:
         print_error(f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Test failed: {str(e)}"
 
 
 # ============================================================================
@@ -255,13 +255,13 @@ def test_container():
         print_info(f"EvaluationService: {type(eval_service).__name__}")
         print_info(f"FeedbackService: {type(feedback_service).__name__}")
         
-        return True
+        assert True  # Test passed
         
     except Exception as e:
         print_error(f"Error: {str(e)}")
         import traceback
         traceback.print_exc()
-        return False
+        assert False, f"Test failed: {str(e)}"
 
 
 # ============================================================================

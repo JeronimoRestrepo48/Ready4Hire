@@ -20,10 +20,17 @@ from app.domain.services import get_language_service, get_text_service
 
 from app.application.services.evaluation_service import EvaluationService
 from app.application.services.feedback_service import FeedbackService
-from app.application.services.question_selector_service import QuestionSelectorService
+from app.application.services.question_selector_service import (
+    EnhancedQuestionSelectorService,
+    SelectionConfig
+)
 
 from app.application.use_cases.start_interview_use_case import StartInterviewUseCase
 from app.application.use_cases.process_answer_use_case import ProcessAnswerUseCase
+
+# ML Services for Enhanced Selector
+from app.infrastructure.ml.advanced_clustering import AdvancedQuestionClusteringService
+from app.infrastructure.ml.continuous_learning import ContinuousLearningSystem
 
 
 class Container:
@@ -109,11 +116,49 @@ class Container:
             temperature=0.7  # Más alta para feedback creativo
         )
         
-        # Question Selector Service
-        self.question_selector_service = QuestionSelectorService(
-            question_repository=self.question_repository,
-            embeddings_manager=None  # TODO: Adapter para QuestionEmbeddingsService
-        )
+        # ML Components for Enhanced Question Selector
+        use_ml_selector = os.getenv('USE_ML_SELECTOR', 'false').lower() == 'true'
+        
+        if use_ml_selector:
+            # Initialize ML services
+            clustering_service = AdvancedQuestionClusteringService(
+                embeddings_service=self.embeddings_service
+            )
+            
+            learning_system = ContinuousLearningSystem()
+            
+            # ML Selection Configuration
+            ml_config = SelectionConfig(
+                use_clustering=os.getenv('USE_ML_CLUSTERING', 'true').lower() == 'true',
+                use_continuous_learning=os.getenv('USE_ML_LEARNING', 'true').lower() == 'true',
+                use_embeddings=True,
+                exploration_strategy=os.getenv('ML_EXPLORATION_STRATEGY', 'balanced'),
+                fallback_to_simple=os.getenv('ENABLE_ML_FALLBACK', 'true').lower() == 'true'
+            )
+            
+            # Enhanced Question Selector Service with FULL ML
+            self.question_selector_service = EnhancedQuestionSelectorService(
+                question_repository=self.question_repository,
+                embeddings_service=self.embeddings_service,
+                clustering_service=clustering_service,
+                learning_system=learning_system,
+                config=ml_config
+            )
+        else:
+            # Fallback: Use Enhanced Selector but with ML features disabled
+            basic_config = SelectionConfig(
+                use_clustering=False,
+                use_continuous_learning=False,
+                use_embeddings=False,
+                fallback_to_simple=True
+            )
+            self.question_selector_service = EnhancedQuestionSelectorService(
+                question_repository=self.question_repository,
+                embeddings_service=None,
+                clustering_service=None,
+                learning_system=None,
+                config=basic_config
+            )
     
     def _init_use_cases(self):
         """Inicializa casos de uso"""

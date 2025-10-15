@@ -5,7 +5,7 @@ Reemplaza al emotion_analyzer.py actual que solo soporta inglés.
 from transformers import pipeline
 import torch
 from functools import lru_cache
-from typing import Dict, List
+from typing import Dict, List, Optional
 import langid
 
 from app.domain.value_objects.emotion import Emotion
@@ -17,7 +17,7 @@ class MultilingualEmotionDetector:
     Usa modelos específicos por idioma para máxima precisión.
     """
     
-    def __init__(self, device: str = None):
+    def __init__(self, device: Optional[str] = None):
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.models = {}
         self._lazy_load = True  # Carga lazy para mejor performance inicial
@@ -78,6 +78,11 @@ class MultilingualEmotionDetector:
             # Predecir
             results = model(text)
             
+            # El pipeline con top_k=None retorna una lista de listas [[{...}, {...}]]
+            # Si results es una lista de listas, tomar el primer elemento
+            if isinstance(results, list) and len(results) > 0 and isinstance(results[0], list):
+                results = results[0]
+            
             # Normalizar etiquetas
             normalized = self._normalize_emotions(results, lang)
             
@@ -90,6 +95,8 @@ class MultilingualEmotionDetector:
         
         except Exception as e:
             print(f"[ERROR] Emotion detection failed: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'emotion': Emotion.NEUTRAL,
                 'confidence': 0.5,

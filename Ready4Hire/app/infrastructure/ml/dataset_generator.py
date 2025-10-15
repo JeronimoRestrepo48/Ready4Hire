@@ -169,6 +169,8 @@ Evalúa esta respuesta en formato JSON."""
         
         stats = {
             "total_examples": len(examples),
+            "train_examples": len(train_examples),
+            "validation_examples": len(val_examples),
             "train_size": len(train_examples),
             "val_size": len(val_examples),
             "filtered_out": filtered_out,

@@ -14,6 +14,12 @@ class Score:
     value: float
     
     def __post_init__(self):
+        """
+        Valida que el valor del score esté entre 0 y 10.
+        
+        Raises:
+            ValueError: Si el valor no está en el rango válido.
+        """
         if not 0 <= self.value <= 10:
             raise ValueError(f"Score must be between 0 and 10, got {self.value}")
     
@@ -38,4 +44,10 @@ class Score:
         return self.value * 10.0
     
     def __str__(self) -> str:
+        """
+        Representación en string del score.
+        
+        Returns:
+            str: Score formateado como "X.X/10"
+        """
         return f"{self.value:.1f}/10"

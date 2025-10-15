@@ -11,7 +11,7 @@ Mejoras v2.2:
 - Recopilación automática de datos para fine-tuning
 """
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import re
 import logging
@@ -380,7 +380,7 @@ Responde SOLO con el JSON, sin texto adicional antes o después."""
             "improvements": improvements[:3],  # Máximo 3
             "concepts_covered": concepts_covered[:5],  # Máximo 5
             "missing_concepts": missing_concepts[:3],  # Máximo 3 (NUEVO v2.1)
-            "evaluated_at": datetime.utcnow().isoformat(),
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
             "model": self.model
         }
     
@@ -439,7 +439,7 @@ Responde SOLO con el JSON, sin texto adicional antes o después."""
             "strengths": ["Respuesta proporcionada"],
             "improvements": ["Considerar agregar más detalles técnicos", "Mencionar conceptos clave"],
             "concepts_covered": [c for c in expected_concepts if c.lower() in answer_lower],
-            "evaluated_at": datetime.utcnow().isoformat(),
+            "evaluated_at": datetime.now(timezone.utc).isoformat(),
             "fallback": True,
             "model": "heuristic"
         }
