@@ -3,6 +3,7 @@
     public class Chat
     {
         public int Id { get; set; }
+        public string Title { get; set; } = string.Empty;
 
         public string ChatMode { get; set; } = string.Empty;
         public int QuestionCount { get; set; }

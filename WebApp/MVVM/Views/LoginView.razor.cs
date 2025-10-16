@@ -19,7 +19,7 @@ namespace Ready4Hire.MVVM.Views
 
             bool userLoggedIn = await vm.IsUserLoggedIn();
             if (userLoggedIn)
-                Navigation.NavigateTo("/chat");
+                Navigation.NavigateTo("/chat/0");
         }
 
         private bool showRegisterModal = false;
@@ -163,7 +163,7 @@ namespace Ready4Hire.MVVM.Views
                     await vm.FinishRegistration(registerName, registerLastName, registerJob, registerCountry,
                         selectedHardSkills, selectedSoftSkills, selectedInterests);
 
-                    Navigation.NavigateTo("/chat");
+                    Navigation.NavigateTo("/chat/0");
                 }
             }
 

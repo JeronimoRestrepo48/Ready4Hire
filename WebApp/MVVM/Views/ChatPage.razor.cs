@@ -1,16 +1,26 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
 using Microsoft.JSInterop;
+using Ready4Hire.Data;
 using Ready4Hire.MVVM.Models;
+using Ready4Hire.MVVM.ViewModels;
 
 namespace Ready4Hire.MVVM.Views
 {
     public partial class ChatPage : ComponentBase
     {
-
+        // Servicio del agente
         [Inject]
         public InterviewApiService InterviewApi { get; set; }
+        // Base de datos
+        [Inject]
+        private AppDbContext Db { get; set; }
 
+        // Id chat
+        [Parameter]
+        public int chatId { get; set; }
 
+        private ChatViewModel vm;
         private List<Message> Messages = new();
 
         private string UserInput { get; set; } = "";
@@ -48,7 +58,14 @@ namespace Ready4Hire.MVVM.Views
         /// Indica si la configuración fue guardada y es válida.
         public bool IsConfigured { get; set; } = false;
 
-        
+        protected override async Task OnInitializedAsync()
+        {
+            vm = new ChatViewModel(Db, chatId);
+
+            if (chatId != 0)
+                Messages = vm.Messages;
+        }
+
         /// Muestra el modal de configuración de entrevista.
         private void ShowSetup()
         {
@@ -313,17 +330,13 @@ namespace Ready4Hire.MVVM.Views
             timerDisplay = "00:00";
         }
 
-        /// <summary>
         /// Hace scroll automático al final del chat usando JS interop.
-        /// </summary>
         private async Task ScrollToBottomAsync()
         {
             await JS.InvokeVoidAsync("scrollToBottom");
         }
 
-        /// <summary>
         /// Hace scroll automático después de renderizar el componente.
-        /// </summary>
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             await ScrollToBottomAsync();

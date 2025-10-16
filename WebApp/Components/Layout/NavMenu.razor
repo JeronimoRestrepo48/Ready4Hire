@@ -1,12 +1,25 @@
-﻿<div class="sidebar-nav">
+﻿@using Ready4Hire.Data
+@using Ready4Hire.MVVM.ViewModels
+
+<div class="sidebar-nav">
     <div class="sidebar-header">
         <img src="images/logo.jpg" alt="Logo" class="sidebar-icon" />
     </div>
 
     <div class="sidebar-menu">
-        <NavLink class="sidebar-link" href="/chat">
+        <NavLink class="sidebar-link" href="/chat/0">
             Nuevo chat
         </NavLink>
+
+        @if (vm.Chats != null)
+        {
+            foreach (var chat in vm.Chats)
+            {
+                <NavLink class="sidebar-link" href="@($"/chat/{chat.Id}")">
+                    @chat.Title
+                </NavLink>
+            }
+        }
     </div>
 
     <div class="sidebar-footer">
@@ -25,3 +38,14 @@
     </div>
 </div>
 
+@code 
+{
+    [Inject]
+    private AppDbContext Db { get; set; }
+    private NavMenuViewModel vm;
+
+    protected override void OnInitialized()
+    {
+        vm = new NavMenuViewModel(Db);
+    }
+}
