@@ -1,4 +1,6 @@
 @echo off
+setlocal enabledelayedexpansion
+
 REM ==============================================================================
 REM Ready4Hire - Script de Inicio Completo (Windows Batch)
 REM ==============================================================================
@@ -10,12 +12,10 @@ REM   run.bat stop         # Detener todos los servicios
 REM   run.bat status       # Ver estado de servicios
 REM
 REM Author: Ready4Hire Team
-REM Version: 2.0.0 (DDD Architecture)
+REM Version: 2.2.0 (DDD Architecture + Auto-install Ollama)
 REM ==============================================================================
 
-setlocal enabledelayedexpansion
-
-REM Configuración de directorios
+REM Configuracion de directorios
 set "SCRIPT_DIR=%~dp0"
 set "INTEGRATION_ROOT=%SCRIPT_DIR%.."
 set "READY4HIRE_DIR=%INTEGRATION_ROOT%\Ready4Hire"
@@ -24,419 +24,461 @@ set "LOGS_DIR=%READY4HIRE_DIR%\logs"
 
 REM Archivos de log
 set "OLLAMA_LOG=%LOGS_DIR%\ollama.log"
-set "API_LOG=%LOGS_DIR%\ready4hire_api.log"
-set "WEBAPP_LOG=%LOGS_DIR%\webapp.log"
+set "FASTAPI_LOG=%LOGS_DIR%\fastapi.log"
+set "BLAZOR_LOG=%LOGS_DIR%\blazor.log"
 
-REM Configuración de servicios
-if not defined OLLAMA_MODEL set "OLLAMA_MODEL=ready4hire:latest"
-if not defined API_HOST set "API_HOST=0.0.0.0"
-if not defined API_PORT set "API_PORT=8001"
-if not defined WEBAPP_PORT set "WEBAPP_PORT=5214"
+REM Configuracion de puertos
+set "API_PORT=8000"
+set "WEBAPP_PORT=5000"
+set "OLLAMA_PORT=11434"
 
-REM Colores (usando caracteres especiales)
-set "GREEN=[92m"
-set "RED=[91m"
-set "YELLOW=[93m"
-set "CYAN=[96m"
+REM Modelo de Ollama
+set "OLLAMA_MODEL="
+
+REM Colores ANSI
+set "RED=[31m"
+set "GREEN=[32m"
+set "YELLOW=[33m"
+set "CYAN=[36m"
 set "NC=[0m"
 
-REM Parsear argumentos
-if "%1"=="stop" goto :stop_services
-if "%1"=="status" goto :show_status
-if "%1"=="help" goto :show_help
-if "%1"=="-h" goto :show_help
-if "%1"=="/?" goto :show_help
-
 REM ==============================================================================
-REM Main - Iniciar servicios
+REM Funciones auxiliares
 REM ==============================================================================
 
-echo.
-echo %CYAN%  ____                _       _  _   _   _  _          %NC%
-echo %CYAN% ^|  _ \ ___  __ _  __^| ^|_   _^| ^|^| ^| ^| ^| ^| ^|^(_^)_ __ ___ %NC%
-echo %CYAN% ^| ^|_^) / _ \/ _` ^|/ _` ^| ^| ^| ^| ^|^| ^|_^| ^|_^| ^|^| ^| '__/ _ \%NC%
-echo %CYAN% ^|  _ ^<  __/ ^(_^| ^| ^(_^| ^| ^|_^| ^|__   _^|  _  ^|^| ^| ^| ^|  __/%NC%
-echo %CYAN% ^|_^| \_\___^|\__,_^|\__,_^|\__, ^|  ^|_^| ^|_^| ^|_^|^|_^|_^|  \___^|%NC%
-echo %CYAN%                        ^|___/                          %NC%
-echo.
-echo %GREEN%Sistema de Entrevistas Tecnicas con IA%NC%
-echo %YELLOW%Version 2.0.0 - DDD Architecture%NC%
-echo.
+goto :main
 
-REM Crear directorio de logs
-if not exist "%LOGS_DIR%" mkdir "%LOGS_DIR%"
-
-call :start_ollama
-call :start_api
-call :start_webapp
-call :show_summary
-
-goto :eof
-
-REM ==============================================================================
-REM Función: Iniciar Ollama
-REM ==============================================================================
-:start_ollama
+:print_header
 echo.
 echo %CYAN%============================================================%NC%
-echo %CYAN%  1/4 - Iniciando Ollama Server%NC%
+echo %CYAN%  %~1%NC%
 echo %CYAN%============================================================%NC%
 echo.
+exit /b 0
 
-REM Verificar si Ollama está instalado
-where ollama >nul 2>&1
-if %errorlevel% neq 0 (
-    echo %RED%X Ollama no esta instalado%NC%
-    echo %CYAN%i Descargar desde: https://ollama.com/download/windows%NC%
+:print_success
+echo %GREEN%√ %~1%NC%
+exit /b 0
+
+:print_error
+echo %RED%X %~1%NC%
+exit /b 0
+
+:print_warning
+echo %YELLOW%! %~1%NC%
+exit /b 0
+
+:print_info
+echo %CYAN%i %~1%NC%
+exit /b 0
+
+REM ==============================================================================
+REM Verificar directorios
+REM ==============================================================================
+
+:check_directories
+if not exist "%READY4HIRE_DIR%" (
+    call :print_error "Directorio Ready4Hire no encontrado: %READY4HIRE_DIR%"
     exit /b 1
 )
 
-REM Verificar si ya está corriendo
-tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I /N "ollama.exe">NUL
-if %errorlevel% equ 0 (
-    echo %GREEN%√ Ollama ya esta corriendo%NC%
-) else (
-    echo %CYAN%i Iniciando servidor Ollama...%NC%
-    start /B ollama serve > "%OLLAMA_LOG%" 2>&1
-    timeout /t 3 /nobreak >nul
-    
-    tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I /N "ollama.exe">NUL
+if not exist "%WEBAPP_DIR%" (
+    call :print_error "Directorio WebApp no encontrado: %WEBAPP_DIR%"
+    exit /b 1
+)
+
+if not exist "%LOGS_DIR%" (
+    mkdir "%LOGS_DIR%"
+    call :print_info "Directorio de logs creado: %LOGS_DIR%"
+)
+
+exit /b 0
+
+REM ==============================================================================
+REM Detectar mejor modelo disponible
+REM ==============================================================================
+
+:detect_best_model
+call :print_info "Detectando mejor modelo disponible..."
+
+REM Lista de modelos en orden de prioridad
+set MODELS=ready4hire:latest llama3.2:3b llama3:latest llama3
+
+for %%M in (%MODELS%) do (
+    ollama list | findstr /C:"%%M" >nul 2>&1
     if !errorlevel! equ 0 (
-        echo %GREEN%√ Ollama iniciado correctamente%NC%
-    ) else (
-        echo %RED%X Error al iniciar Ollama. Ver logs: %OLLAMA_LOG%%NC%
-        exit /b 1
+        set "OLLAMA_MODEL=%%M"
+        call :print_success "Usando modelo: %%M"
+        goto :verify_model
     )
 )
 
-REM Verificar/descargar modelo
-echo %CYAN%i Verificando modelo %OLLAMA_MODEL%...%NC%
-ollama list | find /I "%OLLAMA_MODEL%" >nul 2>&1
-if %errorlevel% equ 0 (
-    echo %GREEN%√ Modelo %OLLAMA_MODEL% ya esta descargado%NC%
-) else (
-    echo %CYAN%i Descargando modelo %OLLAMA_MODEL% (esto puede tardar varios minutos)...%NC%
-    ollama pull %OLLAMA_MODEL%
-    echo %GREEN%√ Modelo descargado correctamente%NC%
+REM Si ninguno existe, usar el primero disponible
+call :print_warning "Ningun modelo prioritario encontrado"
+call :print_info "Buscando cualquier modelo disponible..."
+
+for /f "skip=1 tokens=1" %%M in ('ollama list 2^>nul') do (
+    set "OLLAMA_MODEL=%%M"
+    call :print_success "Usando modelo: %%M"
+    goto :verify_model
 )
 
-REM Test de conectividad
-curl -s http://localhost:11434/api/tags >nul 2>&1
-if %errorlevel% equ 0 (
-    echo %GREEN%√ Ollama respondiendo correctamente%NC%
+REM No hay modelos instalados
+call :print_error "No hay modelos de Ollama instalados"
+echo.
+call :print_info "Descarga uno con:"
+echo   ollama pull llama3.2:3b    (recomendado, ~2GB)
+echo   ollama pull llama3:latest  (mas grande, ~4.7GB)
+echo.
+exit /b 1
+
+:verify_model
+call :print_info "Verificando modelo %OLLAMA_MODEL%..."
+ollama list | findstr /C:"%OLLAMA_MODEL%" >nul 2>&1
+if !errorlevel! equ 0 (
+    call :print_success "Modelo %OLLAMA_MODEL% verificado"
+    exit /b 0
 ) else (
-    echo %YELLOW%! Ollama no responde en el endpoint esperado%NC%
+    call :print_error "Modelo %OLLAMA_MODEL% no encontrado"
+    exit /b 1
 )
 
-goto :eof
+REM ==============================================================================
+REM Paso 1: Iniciar Ollama Server
+REM ==============================================================================
+
+:start_ollama
+call :print_header "1/4 - Iniciando Ollama Server"
+
+REM Verificar si Ollama esta instalado
+where ollama >nul 2>&1
+if %errorlevel% neq 0 (
+    call :print_warning "Ollama no esta instalado"
+    call :print_info "Instalando Ollama automaticamente..."
+    
+    REM Descargar instalador con PowerShell
+    set "INSTALLER_URL=https://ollama.com/download/OllamaSetup.exe"
+    set "INSTALLER_PATH=%TEMP%\OllamaSetup.exe"
+    
+    call :print_info "Descargando Ollama..."
+    powershell -Command "Invoke-WebRequest -Uri '%INSTALLER_URL%' -OutFile '%INSTALLER_PATH%'" 2>nul
+    
+    if !errorlevel! neq 0 (
+        call :print_error "Error al descargar Ollama"
+        call :print_info "Por favor instala manualmente desde:"
+        echo   https://ollama.com/download/windows
+        exit /b 1
+    )
+    
+    call :print_success "Descarga completada"
+    
+    REM Ejecutar instalador
+    call :print_info "Ejecutando instalador..."
+    call :print_warning "Acepta los permisos de administrador"
+    
+    start /wait "" "%INSTALLER_PATH%" /S
+    
+    if !errorlevel! neq 0 (
+        call :print_error "Error durante la instalacion"
+        del "%INSTALLER_PATH%" >nul 2>&1
+        exit /b 1
+    )
+    
+    REM Esperar instalacion
+    timeout /t 5 /nobreak >nul
+    
+    REM Limpiar
+    del "%INSTALLER_PATH%" >nul 2>&1
+    
+    REM Agregar al PATH
+    set "PATH=%PATH%;%LOCALAPPDATA%\Programs\Ollama"
+    
+    REM Verificar instalacion
+    where ollama >nul 2>&1
+    if !errorlevel! neq 0 (
+        call :print_error "Ollama no se instalo correctamente"
+        call :print_info "Reinicia tu terminal o instala manualmente"
+        exit /b 1
+    )
+    
+    call :print_success "Ollama instalado correctamente"
+)
+
+REM Verificar si Ollama ya esta corriendo
+curl -s http://localhost:%OLLAMA_PORT%/api/tags >nul 2>&1
+if %errorlevel% equ 0 (
+    call :print_success "Ollama ya esta corriendo"
+    goto :detect_model
+)
+
+REM Iniciar Ollama
+call :print_info "Iniciando servidor Ollama..."
+start /B cmd /c "ollama serve > "%OLLAMA_LOG%" 2>&1"
+
+REM Esperar a que Ollama este listo
+set MAX_WAIT=30
+set WAIT_COUNT=0
+
+:wait_ollama
+timeout /t 1 /nobreak >nul
+curl -s http://localhost:%OLLAMA_PORT%/api/tags >nul 2>&1
+if %errorlevel% equ 0 (
+    call :print_success "Ollama iniciado correctamente"
+    goto :detect_model
+)
+
+set /a WAIT_COUNT+=1
+if %WAIT_COUNT% lss %MAX_WAIT% goto :wait_ollama
+
+call :print_error "Timeout esperando a Ollama"
+exit /b 1
+
+:detect_model
+call :detect_best_model
+if %errorlevel% neq 0 exit /b 1
+
+curl -s http://localhost:%OLLAMA_PORT%/api/tags >nul 2>&1
+if %errorlevel% equ 0 (
+    call :print_success "Ollama respondiendo correctamente"
+) else (
+    call :print_error "Ollama no responde"
+    exit /b 1
+)
+
+exit /b 0
 
 REM ==============================================================================
-REM Función: Iniciar API Python
+REM Paso 2: Iniciar FastAPI Backend
 REM ==============================================================================
-:start_api
-echo.
-echo %CYAN%============================================================%NC%
-echo %CYAN%  2/4 - Iniciando API Python (FastAPI DDD v2)%NC%
-echo %CYAN%============================================================%NC%
-echo.
+
+:start_fastapi
+call :print_header "2/4 - Iniciando Backend FastAPI"
 
 cd /d "%READY4HIRE_DIR%"
 
-REM Verificar archivo principal
-if not exist "app\main_v2.py" (
-    echo %RED%X app\main_v2.py no encontrado%NC%
-    exit /b 1
-)
-
 REM Verificar entorno virtual
-set "VENV_ACTIVATED=false"
-if exist "venv\Scripts\activate.bat" (
-    call venv\Scripts\activate.bat
-    set "VENV_ACTIVATED=true"
-    echo %GREEN%√ Virtual environment activado%NC%
-) else if exist "..\venv\Scripts\activate.bat" (
-    call ..\venv\Scripts\activate.bat
-    set "VENV_ACTIVATED=true"
-    echo %GREEN%√ Virtual environment activado%NC%
-) else (
-    echo %YELLOW%! No se encontro virtual environment, usando Python del sistema%NC%
-)
-
-REM Verificar dependencias
-python -c "import fastapi, uvicorn" 2>nul
-if %errorlevel% neq 0 (
-    echo %RED%X Dependencias no instaladas%NC%
-    echo %CYAN%i Instalar con: pip install fastapi uvicorn%NC%
-    echo %CYAN%i O con requirements: pip install -r app\requirements.txt%NC%
-    exit /b 1
-)
-echo %GREEN%√ Dependencias verificadas%NC%
-
-REM Detener API anterior si existe
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%API_PORT%" ^| find "LISTENING"') do (
-    echo %YELLOW%! API ya corriendo en puerto %API_PORT%. Deteniendo...%NC%
-    taskkill /F /PID %%a >nul 2>&1
-    timeout /t 2 /nobreak >nul
-)
-
-REM Iniciar API
-echo %CYAN%i Iniciando API en puerto %API_PORT%...%NC%
-set "PYTHONPATH=%READY4HIRE_DIR%;%PYTHONPATH%"
-
-start /B python -m uvicorn app.main_v2:app --host %API_HOST% --port %API_PORT% > "%API_LOG%" 2>&1
-
-timeout /t 5 /nobreak >nul
-
-REM Verificar inicio
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%API_PORT%" ^| find "LISTENING"') do (
-    echo %GREEN%√ API iniciada correctamente (PID: %%a^)%NC%
-    
-    REM Health check
-    echo %CYAN%i Verificando health endpoint...%NC%
-    timeout /t 3 /nobreak >nul
-    curl -s http://localhost:%API_PORT%/health >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo %GREEN%√ API respondiendo correctamente%NC%
-    ) else (
-        curl -s http://localhost:%API_PORT%/api/v2/health >nul 2>&1
-        if !errorlevel! equ 0 (
-            echo %GREEN%√ API respondiendo correctamente%NC%
-        ) else (
-            echo %YELLOW%! API puede tardar unos segundos mas en cargar%NC%
-            echo %CYAN%i Ver logs: type %API_LOG%%NC%
-        )
+if not exist "venv" (
+    call :print_warning "Entorno virtual no encontrado"
+    call :print_info "Creando entorno virtual..."
+    python -m venv venv
+    if !errorlevel! neq 0 (
+        call :print_error "Error al crear entorno virtual"
+        exit /b 1
     )
-    goto :api_started
+    call :print_success "Entorno virtual creado"
 )
 
-echo %RED%X Error al iniciar API. Ver logs: %API_LOG%%NC%
-type "%API_LOG%" | more
+REM Activar entorno virtual
+call :print_info "Activando entorno virtual..."
+call venv\Scripts\activate.bat
+
+REM Instalar dependencias
+call :print_info "Verificando dependencias..."
+pip install -q -r requirements.txt 2>nul
+
+REM Verificar si FastAPI ya esta corriendo
+curl -s http://localhost:%API_PORT%/health >nul 2>&1
+if %errorlevel% equ 0 (
+    call :print_success "FastAPI ya esta corriendo"
+    exit /b 0
+)
+
+REM Iniciar FastAPI
+call :print_info "Iniciando FastAPI en puerto %API_PORT%..."
+start /B cmd /c "venv\Scripts\python.exe -m uvicorn app.main_v2:app --host 0.0.0.0 --port %API_PORT% --reload > "%FASTAPI_LOG%" 2>&1"
+
+REM Esperar a que FastAPI este listo
+set MAX_WAIT=30
+set WAIT_COUNT=0
+
+:wait_fastapi
+timeout /t 1 /nobreak >nul
+curl -s http://localhost:%API_PORT%/health >nul 2>&1
+if %errorlevel% equ 0 (
+    call :print_success "FastAPI iniciado correctamente"
+    call :print_info "API: http://localhost:%API_PORT%"
+    call :print_info "Docs: http://localhost:%API_PORT%/docs"
+    exit /b 0
+)
+
+set /a WAIT_COUNT+=1
+if %WAIT_COUNT% lss %MAX_WAIT% goto :wait_fastapi
+
+call :print_error "Timeout esperando a FastAPI"
 exit /b 1
 
-:api_started
-cd /d "%SCRIPT_DIR%"
-goto :eof
-
 REM ==============================================================================
-REM Función: Iniciar WebApp
+REM Paso 3: Iniciar Blazor WebApp
 REM ==============================================================================
-:start_webapp
-echo.
-echo %CYAN%============================================================%NC%
-echo %CYAN%  3/4 - Iniciando WebApp (Blazor)%NC%
-echo %CYAN%============================================================%NC%
-echo.
 
-if not exist "%WEBAPP_DIR%" (
-    echo %YELLOW%! Directorio WebApp no encontrado. Saltando...%NC%
-    goto :eof
-)
+:start_blazor
+call :print_header "3/4 - Iniciando Blazor WebApp"
+
+cd /d "%WEBAPP_DIR%"
 
 REM Verificar dotnet
 where dotnet >nul 2>&1
 if %errorlevel% neq 0 (
-    echo %YELLOW%! dotnet no esta instalado. Saltando WebApp...%NC%
-    echo %CYAN%i Instalar .NET SDK: https://dotnet.microsoft.com/download%NC%
-    goto :eof
+    call :print_error ".NET SDK no esta instalado"
+    call :print_info "Descarga desde: https://dotnet.microsoft.com/download"
+    exit /b 1
 )
 
-cd /d "%WEBAPP_DIR%"
-
-REM Verificar proyecto
-if not exist "Ready4Hire.csproj" (
-    echo %RED%X Proyecto Blazor no encontrado%NC%
-    cd /d "%SCRIPT_DIR%"
-    goto :eof
-)
-
-REM Compilar
-echo %CYAN%i Compilando proyecto Blazor...%NC%
-dotnet build >nul 2>&1
+REM Verificar si Blazor ya esta corriendo
+curl -s http://localhost:%WEBAPP_PORT% >nul 2>&1
 if %errorlevel% equ 0 (
-    echo %GREEN%√ Compilacion exitosa%NC%
-) else (
-    echo %RED%X Error en compilacion%NC%
-    dotnet build
-    cd /d "%SCRIPT_DIR%"
-    goto :eof
+    call :print_success "Blazor ya esta corriendo"
+    exit /b 0
 )
 
-REM Detener WebApp anterior si existe
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%WEBAPP_PORT%" ^| find "LISTENING"') do (
-    echo %YELLOW%! WebApp ya corriendo en puerto %WEBAPP_PORT%. Deteniendo...%NC%
-    taskkill /F /PID %%a >nul 2>&1
-    timeout /t 2 /nobreak >nul
+REM Iniciar Blazor
+call :print_info "Iniciando Blazor en puerto %WEBAPP_PORT%..."
+start /B cmd /c "dotnet run --urls=http://localhost:%WEBAPP_PORT% > "%BLAZOR_LOG%" 2>&1"
+
+REM Esperar a que Blazor este listo
+set MAX_WAIT=60
+set WAIT_COUNT=0
+
+:wait_blazor
+timeout /t 1 /nobreak >nul
+curl -s http://localhost:%WEBAPP_PORT% >nul 2>&1
+if %errorlevel% equ 0 (
+    call :print_success "Blazor iniciado correctamente"
+    call :print_info "WebApp: http://localhost:%WEBAPP_PORT%"
+    exit /b 0
 )
 
-REM Iniciar WebApp
-echo %CYAN%i Iniciando WebApp en puerto %WEBAPP_PORT%...%NC%
-start /B dotnet run --urls="http://localhost:%WEBAPP_PORT%" > "%WEBAPP_LOG%" 2>&1
+set /a WAIT_COUNT+=1
+if %WAIT_COUNT% lss %MAX_WAIT% goto :wait_blazor
 
-timeout /t 5 /nobreak >nul
-
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%WEBAPP_PORT%" ^| find "LISTENING"') do (
-    echo %GREEN%√ WebApp iniciada correctamente (PID: %%a^)%NC%
-    goto :webapp_started
-)
-
-echo %YELLOW%! WebApp puede estar tardando en iniciar. Ver logs: %WEBAPP_LOG%%NC%
-
-:webapp_started
-cd /d "%SCRIPT_DIR%"
-goto :eof
+call :print_error "Timeout esperando a Blazor"
+exit /b 1
 
 REM ==============================================================================
-REM Función: Mostrar resumen
+REM Resumen Final
 REM ==============================================================================
+
 :show_summary
+call :print_header "4/4 - Stack Ready4Hire Iniciado"
+
+echo %GREEN%Todos los servicios estan corriendo:%NC%
 echo.
-echo %CYAN%============================================================%NC%
-echo %CYAN%  4/4 - Ready4Hire Iniciado Correctamente%NC%
-echo %CYAN%============================================================%NC%
+echo   %CYAN%Ollama Server:%NC%      http://localhost:%OLLAMA_PORT%
+echo   %CYAN%Modelo activo:%NC%      %OLLAMA_MODEL%
+echo   %CYAN%FastAPI API:%NC%        http://localhost:%API_PORT%
+echo   %CYAN%API Docs:%NC%           http://localhost:%API_PORT%/docs
+echo   %CYAN%Blazor WebApp:%NC%      http://localhost:%WEBAPP_PORT%
 echo.
-echo %GREEN%Servicios Ready4Hire en Ejecucion:%NC%
+echo %YELLOW%Logs disponibles en:%NC%
+echo   - %OLLAMA_LOG%
+echo   - %FASTAPI_LOG%
+echo   - %BLAZOR_LOG%
 echo.
-echo   %CYAN%Ollama LLM%NC%
-echo     └─ URL: http://localhost:11434
-echo     └─ Modelo: %OLLAMA_MODEL%
-echo     └─ Log: %OLLAMA_LOG%
+echo %CYAN%Para detener:%NC%
+echo   run.bat stop
 echo.
-echo   %CYAN%API REST (FastAPI v2 - DDD)%NC%
-echo     └─ URL: http://localhost:%API_PORT%
-echo     └─ Docs: http://localhost:%API_PORT%/docs
-echo     └─ ReDoc: http://localhost:%API_PORT%/redoc
-echo     └─ Health: http://localhost:%API_PORT%/health
-echo     └─ Log: %API_LOG%
+echo %GREEN%Presiona Ctrl+C para detener%NC%
 echo.
 
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%WEBAPP_PORT%" ^| find "LISTENING"') do (
-    echo   %CYAN%WebApp (Blazor)%NC%
-    echo     └─ URL: http://localhost:%WEBAPP_PORT%
-    echo     └─ Log: %WEBAPP_LOG%
-    echo.
-)
-
-echo %YELLOW%Comandos utiles:%NC%
-echo   Ver logs en tiempo real:
-echo     %GREEN%powershell Get-Content -Tail 20 -Wait %API_LOG%%NC%
-echo.
-echo   Detener servicios:
-echo     %GREEN%run.bat stop%NC%
-echo.
-echo   Ver estado:
-echo     %GREEN%run.bat status%NC%
-echo.
-echo   Abrir en navegador:
-echo     %GREEN%start http://localhost:%API_PORT%%NC%
-echo.
-echo %GREEN%√ Sistema Ready4Hire listo para usar!%NC%
-echo.
-goto :eof
+pause
+exit /b 0
 
 REM ==============================================================================
-REM Función: Detener servicios
+REM Comando: Detener servicios
 REM ==============================================================================
+
 :stop_services
-echo.
-echo %CYAN%============================================================%NC%
-echo %CYAN%  Deteniendo Servicios Ready4Hire%NC%
-echo %CYAN%============================================================%NC%
-echo.
+call :print_header "Deteniendo servicios Ready4Hire"
+
+REM Detener FastAPI
+call :print_info "Deteniendo FastAPI..."
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr :%API_PORT%') do (
+    taskkill /PID %%P /F >nul 2>&1
+)
+call :print_success "FastAPI detenido"
+
+REM Detener Blazor
+call :print_info "Deteniendo Blazor..."
+for /f "tokens=5" %%P in ('netstat -ano ^| findstr :%WEBAPP_PORT%') do (
+    taskkill /PID %%P /F >nul 2>&1
+)
+call :print_success "Blazor detenido"
 
 REM Detener Ollama
-tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I /N "ollama.exe">NUL
-if %errorlevel% equ 0 (
-    echo %CYAN%i Deteniendo Ollama...%NC%
-    taskkill /F /IM ollama.exe >nul 2>&1
-    echo %GREEN%√ Ollama detenido%NC%
-) else (
-    echo %YELLOW%! Ollama no estaba corriendo%NC%
-)
+call :print_info "Deteniendo Ollama..."
+taskkill /IM ollama.exe /F >nul 2>&1
+call :print_success "Ollama detenido"
 
-REM Detener API
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%API_PORT%" ^| find "LISTENING"') do (
-    echo %CYAN%i Deteniendo API Python (puerto %API_PORT%)...%NC%
-    taskkill /F /PID %%a >nul 2>&1
-    echo %GREEN%√ API detenida%NC%
-    goto :api_stopped
-)
-echo %YELLOW%! API no estaba corriendo en puerto %API_PORT%%NC%
-:api_stopped
-
-REM Detener WebApp
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%WEBAPP_PORT%" ^| find "LISTENING"') do (
-    echo %CYAN%i Deteniendo WebApp (puerto %WEBAPP_PORT%)...%NC%
-    taskkill /F /PID %%a >nul 2>&1
-    echo %GREEN%√ WebApp detenida%NC%
-    goto :webapp_stopped
-)
-echo %YELLOW%! WebApp no estaba corriendo en puerto %WEBAPP_PORT%%NC%
-:webapp_stopped
-
-echo.
-echo %GREEN%√ Todos los servicios detenidos%NC%
-goto :eof
+call :print_success "Todos los servicios detenidos"
+exit /b 0
 
 REM ==============================================================================
-REM Función: Mostrar estado
+REM Comando: Ver estado
 REM ==============================================================================
-:show_status
-echo.
-echo %CYAN%============================================================%NC%
-echo %CYAN%  Estado de Servicios Ready4Hire%NC%
-echo %CYAN%============================================================%NC%
-echo.
+
+:check_status
+call :print_header "Estado de servicios Ready4Hire"
 
 REM Ollama
-tasklist /FI "IMAGENAME eq ollama.exe" 2>NUL | find /I /N "ollama.exe">NUL
+curl -s http://localhost:%OLLAMA_PORT%/api/tags >nul 2>&1
 if %errorlevel% equ 0 (
-    echo %GREEN%√ Ollama: RUNNING%NC%
-    ollama list | find /I "NAME"
-    ollama list | find /I "%OLLAMA_MODEL%"
+    echo %GREEN%√ Ollama:%NC% Corriendo en puerto %OLLAMA_PORT%
 ) else (
-    echo %RED%X Ollama: STOPPED%NC%
+    echo %RED%X Ollama:%NC% No disponible
 )
-echo.
 
-REM API
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%API_PORT%" ^| find "LISTENING"') do (
-    echo %GREEN%√ API Python: RUNNING (puerto %API_PORT%, PID: %%a^)%NC%
-    curl -s http://localhost:%API_PORT%/health 2>nul
-    if !errorlevel! neq 0 (
-        curl -s http://localhost:%API_PORT%/api/v2/health 2>nul
-        if !errorlevel! neq 0 (
-            echo %YELLOW%! API no responde al health check%NC%
-        )
-    )
-    goto :api_status_done
+REM FastAPI
+curl -s http://localhost:%API_PORT%/health >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %GREEN%√ FastAPI:%NC% Corriendo en puerto %API_PORT%
+) else (
+    echo %RED%X FastAPI:%NC% No disponible
 )
-echo %RED%X API Python: STOPPED%NC%
-:api_status_done
-echo.
 
-REM WebApp
-for /f "tokens=5" %%a in ('netstat -aon ^| find ":%WEBAPP_PORT%" ^| find "LISTENING"') do (
-    echo %GREEN%√ WebApp: RUNNING (puerto %WEBAPP_PORT%, PID: %%a^)%NC%
-    goto :webapp_status_done
+REM Blazor
+curl -s http://localhost:%WEBAPP_PORT% >nul 2>&1
+if %errorlevel% equ 0 (
+    echo %GREEN%√ Blazor:%NC% Corriendo en puerto %WEBAPP_PORT%
+) else (
+    echo %RED%X Blazor:%NC% No disponible
 )
-echo %RED%X WebApp: STOPPED%NC%
-:webapp_status_done
-echo.
 
-goto :eof
+echo.
+exit /b 0
 
 REM ==============================================================================
-REM Función: Mostrar ayuda
+REM Main - Punto de entrada
 REM ==============================================================================
-:show_help
-echo Ready4Hire - Script de Inicio (Windows Batch)
-echo.
-echo Uso: run.bat [OPCION]
-echo.
-echo Opciones:
-echo   (sin opcion)   Iniciar todos los servicios
-echo   stop           Detener todos los servicios
-echo   status         Ver estado de servicios
-echo   help           Mostrar esta ayuda
-echo.
-goto :eof
+
+:main
+REM Parsear argumentos
+if "%1"=="stop" goto :stop_services
+if "%1"=="status" goto :check_status
+
+REM Verificar directorios
+call :check_directories
+if %errorlevel% neq 0 exit /b 1
+
+REM Iniciar servicios
+call :start_ollama
+if %errorlevel% neq 0 (
+    call :print_error "Error al iniciar Ollama"
+    exit /b 1
+)
+
+call :start_fastapi
+if %errorlevel% neq 0 (
+    call :print_error "Error al iniciar FastAPI"
+    exit /b 1
+)
+
+call :start_blazor
+if %errorlevel% neq 0 (
+    call :print_error "Error al iniciar Blazor"
+    exit /b 1
+)
+
+REM Mostrar resumen
+call :show_summary
+
+exit /b 0

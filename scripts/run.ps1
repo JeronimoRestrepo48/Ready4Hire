@@ -177,15 +177,119 @@ function Show-Status {
 # Funciones de Inicio
 # ==============================================================================
 
+function Detect-BestModel {
+    Write-Info "Detectando mejor modelo disponible..."
+    
+    # Orden de prioridad de modelos
+    $priorityModels = @(
+        "ready4hire:latest",
+        "llama3.2:3b",
+        "llama3:latest",
+        "llama3"
+    )
+    
+    # Obtener lista de modelos disponibles
+    $modelListOutput = & ollama list 2>$null
+    if (-not $modelListOutput) {
+        Write-Error-Custom "No hay modelos de Ollama instalados"
+        Write-Info "Descarga uno con:"
+        Write-Info "  ollama pull llama3.2:3b    (recomendado, ~2GB)"
+        Write-Info "  ollama pull llama3:latest  (alternativo, ~4.7GB)"
+        Write-Info "  ollama pull ready4hire:latest  (personalizado)"
+        exit 1
+    }
+    
+    # Extraer nombres de modelos (saltar el header)
+    $availableModels = $modelListOutput | Select-Object -Skip 1 | ForEach-Object {
+        $_.Trim() -split '\s+' | Select-Object -First 1
+    }
+    
+    if ($availableModels.Count -eq 0) {
+        Write-Error-Custom "No se detectaron modelos de Ollama"
+        exit 1
+    }
+    
+    # Buscar modelo de mayor prioridad disponible
+    foreach ($model in $priorityModels) {
+        foreach ($available in $availableModels) {
+            if ($available -eq $model -or $available -like "$model`:*") {
+                $script:OllamaModel = $model
+                if ($model -eq "ready4hire:latest") {
+                    Write-Success "Usando modelo: $model (personalizado fine-tuned) ✨"
+                } else {
+                    Write-Success "Usando modelo: $model"
+                }
+                return
+            }
+        }
+    }
+    
+    # Si no se encuentra ninguno de los prioritarios, usar el primero disponible
+    $script:OllamaModel = $availableModels[0]
+    Write-Warning-Custom "Usando modelo: $($script:OllamaModel) (detectado automáticamente)"
+    Write-Info "Para mejor rendimiento, considera descargar: ollama pull llama3.2:3b"
+}
+
 function Start-Ollama {
     Write-Header "1/4 - Iniciando Ollama Server"
     
     # Verificar si Ollama está instalado
     $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
     if (-not $ollamaCmd) {
-        Write-Error-Custom "Ollama no está instalado"
-        Write-Info "Descargar desde: https://ollama.com/download/windows"
-        exit 1
+        Write-Warning-Custom "Ollama no está instalado"
+        Write-Info "Instalando Ollama automáticamente..."
+        
+        # URL del instalador de Windows
+        $installerUrl = "https://ollama.com/download/OllamaSetup.exe"
+        $installerPath = "$env:TEMP\OllamaSetup.exe"
+        
+        try {
+            # Descargar instalador
+            Write-Info "Descargando Ollama desde $installerUrl..."
+            Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+            Write-Success "Descarga completada"
+            
+            # Ejecutar instalador
+            Write-Info "Ejecutando instalador (requiere permisos de administrador)..."
+            Write-Warning-Custom "Por favor, acepta los permisos de administrador cuando se solicite"
+            
+            $process = Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait -PassThru
+            
+            if ($process.ExitCode -eq 0) {
+                Write-Success "Ollama instalado correctamente"
+                
+                # Agregar Ollama al PATH en esta sesión
+                $ollamaPath = "$env:LOCALAPPDATA\Programs\Ollama"
+                if (Test-Path $ollamaPath) {
+                    $env:Path += ";$ollamaPath"
+                }
+                
+                # Esperar un momento para que Ollama se configure
+                Start-Sleep -Seconds 3
+            } else {
+                throw "El instalador terminó con código de error: $($process.ExitCode)"
+            }
+            
+            # Limpiar instalador
+            Remove-Item -Path $installerPath -ErrorAction SilentlyContinue
+            
+        } catch {
+            Write-Error-Custom "Error al instalar Ollama: $_"
+            Write-Info "Por favor, descarga e instala Ollama manualmente desde:"
+            Write-Info "https://ollama.com/download/windows"
+            exit 1
+        }
+        
+        # Verificar instalación
+        $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
+        if (-not $ollamaCmd) {
+            Write-Error-Custom "Ollama no se instaló correctamente"
+            Write-Info "Puede que necesites reiniciar tu terminal o computadora"
+            Write-Info "O instalar manualmente desde: https://ollama.com/download/windows"
+            exit 1
+        }
+        
+        Write-Success "Ollama instalado y verificado"
     }
     
     # Verificar si ya está corriendo
@@ -223,16 +327,19 @@ function Start-Ollama {
         }
     }
     
-    # Verificar/descargar modelo
-    Write-Info "Verificando modelo $OllamaModel..."
+    # Detectar y seleccionar el mejor modelo disponible
+    Detect-BestModel
+    
+    # Verificar que el modelo seleccionado existe
     $modelList = & ollama list 2>$null
-    if ($modelList -match $OllamaModel) {
-        Write-Success "Modelo $OllamaModel ya está descargado"
-    } else {
-        Write-Info "Descargando modelo $OllamaModel (esto puede tardar varios minutos)..."
-        & ollama pull $OllamaModel
-        Write-Success "Modelo descargado correctamente"
+    if (-not ($modelList -match [regex]::Escape($OllamaModel))) {
+        Write-Error-Custom "Modelo $OllamaModel no encontrado después de la detección"
+        Write-Info "Modelos disponibles:"
+        & ollama list
+        exit 1
     }
+    
+    Write-Success "Modelo $OllamaModel verificado y listo"
     
     # Test de conectividad
     try {

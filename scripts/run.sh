@@ -141,14 +141,104 @@ show_status() {
 # Funciones de Inicio
 # ==============================================================================
 
+detect_best_model() {
+    print_info "Detectando mejor modelo disponible..."
+    
+    # Orden de prioridad de modelos
+    local priority_models=(
+        "ready4hire:latest"
+        "llama3.2:3b"
+        "llama3:latest"
+        "llama3"
+    )
+    
+    # Obtener lista de modelos disponibles
+    local available_models=$(ollama list 2>/dev/null | tail -n +2 | awk '{print $1}')
+    
+    if [ -z "$available_models" ]; then
+        print_error "No hay modelos de Ollama instalados"
+        print_info "Descarga uno con:"
+        print_info "  ollama pull llama3.2:3b    (recomendado, ~2GB)"
+        print_info "  ollama pull llama3:latest  (alternativo, ~4.7GB)"
+        print_info "  ollama pull ready4hire:latest  (personalizado)"
+        exit 1
+    fi
+    
+    # Buscar modelo de mayor prioridad disponible
+    for model in "${priority_models[@]}"; do
+        if echo "$available_models" | grep -q "^${model}$\|^${model}:"; then
+            OLLAMA_MODEL="$model"
+            if [ "$model" = "ready4hire:latest" ]; then
+                print_success "Usando modelo: $OLLAMA_MODEL (personalizado fine-tuned) ✨"
+            else
+                print_success "Usando modelo: $OLLAMA_MODEL"
+            fi
+            return 0
+        fi
+    done
+    
+    # Si no se encuentra ninguno de los prioritarios, usar el primero disponible
+    OLLAMA_MODEL=$(echo "$available_models" | head -n 1)
+    print_warning "Usando modelo: $OLLAMA_MODEL (detectado automáticamente)"
+    print_info "Para mejor rendimiento, considera descargar: ollama pull llama3.2:3b"
+    
+    return 0
+}
+
 start_ollama() {
     print_header "1/4 - Iniciando Ollama Server"
     
     # Verificar si Ollama está instalado
     if ! command -v ollama &> /dev/null; then
-        print_error "Ollama no está instalado"
-        print_info "Instalar con: curl -fsSL https://ollama.com/install.sh | sh"
-        exit 1
+        print_warning "Ollama no está instalado"
+        print_info "Instalando Ollama automáticamente..."
+        
+        # Detectar sistema operativo
+        if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux
+            print_info "Detectado: Linux"
+            if curl -fsSL https://ollama.com/install.sh | sh; then
+                print_success "Ollama instalado correctamente"
+            else
+                print_error "Error al instalar Ollama"
+                print_info "Intenta manualmente: curl -fsSL https://ollama.com/install.sh | sh"
+                exit 1
+            fi
+        elif [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            print_info "Detectado: macOS"
+            if command -v brew &> /dev/null; then
+                print_info "Instalando con Homebrew..."
+                if brew install ollama; then
+                    print_success "Ollama instalado correctamente"
+                else
+                    print_error "Error al instalar Ollama con brew"
+                    exit 1
+                fi
+            else
+                print_warning "Homebrew no encontrado"
+                print_info "Instalando con script oficial..."
+                if curl -fsSL https://ollama.com/install.sh | sh; then
+                    print_success "Ollama instalado correctamente"
+                else
+                    print_error "Error al instalar Ollama"
+                    print_info "Descarga manualmente desde: https://ollama.com/download"
+                    exit 1
+                fi
+            fi
+        else
+            print_error "Sistema operativo no soportado para instalación automática: $OSTYPE"
+            print_info "Descarga Ollama manualmente desde: https://ollama.com/download"
+            exit 1
+        fi
+        
+        # Verificar instalación
+        if ! command -v ollama &> /dev/null; then
+            print_error "Ollama no se instaló correctamente"
+            exit 1
+        fi
+        
+        print_success "Ollama instalado y verificado"
     fi
     
     # Verificar si ya está corriendo
@@ -168,15 +258,18 @@ start_ollama() {
         fi
     fi
     
-    # Verificar/descargar modelo
-    print_info "Verificando modelo $OLLAMA_MODEL..."
-    if ollama list | grep -q "$OLLAMA_MODEL"; then
-        print_success "Modelo $OLLAMA_MODEL ya está descargado"
-    else
-        print_info "Descargando modelo $OLLAMA_MODEL (esto puede tardar varios minutos)..."
-        ollama pull "$OLLAMA_MODEL"
-        print_success "Modelo descargado correctamente"
+    # Detectar y seleccionar el mejor modelo disponible
+    detect_best_model
+    
+    # Verificar que el modelo seleccionado existe
+    if ! ollama list 2>/dev/null | grep -q "$OLLAMA_MODEL"; then
+        print_error "Modelo $OLLAMA_MODEL no encontrado después de la detección"
+        print_info "Modelos disponibles:"
+        ollama list
+        exit 1
     fi
+    
+    print_success "Modelo $OLLAMA_MODEL verificado y listo"
     
     # Test de conectividad
     if curl -s http://localhost:11434/api/tags > /dev/null; then
