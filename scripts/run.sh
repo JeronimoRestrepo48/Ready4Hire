@@ -260,7 +260,7 @@ start_api() {
     fi
     
     API_PID=$!
-    sleep 30
+    sleep 100
     
     # Verificar que la API inició
     if lsof -ti:$API_PORT > /dev/null 2>&1; then
@@ -338,7 +338,7 @@ start_webapp() {
     nohup dotnet run --urls="http://localhost:$WEBAPP_PORT" > "$WEBAPP_LOG" 2>&1 &
     WEBAPP_PID=$!
     
-    sleep 3
+    sleep 100
     
     if lsof -ti:$WEBAPP_PORT > /dev/null 2>&1; then
         print_success "WebApp iniciada correctamente (PID: $WEBAPP_PID)"

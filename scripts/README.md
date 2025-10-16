@@ -1,14 +1,22 @@
 # 🚀 Ready4Hire - Scripts de Utilidad
 
-Scripts para gestionar el sistema Ready4Hire de forma sencilla.
+Scripts multiplataforma para gestionar el sistema Ready4Hire de forma sencilla.
 
 ## 📋 Scripts Disponibles
 
-### `run.sh` - Script Principal de Inicio
+| Script | Plataforma | Descripción |
+|--------|------------|-------------|
+| `run.sh` | 🐧 Linux / macOS | Script Bash principal |
+| `run.ps1` | 🪟 Windows | Script PowerShell (recomendado) |
+| `run.bat` | 🪟 Windows | Script Batch/CMD (alternativo) |
+
+---
+
+## 🐧 Linux / macOS - `run.sh`
 
 Script completo para levantar todo el stack de Ready4Hire (Ollama + FastAPI + Blazor).
 
-#### Características
+### Características
 
 - ✅ Gestión automática de servicios
 - ✅ Verificación de dependencias
@@ -17,7 +25,7 @@ Script completo para levantar todo el stack de Ready4Hire (Ollama + FastAPI + Bl
 - ✅ Colores y formato mejorado
 - ✅ Múltiples modos de operación
 
-#### Uso
+### Uso
 
 ```bash
 # Iniciar todos los servicios
@@ -34,6 +42,119 @@ Script completo para levantar todo el stack de Ready4Hire (Ollama + FastAPI + Bl
 
 # Ver ayuda
 ./run.sh --help
+```
+
+---
+
+## 🪟 Windows - `run.ps1` (PowerShell)
+
+Script PowerShell equivalente a `run.sh` con todas las funcionalidades.
+
+### Características
+
+- ✅ Todas las características del script Bash
+- ✅ Gestión nativa de procesos Windows
+- ✅ Detección de puertos con Get-NetTCPConnection
+- ✅ Colores en consola PowerShell
+- ✅ Manejo de errores robusto
+
+### Uso
+
+```powershell
+# Iniciar todos los servicios
+.\run.ps1
+
+# Modo desarrollo (con auto-reload)
+.\run.ps1 -Dev
+
+# Detener todos los servicios
+.\run.ps1 -Stop
+
+# Ver estado de servicios
+.\run.ps1 -Status
+
+# Ver ayuda
+.\run.ps1 -Help
+```
+
+### Requisitos PowerShell
+
+Si obtienes error de política de ejecución:
+
+```powershell
+# Ver política actual
+Get-ExecutionPolicy
+
+# Permitir scripts (como administrador)
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# O ejecutar con bypass
+PowerShell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+---
+
+## 🪟 Windows - `run.bat` (CMD)
+
+Script Batch para usuarios que prefieren CMD sobre PowerShell.
+
+### Características
+
+- ✅ Compatible con CMD tradicional
+- ✅ No requiere cambios en política de ejecución
+- ✅ Funcionalidad completa
+- ✅ Colores básicos (ANSI escape codes)
+
+### Uso
+
+```batch
+REM Iniciar todos los servicios
+run.bat
+
+REM Detener todos los servicios
+run.bat stop
+
+REM Ver estado de servicios
+run.bat status
+
+REM Ver ayuda
+run.bat help
+```
+
+---
+
+## 🔧 Variables de Entorno (Todas las Plataformas)
+
+Personaliza el comportamiento mediante variables de entorno:
+
+| Variable | Descripción | Valor por Defecto |
+|----------|-------------|-------------------|
+| `OLLAMA_MODEL` | Modelo de Ollama | `ready4hire:latest` |
+| `API_HOST` | Host de la API | `0.0.0.0` |
+| `API_PORT` | Puerto de la API | `8001` |
+| `WEBAPP_PORT` | Puerto WebApp | `5214` |
+
+### Ejemplos
+
+**Linux/macOS:**
+
+```bash
+export API_PORT=8002
+./run.sh
+```
+
+**Windows PowerShell:**
+
+```powershell
+$env:API_PORT = 8002
+.\run.ps1
+```
+
+**Windows CMD:**
+
+```batch
+set API_PORT=8002
+run.bat
 ```
 
 #### Lo que hace el script

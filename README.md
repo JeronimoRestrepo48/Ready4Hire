@@ -17,8 +17,10 @@ Sistema avanzado de entrevistas técnicas y soft skills con evaluación automát
 
 ## ⚡ Inicio Rápido (1 Comando)
 
+### 🐧 Linux / macOS
+
 ```bash
-cd /home/jeronimorestrepoangel/Documentos/Integracion
+cd /path/to/Integracion
 ./scripts/run.sh
 ```
 
@@ -28,7 +30,29 @@ O directamente:
 ./scripts/run.sh
 ```
 
-Esto iniciará automáticamente:
+### 🪟 Windows
+
+#### Opción 1: PowerShell (Recomendado)
+
+```powershell
+cd C:\path\to\Integracion
+.\scripts\run.ps1
+```
+
+#### Opción 2: CMD / Batch
+
+```batch
+cd C:\path\to\Integracion
+scripts\run.bat
+```
+
+#### Opción 3: Desde cualquier directorio (PowerShell)
+
+```powershell
+.\scripts\run.ps1
+```
+
+### ✅ Esto iniciará automáticamente
 
 - ✅ **Ollama Server** (LLM en puerto 11434)
 - ✅ **Backend FastAPI** (puerto 8001) - Arquitectura DDD
