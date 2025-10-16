@@ -288,7 +288,7 @@ call :print_info "Iniciando FastAPI en puerto %API_PORT%..."
 start /B cmd /c "venv\Scripts\python.exe -m uvicorn app.main_v2:app --host 0.0.0.0 --port %API_PORT% --reload > "%FASTAPI_LOG%" 2>&1"
 
 REM Esperar a que FastAPI este listo
-set MAX_WAIT=30
+set MAX_WAIT=100
 set WAIT_COUNT=0
 
 :wait_fastapi
@@ -336,7 +336,7 @@ call :print_info "Iniciando Blazor en puerto %WEBAPP_PORT%..."
 start /B cmd /c "dotnet run --urls=http://localhost:%WEBAPP_PORT% > "%BLAZOR_LOG%" 2>&1"
 
 REM Esperar a que Blazor este listo
-set MAX_WAIT=60
+set MAX_WAIT=100
 set WAIT_COUNT=0
 
 :wait_blazor
