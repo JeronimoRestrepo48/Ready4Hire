@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using Ready4Hire.MVVM.Models;
 
@@ -136,10 +137,10 @@ namespace Ready4Hire.MVVM.Views
         /// <summary>
         /// [V2] Envía la respuesta del usuario a la API y procesa la respuesta del agente.
         /// Maneja:
-        /// 1. Fase de contexto (5 preguntas)
+        /// 1. Fase de contexto (5 preguntas) - NO se evalúa con LLM
         /// 2. Transición a preguntas técnicas/soft skills
-        /// 3. Feedback y motivación
-        /// 4. Intentos múltiples (máximo 3)
+        /// 3. Evaluación con LLM (solo en fase técnica)
+        /// 4. Feedback, emoción y score (solo en fase técnica)
         /// 5. Progreso de la entrevista
         /// </summary>
         private async Task SendMessage()
@@ -159,63 +160,111 @@ namespace Ready4Hire.MVVM.Views
                 // Llamar al endpoint V2 ProcessAnswer
                 var response = await InterviewApi.ProcessAnswerV2Async(interviewId, answer, elapsedSeconds);
 
-                // Actualizar fase actual
-                if (response.TryGetProperty("phase", out var phaseProperty))
-                {
-                    currentPhase = phaseProperty.GetString();
-                }
+                // Obtener interview_status
+                var interviewStatus = response.GetProperty("interview_status").GetString();
+                
+                // Obtener interview_completed
+                var isCompleted = response.TryGetProperty("interview_completed", out var completedProp) 
+                    && completedProp.GetBoolean();
 
-                // Mostrar feedback si existe
-                if (response.TryGetProperty("feedback", out var feedback))
+                // FASE DE CONTEXTO: Solo mostrar confirmación, NO mostrar evaluación
+                if (interviewStatus == "context")
                 {
-                    var feedbackText = feedback.GetString();
-                    if (!string.IsNullOrEmpty(feedbackText))
+                    contextQuestionsAnswered++;
+                    
+                    // Mostrar mensaje de confirmación (no evaluación)
+                    Messages.Add(new Message 
+                    { 
+                        Text = $"✅ Respuesta {contextQuestionsAnswered}/5 guardada. Continuemos...", 
+                        IsUser = false 
+                    });
+
+                    // Mostrar siguiente pregunta si existe
+                    if (response.TryGetProperty("next_question", out var nextQuestion) && 
+                        !nextQuestion.ValueKind.Equals(System.Text.Json.JsonValueKind.Null))
                     {
-                        Messages.Add(new Message { Text = feedbackText, IsUser = false });
+                        var questionText = nextQuestion.GetProperty("text").GetString();
+                        Messages.Add(new Message { Text = questionText, IsUser = false });
                     }
-                }
-
-                // Mostrar motivación si existe
-                if (response.TryGetProperty("motivation", out var motivation))
-                {
-                    var motivationText = motivation.GetString();
-                    if (!string.IsNullOrEmpty(motivationText))
+                    else
                     {
-                        Messages.Add(new Message { Text = "💪 " + motivationText, IsUser = false });
-                    }
-                }
-
-                // Actualizar progreso
-                if (response.TryGetProperty("progress", out var progress))
-                {
-                    contextQuestionsAnswered = progress.GetProperty("context_completed").GetInt32();
-                    questionCount = progress.GetProperty("questions_completed").GetInt32();
-                }
-
-                // Mostrar siguiente pregunta si existe
-                if (response.TryGetProperty("question", out var question))
-                {
-                    var questionText = question.GetProperty("text").GetString();
-                    Messages.Add(new Message { Text = questionText, IsUser = false });
-
-                    // Mostrar intentos restantes si está en retry
-                    if (question.TryGetProperty("retry", out var retry) && retry.GetBoolean())
-                    {
-                        var attemptsLeft = response.GetProperty("attempts_left").GetInt32();
+                        // Transición a fase técnica
                         Messages.Add(new Message 
                         { 
-                            Text = $"ℹ️ Te quedan {attemptsLeft} intentos para esta pregunta.", 
+                            Text = "🔄 Analizando tus respuestas de contexto con clustering y embeddings...", 
+                            IsUser = false 
+                        });
+                        Messages.Add(new Message 
+                        { 
+                            Text = "🎯 ¡Perfecto! Ahora comenzaremos con las preguntas técnicas personalizadas. Cada respuesta será evaluada por el LLM.", 
+                            IsUser = false 
+                        });
+                    }
+                }
+                // FASE TÉCNICA: Mostrar evaluación completa del LLM
+                else if (interviewStatus == "questions")
+                {
+                    questionCount++;
+
+                    // Obtener evaluación del LLM
+                    if (response.TryGetProperty("evaluation", out var evaluation))
+                    {
+                        var score = evaluation.GetProperty("score").GetDouble();
+                        var isCorrect = evaluation.GetProperty("is_correct").GetBoolean();
+                        
+                        // Mostrar score y resultado
+                        var scoreEmoji = score >= 8 ? "🌟" : score >= 6 ? "👍" : "💡";
+                        Messages.Add(new Message 
+                        { 
+                            Text = $"{scoreEmoji} Score: {score:F1}/10 {(isCorrect ? "✅ Correcto" : "❌ Incorrecto")}", 
+                            IsUser = false 
+                        });
+
+                        // Mostrar feedback del LLM
+                        if (response.TryGetProperty("feedback", out var feedback))
+                        {
+                            var feedbackText = feedback.GetString();
+                            if (!string.IsNullOrEmpty(feedbackText))
+                            {
+                                Messages.Add(new Message { Text = $"📝 {feedbackText}", IsUser = false });
+                            }
+                        }
+
+                        // Mostrar emoción detectada
+                        if (response.TryGetProperty("emotion", out var emotion))
+                        {
+                            var emotionType = emotion.GetProperty("emotion").GetString();
+                            var confidence = emotion.GetProperty("confidence").GetDouble();
+                            var emotionEmoji = GetEmotionEmoji(emotionType);
+                            Messages.Add(new Message 
+                            { 
+                                Text = $"{emotionEmoji} Emoción detectada: {emotionType} ({confidence:F1}%)", 
+                                IsUser = false 
+                            });
+                        }
+                    }
+
+                    // Mostrar siguiente pregunta si existe
+                    if (response.TryGetProperty("next_question", out var nextQuestion) && 
+                        !nextQuestion.ValueKind.Equals(System.Text.Json.JsonValueKind.Null))
+                    {
+                        var questionText = nextQuestion.GetProperty("text").GetString();
+                        Messages.Add(new Message 
+                        { 
+                            Text = $"\n📋 Pregunta {questionCount + 1}/10:\n{questionText}", 
                             IsUser = false 
                         });
                     }
                 }
 
                 // Si completó la entrevista
-                if (currentPhase == "completed")
+                if (isCompleted)
                 {
+                    currentPhase = "completed";
+                    StopExamTimer();
                     Messages.Add(new Message 
                     { 
-                        Text = "� ¡Felicidades! Has completado la entrevista. Gracias por tu participación.", 
+                        Text = "🎉 ¡Felicidades! Has completado la entrevista. Gracias por tu participación.", 
                         IsUser = false 
                     });
                 }
@@ -237,33 +286,65 @@ namespace Ready4Hire.MVVM.Views
         }
 
         /// <summary>
-        /// Finaliza la entrevista y muestra el resumen devuelto por la API.
+        /// Retorna emoji basado en el tipo de emoción detectada
+        /// </summary>
+        private string GetEmotionEmoji(string emotionType)
+        {
+            return emotionType?.ToLower() switch
+            {
+                "confident" => "😊",
+                "neutral" => "😐",
+                "uncertain" => "🤔",
+                "frustrated" => "😓",
+                "excited" => "😄",
+                _ => "💭"
+            };
+        }
+
+        /// <summary>
+        /// [V2] Finaliza la entrevista y muestra el resumen devuelto por la API.
         /// </summary>
         private async Task EndInterview()
         {
             StopExamTimer();
             try
             {
-                var result = await InterviewApi.EndInterviewAsync(userId);
+                var result = await InterviewApi.EndInterviewV2Async(interviewId);
+                
+                // Mostrar resumen de la entrevista
                 if (result.TryGetProperty("summary", out var summary))
                 {
                     var summaryText = summary.GetString() ?? "";
-                    // Gamificación: si contiene el bloque especial, mostrarlo resaltado
-                    if (summaryText.Contains("🎮 Sistema de Gamificación Avanzada 🎮"))
-                    {
-                        Messages.Add(new Message { Text = summaryText, IsUser = false });
-                    }
-                    else
-                    {
-                        Messages.Add(new Message { Text = summaryText, IsUser = false });
-                    }
+                    Messages.Add(new Message { Text = "\n📊 RESUMEN DE ENTREVISTA\n" + summaryText, IsUser = false });
                 }
+
+                // Mostrar estadísticas si están disponibles
+                if (result.TryGetProperty("statistics", out var stats))
+                {
+                    var totalQuestions = stats.GetProperty("total_questions").GetInt32();
+                    var correctAnswers = stats.GetProperty("correct_answers").GetInt32();
+                    var avgScore = stats.GetProperty("average_score").GetDouble();
+                    
+                    var statsText = $"\n📈 ESTADÍSTICAS:\n" +
+                                   $"✓ Total de preguntas: {totalQuestions}\n" +
+                                   $"✓ Respuestas correctas: {correctAnswers}\n" +
+                                   $"✓ Score promedio: {avgScore:F1}/10";
+                    
+                    Messages.Add(new Message { Text = statsText, IsUser = false });
+                }
+
+                currentPhase = "completed";
             }
             catch (Exception ex)
             {
                 errorMessage = $"Error al finalizar la entrevista: {ex.Message}";
+                Messages.Add(new Message 
+                { 
+                    Text = $"❌ Error al finalizar la entrevista. Por favor, intenta de nuevo.", 
+                    IsUser = false 
+                });
             }
-            started = false;
+            
             StateHasChanged();
             await ScrollToBottomAsync();
         }
@@ -327,6 +408,33 @@ namespace Ready4Hire.MVVM.Views
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             await ScrollToBottomAsync();
+        }
+
+        /// <summary>
+        /// Maneja el evento de teclado para enviar mensaje con Enter
+        /// </summary>
+        private async Task HandleKeyDown(KeyboardEventArgs e)
+        {
+            if (e.Key == "Enter" && !e.ShiftKey && !string.IsNullOrWhiteSpace(UserInput))
+            {
+                await SendMessage();
+            }
+        }
+
+        /// <summary>
+        /// Reinicia la entrevista para comenzar una nueva
+        /// </summary>
+        private void RestartInterview()
+        {
+            Messages.Clear();
+            questionCount = 0;
+            contextQuestionsAnswered = 0;
+            started = false;
+            currentPhase = "config";
+            interviewId = "";
+            errorMessage = null;
+            StopExamTimer();
+            StateHasChanged();
         }
     }
 }

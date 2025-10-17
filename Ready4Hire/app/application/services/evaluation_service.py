@@ -167,11 +167,11 @@ class EvaluationService:
                 role=role
             )
             
-            # Generar evaluación con Ollama
+            # ⚡ Generar evaluación con Ollama OPTIMIZADO para velocidad
             response = self.llm_service.generate(
                 prompt=prompt,
                 temperature=self.temperature,
-                max_tokens=1024
+                max_tokens=512  # ⚡ Reducido de 1024 a 512 para respuestas más rápidas
             )
             
             # Parsear respuesta JSON
@@ -233,78 +233,36 @@ class EvaluationService:
         difficulty: str,
         role: str
     ) -> str:
-        """Construye el prompt de evaluación optimizado para Ollama."""
-        return f"""Eres un experto evaluador de entrevistas técnicas y de habilidades blandas.
+        """⚡ Construye el prompt de evaluación OPTIMIZADO para respuestas rápidas."""
+        return f"""Evalúa esta respuesta técnica. Rol: {role}, Nivel: {difficulty}
 
-**Contexto de la entrevista:**
-- Rol: {role}
-- Categoría: {category}
-- Nivel de dificultad: {difficulty}
+PREGUNTA: {question}
 
-**Pregunta realizada:**
-{question}
+RESPUESTA: {answer}
 
-**Respuesta del candidato:**
-{answer}
+CONCEPTOS ESPERADOS: {', '.join(expected_concepts) if expected_concepts else 'N/A'}
 
-**Conceptos esperados:**
-{', '.join(expected_concepts) if expected_concepts else 'No especificados'}
+EVALÚA (0-10):
+1. Completitud (0-3): ¿Responde todo?
+2. Profundidad (0-3): ¿Comprende el tema?
+3. Claridad (0-2): ¿Explica bien?
+4. Conceptos (0-2): ¿Usa términos clave?
 
-**Palabras clave relevantes:**
-{', '.join(keywords) if keywords else 'No especificadas'}
-
-**Tu tarea es evaluar esta respuesta considerando:**
-
-1. **Completitud** (0-3 puntos): ¿La respuesta aborda todos los aspectos de la pregunta?
-   - 0-1: Incompleta, falta mucho
-   - 1.5-2: Parcialmente completa
-   - 2.5-3: Completa y exhaustiva
-
-2. **Profundidad técnica** (0-3 puntos): ¿Demuestra comprensión profunda del tema?
-   - 0-1: Superficial o incorrecta
-   - 1.5-2: Correcta pero básica
-   - 2.5-3: Profunda con ejemplos concretos
-
-3. **Claridad** (0-2 puntos): ¿La explicación es clara y bien estructurada?
-   - 0-0.5: Confusa o desorganizada
-   - 1-1.5: Clara pero puede mejorar
-   - 1.5-2: Muy clara y estructurada
-
-4. **Conceptos clave** (0-2 puntos): ¿Menciona los conceptos esperados?
-   - 0-0.5: No menciona conceptos clave
-   - 1-1.5: Menciona algunos conceptos
-   - 1.5-2: Menciona todos los conceptos relevantes
-
-**Formato de respuesta (JSON estricto):**
+RESPONDE SOLO JSON (sin texto extra):
 {{
-  "score": <número entre 0 y 10 con 1 decimal>,
+  "score": <0-10>,
   "breakdown": {{
     "completeness": <0-3>,
     "technical_depth": <0-3>,
     "clarity": <0-2>,
     "key_concepts": <0-2>
   }},
-  "justification": "<justificación detallada explicando el score. Mínimo 2 oraciones, máximo 4.>",
-  "strengths": [
-    "<fortaleza específica 1 con evidencia>",
-    "<fortaleza específica 2 con evidencia>"
-  ],
-  "improvements": [
-    "<área de mejora específica 1 con sugerencia concreta>",
-    "<área de mejora específica 2 con sugerencia concreta>"
-  ],
-  "concepts_covered": [
-    "<concepto mencionado 1>",
-    "<concepto mencionado 2>",
-    "<concepto mencionado 3>"
-  ],
-  "missing_concepts": [
-    "<concepto esperado que NO fue mencionado>",
-    "<otro concepto faltante>"
-  ]
-}}
-
-Responde SOLO con el JSON, sin texto adicional antes o después."""
+  "justification": "<2 oraciones>",
+  "strengths": ["<fortaleza 1>", "<fortaleza 2>"],
+  "improvements": ["<mejora 1>", "<mejora 2>"],
+  "concepts_covered": ["<concepto 1>", "<concepto 2>"],
+  "missing_concepts": ["<falta 1>", "<falta 2>"]
+}}"""
     
     def _parse_evaluation_response(self, response: str) -> Dict[str, Any]:
         """
@@ -373,6 +331,7 @@ Responde SOLO con el JSON, sin texto adicional antes o después."""
         
         return {
             "score": round(score, 1),
+            "is_correct": score >= 6.0,  # ⚡ Agregar campo is_correct basado en score
             "breakdown": breakdown,
             "breakdown_confidence": breakdown_confidence,
             "justification": result.get("justification", "Evaluación completada"),
@@ -429,6 +388,7 @@ Responde SOLO con el JSON, sin texto adicional antes o después."""
         
         return {
             "score": round(final_score, 1),
+            "is_correct": final_score >= 6.0,  # ⚡ Agregar campo is_correct basado en score
             "breakdown": {
                 "completeness": round(final_score * 0.3, 1),
                 "technical_depth": round(final_score * 0.3, 1),

@@ -45,9 +45,9 @@ class OllamaClient:
         base_url: str = "http://localhost:11434",
         default_model: str = "llama3.2:3b",
         fallback_models: Optional[List[str]] = None,
-        timeout: int = 120,
-        max_retries: int = 3,
-        retry_delay: float = 1.0
+        timeout: int = 30,  # ⚡ Reducido de 120s a 30s para respuestas más rápidas
+        max_retries: int = 2,  # ⚡ Reducido de 3 a 2 reintentos
+        retry_delay: float = 0.5  # ⚡ Reducido de 1.0s a 0.5s para reintentos más rápidos
     ):
         """
         Inicializa el cliente Ollama.

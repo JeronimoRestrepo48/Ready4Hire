@@ -66,12 +66,12 @@ class Container:
     
     def _init_infrastructure(self):
         """Inicializa componentes de infraestructura"""
-        # LLM Service (Ollama)
+        # ⚡ LLM Service (Ollama) - OPTIMIZADO para velocidad con ready4hire:latest
         self.llm_service = OllamaLLMService(
             base_url=self.ollama_url,
-            model=self.ollama_model,
-            temperature=0.7,
-            max_tokens=512
+            model=self.ollama_model,  # ready4hire:latest (fine-tuned)
+            temperature=0.3,  # ⚡ Reducido para respuestas más consistentes y rápidas
+            max_tokens=256    # ⚡ Reducido para evaluaciones más concisas y rápidas
         )
         
         # ML Components
@@ -99,6 +99,9 @@ class Container:
             tech_file=os.path.join(self.questions_path, "tech_questions.jsonl"),
             soft_file=os.path.join(self.questions_path, "soft_skills.jsonl")
         )
+        
+        # ⚡ Pre-computar embeddings de preguntas para selección instantánea
+        self._precompute_question_embeddings()
     
     def _init_services(self):
         """Inicializa servicios de aplicación"""
@@ -241,6 +244,43 @@ class Container:
         health["services"] = "healthy"
         
         return health
+    
+    def _precompute_question_embeddings(self) -> None:
+        """
+        ⚡ Pre-computa embeddings de todas las preguntas al inicio.
+        Esto elimina el delay de encoding durante la selección de preguntas.
+        """
+        try:
+            import logging
+            import asyncio
+            logger = logging.getLogger(__name__)
+            
+            logger.info("⚡ Pre-computando embeddings de preguntas...")
+            
+            # Obtener todas las preguntas
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            tech_questions = loop.run_until_complete(self.question_repository.find_all_technical())
+            soft_questions = loop.run_until_complete(self.question_repository.find_all_soft_skills())
+            
+            all_questions = tech_questions + soft_questions
+            
+            # Pre-computar embeddings en batch (mucho más rápido)
+            question_texts = [q.text for q in all_questions]
+            embeddings = self.embeddings_service.encode(question_texts)
+            
+            # Guardar embeddings en cache del repositorio
+            self.question_repository._embeddings_cache = {
+                q.id: emb for q, emb in zip(all_questions, embeddings)
+            }
+            
+            logger.info(f"✅ Embeddings pre-computados: {len(all_questions)} preguntas en caché")
+            
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"⚠️ No se pudieron pre-computar embeddings: {e}")
 
 
 # Singleton global instance

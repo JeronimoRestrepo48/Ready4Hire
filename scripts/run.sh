@@ -38,7 +38,7 @@ WEBAPP_LOG="$LOGS_DIR/webapp.log"
 # Configuración
 OLLAMA_MODEL="${OLLAMA_MODEL:-ready4hire:latest}"
 API_HOST="${API_HOST:-0.0.0.0}"
-API_PORT="${API_PORT:-8001}"
+API_PORT="${API_PORT:-8000}"
 WEBAPP_PORT="${WEBAPP_PORT:-5214}"
 DEV_MODE=false
 
