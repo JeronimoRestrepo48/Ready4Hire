@@ -16,7 +16,31 @@
 
     <div class="chat-header">
         <span>Habilidades blandas y tecnicas, practico o examen</span>
-        <!--post/-->
+        
+        @if (started && currentPhase != "completed")
+        {
+            <div class="phase-indicator">
+                @if (currentPhase == "context")
+                {
+                    <span class="phase-badge context-phase">
+                        🎯 Fase de Contexto: @contextQuestionsAnswered/5
+                    </span>
+                }
+                else if (currentPhase == "questions")
+                {
+                    <span class="phase-badge technical-phase">
+                        🔬 Fase Técnica: @questionCount/10
+                    </span>
+                }
+                
+                @if (isExamMode)
+                {
+                    <span class="timer-badge">
+                        ⏱️ @timerDisplay
+                    </span>
+                }
+            </div>
+        }
     </div>
 
     <div class="chat-body" @ref="chatBodyRef">
@@ -42,16 +66,26 @@
 
     <div class="chat-input-bar">
 
-
-    <textarea class="chat-input"
-          placeholder="Escribe tu respuesta..."
-          @bind="UserInput"
-          rows="2">
-    </textarea>
-
-        <button class="chat-tools" @onclick="ShowSetup">Configurar</button>
-        <button class="chat-send" @onclick="SendMessage">Enviar</button>
-        <button class="chat-start" @onclick="StartInterview" disabled="@(!IsConfigured)">Comenzar Entrevista</button>
+        @if (!started)
+        {
+            <button class="chat-tools" @onclick="ShowSetup">⚙️ Configurar</button>
+            <button class="chat-start" @onclick="StartInterview" disabled="@(!IsConfigured)">▶️ Comenzar Entrevista</button>
+        }
+        else if (currentPhase != "completed")
+        {
+            <textarea class="chat-input"
+                  placeholder="Escribe tu respuesta..."
+                  @bind="UserInput"
+                  @onkeydown="HandleKeyDown"
+                  rows="2">
+            </textarea>
+            <button class="chat-send" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(UserInput)">📤 Enviar</button>
+            <button class="chat-end" @onclick="EndInterview">🏁 Finalizar</button>
+        }
+        else
+        {
+            <button class="chat-restart" @onclick="RestartInterview">🔄 Nueva Entrevista</button>
+        }
 
         @if (ShowConfig)
         {

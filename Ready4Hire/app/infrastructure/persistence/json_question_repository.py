@@ -29,6 +29,7 @@ class JsonQuestionRepository(QuestionRepository):
         self.soft_file = Path(soft_file)
         self._tech_cache: List[Question] = []
         self._soft_cache: List[Question] = []
+        self._embeddings_cache: dict = {}  # ⚡ Cache de embeddings pre-computados
         self._load_questions()
     
     def _load_questions(self) -> None:
