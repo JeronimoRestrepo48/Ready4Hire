@@ -122,19 +122,29 @@
     private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
     
     private NavMenuViewModel? vm;
+    private bool isInitialized = false;
 
     protected override async Task OnInitializedAsync()
     {
-        // Verificar autenticación
-        if (!await AuthService.IsAuthenticatedAsync())
-        {
-            Navigation.NavigateTo("/", true);
-            return;
-        }
-
         using var db = await DbFactory.CreateDbContextAsync();
         vm = new NavMenuViewModel(db);
         await vm.LoadDataAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !isInitialized)
+        {
+            // Verificar autenticación después del primer render
+            if (!await AuthService.IsAuthenticatedAsync())
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            isInitialized = true;
+            StateHasChanged();
+        }
     }
 
     private void StartNewChat()

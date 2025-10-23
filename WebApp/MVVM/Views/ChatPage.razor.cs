@@ -70,23 +70,10 @@ namespace Ready4Hire.MVVM.Views
         /// Indica si la configuración fue guardada y es válida.
         public bool IsConfigured { get; set; } = false;
 
+        private bool isAuthenticated = false;
+
         protected override async Task OnInitializedAsync()
         {
-            // SEGURIDAD: Verificar autenticación obligatoria
-            if (!await AuthService.IsAuthenticatedAsync())
-            {
-                Navigation.NavigateTo("/", true);
-                return;
-            }
-
-            // Validar sesión activa
-            if (!await AuthService.ValidateSessionAsync())
-            {
-                await AuthService.LogoutAsync();
-                Navigation.NavigateTo("/", true);
-                return;
-            }
-
             // Crear una nueva instancia de DbContext para este componente
             currentDb = await DbFactory.CreateDbContextAsync();
             vm = new ChatViewModel(currentDb, chatId);
@@ -94,6 +81,33 @@ namespace Ready4Hire.MVVM.Views
 
             if (chatId != 0 && vm.Messages != null)
                 Messages = vm.Messages;
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                // SEGURIDAD: Verificar autenticación después del primer render (cuando JSInterop está disponible)
+                if (!await AuthService.IsAuthenticatedAsync())
+                {
+                    Navigation.NavigateTo("/", true);
+                    return;
+                }
+
+                // Validar sesión activa
+                if (!await AuthService.ValidateSessionAsync())
+                {
+                    await AuthService.LogoutAsync();
+                    Navigation.NavigateTo("/", true);
+                    return;
+                }
+
+                isAuthenticated = true;
+                StateHasChanged();
+            }
+
+            await base.OnAfterRenderAsync(firstRender);
+            await ScrollToBottomAsync();
         }
 
         public void Dispose()
@@ -372,11 +386,6 @@ namespace Ready4Hire.MVVM.Views
             await JS.InvokeVoidAsync("scrollToBottom");
         }
 
-        /// Hace scroll automático después de renderizar el componente.
-        protected override async Task OnAfterRenderAsync(bool firstRender)
-        {
-            await ScrollToBottomAsync();
-        }
 
         /// Maneja el evento de teclado para enviar con Enter
         private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)

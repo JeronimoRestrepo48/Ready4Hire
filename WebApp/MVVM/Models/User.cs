@@ -15,8 +15,6 @@
         public List<string> Softskills { get; set; } = new();
         public List<string> Interests { get; set; } = new();
 
-        public bool IsAdmin { get; set; }
-
         // Relación uno-a-muchos
         public List<Chat> Chats { get; set; } = new();
     }

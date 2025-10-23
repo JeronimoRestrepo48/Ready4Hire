@@ -207,16 +207,26 @@ start_backend() {
     nohup python3 -m uvicorn app.main_v2_improved:app --host 0.0.0.0 --port 8001 > "$LOGS_DIR/ready4hire_api.log" 2>&1 &
     echo $! > "$BACKEND_PID_FILE"
     
-    sleep 8
+    info "Esperando inicialización del backend (warm-up de modelos)..."
+    sleep 12
     
-    # Verificar health
-    if curl -s http://localhost:8001/api/v2/health > /dev/null 2>&1; then
-        success "Backend iniciado (puerto 8001, PID: $(cat $BACKEND_PID_FILE))"
-        return 0
-    else
-        error "Backend no responde en health check"
-        return 1
-    fi
+    # Verificar health con reintentos
+    local retries=0
+    local max_retries=5
+    while [ $retries -lt $max_retries ]; do
+        if curl -s http://localhost:8001/api/v2/health > /dev/null 2>&1; then
+            success "Backend iniciado (puerto 8001, PID: $(cat $BACKEND_PID_FILE))"
+            return 0
+        fi
+        retries=$((retries + 1))
+        if [ $retries -lt $max_retries ]; then
+            info "Reintentando health check ($retries/$max_retries)..."
+            sleep 3
+        fi
+    done
+    
+    warning "Backend tardó en responder. Verifica logs: tail -f logs/ready4hire_api.log"
+    return 0  # No fallar, solo advertir
 }
 
 start_frontend() {

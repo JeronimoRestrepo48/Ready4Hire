@@ -17,8 +17,14 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped<Ready4Hire.Services.AuthService>();
 builder.Services.AddScoped<Ready4Hire.Services.SecurityService>();
 
+// HttpClient para APIs
+builder.Services.AddHttpClient();
+
 // Registrar el servicio de consumo de la API Python
 builder.Services.AddHttpClient<InterviewApiService>();
+
+// Agregar controladores API
+builder.Services.AddControllers();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -26,6 +32,18 @@ builder.Services.AddRazorComponents()
 
 // Configurar headers de seguridad
 builder.Services.AddAntiforgery();
+
+// Configurar CORS para permitir conexiones locales
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowLocalhost", policy =>
+    {
+        policy.WithOrigins("http://localhost:5214", "https://localhost:5214")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
 
 var app = builder.Build();
 
@@ -55,7 +73,13 @@ app.Use(async (context, next) =>
 });
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowLocalhost");
+
 app.UseAntiforgery();
+
+// Mapear controladores API
+app.MapControllers();
 
 app.MapStaticAssets();
 app.MapRazorComponents<App>()

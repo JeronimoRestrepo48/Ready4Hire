@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
@@ -39,6 +40,8 @@ namespace Ready4Hire.Migrations
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Title = table.Column<string>(type: "text", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ChatMode = table.Column<string>(type: "text", nullable: false),
                     QuestionCount = table.Column<int>(type: "integer", nullable: false),
                     Score = table.Column<int>(type: "integer", nullable: false),
@@ -63,6 +66,7 @@ namespace Ready4Hire.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Text = table.Column<string>(type: "text", nullable: false),
                     IsUser = table.Column<bool>(type: "boolean", nullable: false),
+                    Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ChatId = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>

@@ -264,28 +264,10 @@ async def _select_questions_with_clustering(c: Container, interview, context_tex
 # Authentication Endpoints
 # ============================================================================
 
-@app.post("/api/v2/auth/login", response_model=TokenResponse, tags=["Authentication"])
-@limiter.limit("5/minute")
-async def login(request: Request, login_data: LoginRequest):
-    """
-    Autenticar usuario y obtener JWT token.
-    
-    Usuarios de prueba:
-    - username: testuser, password: TestPassword123
-    - username: demo, password: DemoPassword123
-    """
-    user = authenticate_user(login_data.username, login_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    token_data = create_token_response(user)
-    logger.info(f"User logged in: {user['username']}")
-    
-    return token_data
+# ============================================================================
+# NOTA: Autenticación manejada por WebApp (.NET Backend)
+# Este backend solo proporciona servicios de IA para entrevistas
+# ============================================================================
 
 # ============================================================================
 # Health Check & Monitoring

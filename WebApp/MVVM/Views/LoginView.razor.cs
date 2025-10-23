@@ -20,40 +20,52 @@ namespace Ready4Hire.MVVM.Views
         [Inject]
         private SecurityService SecurityService { get; set; } = null!;
 
+        [Inject]
+        private HttpClient HttpClient { get; set; } = null!;
+
         private LoginViewModel? vm;
-        private AppDbContext? currentDb;
         
-        private string? loginError = null;
+        private string? errorMessage = null;
         private string email = "";
         private string password = "";
+        private bool isLoading = false;
+        private bool isRegisterMode = false;
 
-        protected override async Task OnInitializedAsync()
+        protected override void OnInitialized()
         {
-            // Cerrar cualquier sesión anterior
-            await AuthService.LogoutAsync();
-            
-            currentDb = await DbFactory.CreateDbContextAsync();
-            vm = new LoginViewModel(currentDb);
+            vm = new LoginViewModel(HttpClient);
+        }
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                // Cerrar cualquier sesión anterior (después del primer render cuando JSInterop está disponible)
+                await AuthService.LogoutAsync();
+                StateHasChanged();
+            }
         }
 
         private async Task HandleLogin()
         {
             try
             {
-                loginError = null;
+                errorMessage = null;
+                isLoading = true;
 
-                // Validar y sanitizar inputs
-                email = SecurityService.SanitizeInput(email);
-                
-                if (!SecurityService.ValidateEmail(email))
+                // Validar inputs vacíos
+                if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
                 {
-                    loginError = "Email inválido";
+                    errorMessage = "Por favor completa todos los campos";
                     return;
                 }
 
-                if (string.IsNullOrWhiteSpace(password))
+                // Sanitizar y validar email
+                email = SecurityService.SanitizeInput(email.Trim());
+                
+                if (!SecurityService.ValidateEmail(email))
                 {
-                    loginError = "La contraseña no puede estar vacía";
+                    errorMessage = "Por favor ingresa un correo electrónico válido";
                     return;
                 }
 
@@ -70,20 +82,71 @@ namespace Ready4Hire.MVVM.Views
                 }
                 else
                 {
-                    loginError = "Email o contraseña incorrectos";
+                    // Mensaje más específico
+                    errorMessage = "Credenciales incorrectas. Verifica tu correo y contraseña.";
                 }
             }
             catch (Exception ex)
             {
-                loginError = "Error al iniciar sesión. Intenta nuevamente.";
+                errorMessage = "Error al iniciar sesión. Por favor intenta nuevamente.";
                 Console.WriteLine($"Login error: {ex.Message}");
             }
+            finally
+            {
+                isLoading = false;
+                StateHasChanged();
+            }
+        }
+
+        private void ShowRegister()
+        {
+            isRegisterMode = true;
+            errorMessage = null;
+            Step = 1;
+        }
+
+        private void ShowLogin()
+        {
+            isRegisterMode = false;
+            errorMessage = null;
+            Step = 1;
+            ResetRegistration();
+        }
+
+        private string GetStepTitle()
+        {
+            return Step switch
+            {
+                1 => "Crea tu cuenta",
+                2 => "Tu información personal",
+                3 => "Habilidades Técnicas",
+                4 => "Habilidades Blandas",
+                5 => "Intereses Profesionales",
+                _ => "Registro"
+            };
+        }
+
+        private async Task LoginWithGoogle()
+        {
+            errorMessage = "La autenticación con Google estará disponible próximamente";
+            await Task.CompletedTask;
+        }
+
+        private async Task LoginWithMicrosoft()
+        {
+            errorMessage = "La autenticación con Microsoft estará disponible próximamente";
+            await Task.CompletedTask;
         }
 
         private async Task CompleteRegistration()
         {
             try
             {
+                isLoading = true;
+                errorMessage = null;
+
+                Console.WriteLine($"[REGISTRO] Iniciando registro para: {registerEmail}");
+
                 // Sanitizar todos los inputs
                 registerName = SecurityService.SanitizeInput(registerName);
                 registerLastName = SecurityService.SanitizeInput(registerLastName);
@@ -96,9 +159,11 @@ namespace Ready4Hire.MVVM.Views
                     !SecurityService.ValidateLength(registerLastName, 100) ||
                     !SecurityService.ValidateLength(registerJob, 200))
                 {
-                    loginError = "Uno o más campos exceden el límite de caracteres";
+                    errorMessage = "Uno o más campos exceden el límite de caracteres";
                     return;
                 }
+
+                Console.WriteLine($"[REGISTRO] Guardando usuario en BD...");
 
                 // Registrar usuario
                 await vm!.FinishRegistration(
@@ -111,18 +176,40 @@ namespace Ready4Hire.MVVM.Views
                     selectedInterests
                 );
 
-                // Login automático después del registro
-                var user = await vm.Login(registerEmail, registerPassword);
+                Console.WriteLine($"[REGISTRO] Usuario guardado. Intentando login automático...");
+
+                // Login automático después del registro (usando la misma instancia de VM)
+                var user = await vm!.Login(registerEmail, registerPassword);
+                
                 if (user != null)
                 {
+                    Console.WriteLine($"[REGISTRO] Login exitoso. Usuario ID: {user.Id}");
+                    
+                    // Guardar sesión de forma segura
                     await AuthService.LoginAsync(user);
+                    
+                    Console.WriteLine($"[REGISTRO] Sesión guardada. Redirigiendo al chat...");
+                    
+                    // Redireccionar al chat
                     Navigation.NavigateTo("/chat/0", true);
+                }
+                else
+                {
+                    Console.WriteLine($"[REGISTRO] Login automático falló. Mostrando pantalla de login.");
+                    errorMessage = "Registro exitoso. Por favor inicia sesión.";
+                    ShowLogin();
                 }
             }
             catch (Exception ex)
             {
-                loginError = "Error al registrar. Intenta nuevamente.";
-                Console.WriteLine($"Registration error: {ex.Message}");
+                errorMessage = $"Error al registrar: {ex.Message}";
+                Console.WriteLine($"[REGISTRO ERROR] {ex.Message}");
+                Console.WriteLine($"[REGISTRO ERROR] StackTrace: {ex.StackTrace}");
+            }
+            finally
+            {
+                isLoading = false;
+                StateHasChanged();
             }
         }
 
@@ -213,69 +300,31 @@ namespace Ready4Hire.MVVM.Views
         private List<string> selectedSoftSkills = new();
         private List<string> selectedInterests = new();
 
+        private List<string> availableHardSkills => hardSkills;
+        private List<string> availableSoftSkills => softSkills;
+        private List<string> availableInterests => interests;
+
         void ShowRegisterModal()
         {
             showRegisterModal = true;
             Step = 1;
             ResetSearch();
             ResetValidation();
+            ResetRegistration();
+        }
 
+        void ResetRegistration()
+        {
             registerEmail = "";
             registerPassword = "";
             registerConfirmPassword = "";
             registerName = "";
             registerLastName = "";
-            registerCountry = "Colombia";
+            registerCountry = "";
             registerJob = "";
-        }
-
-        async void NextStep()
-        {
-            if (Step == 1)
-            {
-                // Validate email and password
-                isEmailInvalid = !vm.ValidateEmail(registerEmail);
-                isPasswordInvalid = !vm.ValidatePassword(registerPassword);
-                isConfirmPasswordInvalid = registerPassword != registerConfirmPassword;
-
-                if (isEmailInvalid || isPasswordInvalid || isConfirmPasswordInvalid)
-                    return;
-            }
-            else if (Step == 2)
-            {
-                // Validate name and last name
-                isNameInvalid = !vm.ValidateString(registerName);
-                isLastNameInvalid = !vm.ValidateString(registerLastName);
-                isCountryInvalid = !vm.ValidateString(registerCountry);
-                isJobInvalid = !vm.ValidateString(registerJob);
-
-                if (isNameInvalid || isLastNameInvalid || isCountryInvalid || isJobInvalid)
-                    return;
-            }
-            else if (Step == 3)
-            {
-                // Validate skills and interests
-                isHardskillsInvalid = selectedHardSkills.Count == 0;
-                isSoftskillsInvalid = selectedSoftSkills.Count == 0;
-                isInterestsInvalid = selectedInterests.Count == 0;
-
-                // Prevent continue if any required selection is missing
-                if (isHardskillsInvalid || isSoftskillsInvalid || isInterestsInvalid)
-                    return;
-                else
-                {
-                    await vm.FinishRegistration(registerName, registerLastName, registerJob, registerCountry,
-                        selectedHardSkills, selectedSoftSkills, selectedInterests);
-
-                    Navigation.NavigateTo("/chat/0");
-                }
-            }
-
-            if (Step < 3)
-                Step++;
-
-            ResetSearch();
-            ResetValidation();
+            selectedHardSkills.Clear();
+            selectedSoftSkills.Clear();
+            selectedInterests.Clear();
         }
 
         void HideRegisterModal()
@@ -312,28 +361,75 @@ namespace Ready4Hire.MVVM.Views
             filteredInterests.Clear();
         }
 
-        void FilterHardSkills(ChangeEventArgs e)
+        void FilterHardSkills(ChangeEventArgs? e = null)
         {
-            hardSkillSearch = e.Value?.ToString() ?? "";
-            filteredHardSkills = hardSkills
-                .Where(s => s.Contains(hardSkillSearch, StringComparison.OrdinalIgnoreCase) && !selectedHardSkills.Contains(s))
-                .ToList();
+            if (e != null)
+                hardSkillSearch = e.Value?.ToString() ?? "";
+            
+            if (string.IsNullOrEmpty(hardSkillSearch))
+            {
+                filteredHardSkills.Clear(); // No mostrar todas si está vacío
+            }
+            else
+            {
+                // Mostrar solo coincidencias mientras escribe (autocompletado)
+                filteredHardSkills = hardSkills
+                    .Where(s => !selectedHardSkills.Contains(s) && 
+                               s.Contains(hardSkillSearch, StringComparison.OrdinalIgnoreCase))
+                    .Take(10) // Limitar a 10 resultados para mejor UX
+                    .ToList();
+            }
+            StateHasChanged();
         }
 
-        void FilterSoftSkills(ChangeEventArgs e)
+        void FilterSoftSkills(ChangeEventArgs? e = null)
         {
-            softSkillSearch = e.Value?.ToString() ?? "";
-            filteredSoftSkills = softSkills
-                .Where(s => s.Contains(softSkillSearch, StringComparison.OrdinalIgnoreCase) && !selectedSoftSkills.Contains(s))
-                .ToList();
+            if (e != null)
+                softSkillSearch = e.Value?.ToString() ?? "";
+            
+            if (string.IsNullOrEmpty(softSkillSearch))
+            {
+                filteredSoftSkills.Clear(); // No mostrar todas si está vacío
+            }
+            else
+            {
+                // Mostrar solo coincidencias mientras escribe (autocompletado)
+                filteredSoftSkills = softSkills
+                    .Where(s => !selectedSoftSkills.Contains(s) && 
+                               s.Contains(softSkillSearch, StringComparison.OrdinalIgnoreCase))
+                    .Take(10) // Limitar a 10 resultados
+                    .ToList();
+            }
+            StateHasChanged();
         }
 
-        void FilterInterests(ChangeEventArgs e)
+        void FilterInterests(ChangeEventArgs? e = null)
         {
-            interestSearch = e.Value?.ToString() ?? "";
-            filteredInterests = interests
-                .Where(s => s.Contains(interestSearch, StringComparison.OrdinalIgnoreCase) && !selectedInterests.Contains(s))
-                .ToList();
+            if (e != null)
+                interestSearch = e.Value?.ToString() ?? "";
+            
+            if (string.IsNullOrEmpty(interestSearch))
+            {
+                filteredInterests.Clear(); // No mostrar todos si está vacío
+            }
+            else
+            {
+                // Mostrar solo coincidencias mientras escribe (autocompletado)
+                filteredInterests = interests
+                    .Where(i => !selectedInterests.Contains(i) && 
+                               i.Contains(interestSearch, StringComparison.OrdinalIgnoreCase))
+                    .Take(10) // Limitar a 10 resultados
+                    .ToList();
+            }
+            StateHasChanged();
+        }
+
+        void ToggleHardSkill(string skill)
+        {
+            if (selectedHardSkills.Contains(skill))
+                selectedHardSkills.Remove(skill);
+            else
+                selectedHardSkills.Add(skill);
         }
 
         void AddHardSkill(string skill)
@@ -348,6 +444,14 @@ namespace Ready4Hire.MVVM.Views
             selectedHardSkills.Remove(skill);
         }
 
+        void ToggleSoftSkill(string skill)
+        {
+            if (selectedSoftSkills.Contains(skill))
+                selectedSoftSkills.Remove(skill);
+            else
+                selectedSoftSkills.Add(skill);
+        }
+
         void AddSoftSkill(string skill)
         {
             selectedSoftSkills.Add(skill);
@@ -358,6 +462,14 @@ namespace Ready4Hire.MVVM.Views
         void RemoveSoftSkill(string skill)
         {
             selectedSoftSkills.Remove(skill);
+        }
+
+        void ToggleInterest(string interest)
+        {
+            if (selectedInterests.Contains(interest))
+                selectedInterests.Remove(interest);
+            else
+                selectedInterests.Add(interest);
         }
 
         void AddInterest(string interest)
@@ -371,11 +483,61 @@ namespace Ready4Hire.MVVM.Views
         {
             selectedInterests.Remove(interest);
         }
+
+        void PreviousStep()
+        {
+            if (Step > 1)
+                Step--;
+        }
+
+        async Task NextStep()
+        {
+            if (Step == 1)
+            {
+                // Validate email and password
+                if (string.IsNullOrWhiteSpace(registerEmail) || string.IsNullOrWhiteSpace(registerPassword))
+                {
+                    errorMessage = "Por favor completa todos los campos";
+                    return;
+                }
+
+                if (!SecurityService.ValidateEmail(registerEmail))
+                {
+                    errorMessage = "Por favor ingresa un correo electrónico válido";
+                    return;
+                }
+
+                var passwordValidation = SecurityService.ValidatePassword(registerPassword);
+                if (!passwordValidation.isValid)
+                {
+                    errorMessage = passwordValidation.message;
+                    return;
+                }
+
+                await vm!.SaveEmailAndPassword(registerEmail, registerPassword);
+            }
+            else if (Step == 2)
+            {
+                // Validate personal info
+                if (string.IsNullOrWhiteSpace(registerName) || string.IsNullOrWhiteSpace(registerLastName) ||
+                    string.IsNullOrWhiteSpace(registerJob) || string.IsNullOrWhiteSpace(registerCountry))
+                {
+                    errorMessage = "Por favor completa todos los campos";
+                    return;
+                }
+            }
+
+            if (Step < 5)
+            {
+                Step++;
+                errorMessage = null;
+            }
+        }
         #endregion
 
         public void Dispose()
         {
-            currentDb?.Dispose();
+            // No hay recursos para liberar
         }
     }
 }

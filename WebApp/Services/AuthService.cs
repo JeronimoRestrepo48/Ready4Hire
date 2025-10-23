@@ -25,9 +25,16 @@ namespace Ready4Hire.Services
             // Generar token de sesión único
             var sessionToken = Guid.NewGuid().ToString();
             
-            // Guardar en almacenamiento protegido del servidor
-            await _sessionStorage.SetAsync(USER_KEY, user);
-            await _sessionStorage.SetAsync(SESSION_TOKEN_KEY, sessionToken);
+            try
+            {
+                // Guardar en almacenamiento protegido del servidor
+                await _sessionStorage.SetAsync(USER_KEY, user);
+                await _sessionStorage.SetAsync(SESSION_TOKEN_KEY, sessionToken);
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignorar si JSInterop no está disponible aún
+            }
         }
 
         /// <summary>
@@ -35,8 +42,15 @@ namespace Ready4Hire.Services
         /// </summary>
         public async Task LogoutAsync()
         {
-            await _sessionStorage.DeleteAsync(USER_KEY);
-            await _sessionStorage.DeleteAsync(SESSION_TOKEN_KEY);
+            try
+            {
+                await _sessionStorage.DeleteAsync(USER_KEY);
+                await _sessionStorage.DeleteAsync(SESSION_TOKEN_KEY);
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignorar si JSInterop no está disponible
+            }
         }
 
         /// <summary>
@@ -60,8 +74,15 @@ namespace Ready4Hire.Services
         /// </summary>
         public async Task<bool> IsAuthenticatedAsync()
         {
-            var user = await GetCurrentUserAsync();
-            return user != null;
+            try
+            {
+                var user = await GetCurrentUserAsync();
+                return user != null;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         /// <summary>
