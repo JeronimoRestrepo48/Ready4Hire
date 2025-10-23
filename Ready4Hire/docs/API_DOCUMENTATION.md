@@ -1,11 +1,18 @@
 # API Documentation - Ready4Hire
 
 ## 🌐 Base URL
-- **Development**: `http://localhost:8000`
+- **Development**: `http://localhost:8001`
 - **Production (SSL)**: `https://localhost` or `https://ready4hire.local`
 
 ## 🔑 Authentication
-Currently, the API uses simple user_id based authentication. Future versions will implement JWT tokens.
+The API supports JWT-based authentication for protected endpoints. Public endpoints (health check, metrics) don't require authentication.
+
+### Security Features
+- 🔐 **Input Validation**: Protección contra prompt injection, XSS y SQL injection
+- 🛡️ **Output Sanitization**: Limpieza automática de respuestas del LLM
+- 🚦 **Rate Limiting**: Límite de requests por IP
+- 🔌 **Circuit Breaker**: Resiliencia ante fallos de servicios externos
+- 📊 **Monitoring**: Métricas de Prometheus en `/metrics`
 
 ## 📡 Endpoints
 
@@ -557,3 +564,123 @@ For API issues or questions:
 - Email: api-support@ready4hire.com
 - Swagger UI: `https://localhost/docs`
 - ReDoc: `https://localhost/redoc`
+
+---
+
+## 🔍 Monitoring & Observability
+
+### Health Check
+**Endpoint**: `GET /api/v2/health`
+
+**Description**: Verifica el estado de todos los componentes del sistema.
+
+**Response** (200 OK):
+```json
+{
+  "status": "healthy",
+  "version": "2.0.0",
+  "timestamp": "2025-10-21T10:30:00Z",
+  "components": {
+    "llm_service": "healthy",
+    "repositories": "healthy",
+    "audio": "STT: ✅ TTS: ✅",
+    "security": "healthy",
+    "ml": "Embeddings: ✅"
+  }
+}
+```
+
+**Response** (503 Service Unavailable):
+```json
+{
+  "status": "unhealthy",
+  "error": "Circuit breaker OPEN: Ollama unavailable",
+  "timestamp": "2025-10-21T10:30:00Z"
+}
+```
+
+---
+
+### Metrics (Prometheus)
+**Endpoint**: `GET /metrics`
+
+**Description**: Exporta métricas en formato Prometheus.
+
+**Métricas disponibles**:
+
+- **Contadores**:
+  - `ready4hire_http_requests_total`: Total de requests HTTP
+  - `ready4hire_http_errors_total`: Total de errores HTTP
+  - `ready4hire_llm_requests_total`: Total de requests al LLM
+  - `ready4hire_llm_errors_total`: Total de errores del LLM
+  - `ready4hire_evaluations_total`: Total de evaluaciones
+  - `ready4hire_cache_hits_total`: Total de cache hits
+  - `ready4hire_cache_misses_total`: Total de cache misses
+  - `ready4hire_circuit_breaker_opens_total`: Total de circuit breaker opens
+  - `ready4hire_prompt_injections_blocked_total`: Total de prompt injections bloqueados
+
+- **Gauges**:
+  - `ready4hire_active_interviews`: Entrevistas activas
+  - `ready4hire_circuit_breaker_state`: Estado del circuit breaker (0=closed, 2=open)
+  - `ready4hire_cache_hit_rate`: Porcentaje de cache hit rate
+  - `ready4hire_llm_avg_latency_ms`: Latencia promedio del LLM
+
+- **Histogramas (p50, p95, p99)**:
+  - `ready4hire_http_request_duration_ms_*`: Latencia de requests HTTP
+  - `ready4hire_llm_request_duration_ms`: Latencia de requests al LLM
+  - `ready4hire_evaluation_duration_ms`: Latencia de evaluaciones
+
+**Response** (200 OK):
+```text
+# HELP ready4hire_metrics Ready4Hire Application Metrics
+# TYPE ready4hire_metrics untyped
+
+# HELP ready4hire_counters Counter metrics
+# TYPE ready4hire_counters counter
+ready4hire_http_requests_total 1234
+ready4hire_llm_requests_total 456
+...
+```
+
+---
+
+## 🔐 Security Best Practices
+
+### Input Validation
+Todos los inputs del usuario son validados automáticamente:
+
+- **Longitud máxima**: 5000 caracteres
+- **Caracteres permitidos**: UTF-8 sin caracteres de control
+- **Patrones bloqueados**:
+  - Prompt injection: `ignore previous instructions`, `system: you are`, etc.
+  - XSS: `<script>`, `javascript:`, `onerror=`, etc.
+  - SQL injection: `DROP`, `DELETE`, etc.
+  - Repetición excesiva (spam)
+
+**Ejemplo de error**:
+```json
+{
+  "detail": "Contenido no permitido detectado: patrón sospechoso"
+}
+```
+
+### Output Sanitization
+Todas las respuestas del LLM son sanitizadas antes de enviarse al cliente:
+
+- Remoción de scripts HTML
+- Filtrado de información sensible (API keys, passwords)
+- Truncado de outputs muy largos
+- Normalización de espacios y newlines
+
+### Rate Limiting
+- **Por defecto**: 100 requests/minuto por IP
+- **Login**: 5 intentos/minuto
+- **Health check**: 30 requests/minuto
+
+**Respuesta al exceder límite** (429 Too Many Requests):
+```json
+{
+  "error": "Rate limit exceeded"
+}
+```
+

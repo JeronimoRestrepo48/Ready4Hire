@@ -1,25 +1,129 @@
 ﻿using Microsoft.AspNetCore.Components;
+using Microsoft.EntityFrameworkCore;
 using Ready4Hire.Data;
 using Ready4Hire.MVVM.ViewModels;
+using Ready4Hire.Services;
 
 namespace Ready4Hire.MVVM.Views
 {
-    public partial class LoginView : ComponentBase
+    public partial class LoginView : ComponentBase, IDisposable
     {
         [Inject]
-        private NavigationManager Navigation { get; set; }
+        public NavigationManager Navigation { get; set; } = null!;
+        
         [Inject]
-        private AppDbContext Db { get; set; }
+        private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
 
-        private LoginViewModel vm;
+        [Inject]
+        private AuthService AuthService { get; set; } = null!;
+
+        [Inject]
+        private SecurityService SecurityService { get; set; } = null!;
+
+        private LoginViewModel? vm;
+        private AppDbContext? currentDb;
+        
+        private string? loginError = null;
+        private string email = "";
+        private string password = "";
 
         protected override async Task OnInitializedAsync()
         {
-            vm = new LoginViewModel(Db);
+            // Cerrar cualquier sesión anterior
+            await AuthService.LogoutAsync();
+            
+            currentDb = await DbFactory.CreateDbContextAsync();
+            vm = new LoginViewModel(currentDb);
+        }
 
-            bool userLoggedIn = await vm.IsUserLoggedIn();
-            if (userLoggedIn)
-                Navigation.NavigateTo("/chat");
+        private async Task HandleLogin()
+        {
+            try
+            {
+                loginError = null;
+
+                // Validar y sanitizar inputs
+                email = SecurityService.SanitizeInput(email);
+                
+                if (!SecurityService.ValidateEmail(email))
+                {
+                    loginError = "Email inválido";
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(password))
+                {
+                    loginError = "La contraseña no puede estar vacía";
+                    return;
+                }
+
+                // Intentar login
+                var user = await vm!.Login(email, password);
+                
+                if (user != null)
+                {
+                    // Guardar sesión de forma segura
+                    await AuthService.LoginAsync(user);
+                    
+                    // Redireccionar al chat
+                    Navigation.NavigateTo("/chat/0", true);
+                }
+                else
+                {
+                    loginError = "Email o contraseña incorrectos";
+                }
+            }
+            catch (Exception ex)
+            {
+                loginError = "Error al iniciar sesión. Intenta nuevamente.";
+                Console.WriteLine($"Login error: {ex.Message}");
+            }
+        }
+
+        private async Task CompleteRegistration()
+        {
+            try
+            {
+                // Sanitizar todos los inputs
+                registerName = SecurityService.SanitizeInput(registerName);
+                registerLastName = SecurityService.SanitizeInput(registerLastName);
+                registerEmail = SecurityService.SanitizeInput(registerEmail);
+                registerCountry = SecurityService.SanitizeInput(registerCountry);
+                registerJob = SecurityService.SanitizeInput(registerJob);
+
+                // Validar longitud de inputs
+                if (!SecurityService.ValidateLength(registerName, 100) ||
+                    !SecurityService.ValidateLength(registerLastName, 100) ||
+                    !SecurityService.ValidateLength(registerJob, 200))
+                {
+                    loginError = "Uno o más campos exceden el límite de caracteres";
+                    return;
+                }
+
+                // Registrar usuario
+                await vm!.FinishRegistration(
+                    registerName, 
+                    registerLastName, 
+                    registerJob, 
+                    registerCountry,
+                    selectedHardSkills, 
+                    selectedSoftSkills, 
+                    selectedInterests
+                );
+
+                // Login automático después del registro
+                var user = await vm.Login(registerEmail, registerPassword);
+                if (user != null)
+                {
+                    await AuthService.LoginAsync(user);
+                    Navigation.NavigateTo("/chat/0", true);
+                }
+            }
+            catch (Exception ex)
+            {
+                loginError = "Error al registrar. Intenta nuevamente.";
+                Console.WriteLine($"Registration error: {ex.Message}");
+            }
         }
 
         private bool showRegisterModal = false;
@@ -163,7 +267,7 @@ namespace Ready4Hire.MVVM.Views
                     await vm.FinishRegistration(registerName, registerLastName, registerJob, registerCountry,
                         selectedHardSkills, selectedSoftSkills, selectedInterests);
 
-                    Navigation.NavigateTo("/chat");
+                    Navigation.NavigateTo("/chat/0");
                 }
             }
 
@@ -269,5 +373,9 @@ namespace Ready4Hire.MVVM.Views
         }
         #endregion
 
+        public void Dispose()
+        {
+            currentDb?.Dispose();
+        }
     }
 }

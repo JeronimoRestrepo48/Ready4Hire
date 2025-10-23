@@ -1,6 +1,6 @@
 """
 Cliente Ollama robusto para inferencia LLM local.
-Soporta retry, timeout, streaming, y manejo de errores.
+Soporta retry, timeout, streaming, manejo de errores y circuit breaker.
 """
 import requests
 import json
@@ -8,6 +8,7 @@ import time
 import logging
 from typing import Dict, Any, Optional, List, Generator
 from functools import wraps
+from .circuit_breaker import CircuitBreaker, CircuitBreakerError
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,10 @@ class OllamaClient:
         fallback_models: Optional[List[str]] = None,
         timeout: int = 30,  # ⚡ Reducido de 120s a 30s para respuestas más rápidas
         max_retries: int = 2,  # ⚡ Reducido de 3 a 2 reintentos
-        retry_delay: float = 0.5  # ⚡ Reducido de 1.0s a 0.5s para reintentos más rápidos
+        retry_delay: float = 0.5,  # ⚡ Reducido de 1.0s a 0.5s para reintentos más rápidos
+        circuit_breaker_enabled: bool = True,  # 🔌 Circuit breaker para resiliencia
+        circuit_failure_threshold: int = 5,
+        circuit_recovery_timeout: int = 60
     ):
         """
         Inicializa el cliente Ollama.
@@ -59,6 +63,9 @@ class OllamaClient:
             timeout: Timeout en segundos para requests
             max_retries: Número máximo de reintentos
             retry_delay: Delay base entre reintentos (usa backoff exponencial)
+            circuit_breaker_enabled: Si habilitar circuit breaker
+            circuit_failure_threshold: Fallos consecutivos antes de abrir circuito
+            circuit_recovery_timeout: Segundos antes de intentar recuperación
         """
         self.base_url = base_url.rstrip('/')
         self.default_model = default_model
@@ -68,11 +75,25 @@ class OllamaClient:
         self.retry_delay = retry_delay
         self.session = requests.Session()
         
+        # 🔌 Circuit Breaker para resiliencia
+        self.circuit_breaker_enabled = circuit_breaker_enabled
+        if circuit_breaker_enabled:
+            self.circuit_breaker = CircuitBreaker(
+                failure_threshold=circuit_failure_threshold,
+                recovery_timeout=circuit_recovery_timeout,
+                expected_exception=OllamaError,
+                name="ollama_client"
+            )
+            logger.info("✅ Circuit Breaker habilitado para Ollama")
+        else:
+            self.circuit_breaker = None
+        
         # Métricas
         self.metrics = {
             'total_requests': 0,
             'successful_requests': 0,
             'failed_requests': 0,
+            'circuit_open_rejections': 0,
             'total_latency': 0.0,
             'avg_latency': 0.0
         }
@@ -170,7 +191,35 @@ class OllamaClient:
             OllamaConnectionError: Si no se puede conectar
             OllamaTimeoutError: Si se excede el timeout
             OllamaError: Otros errores de Ollama
+            CircuitBreakerError: Si el circuit está OPEN
         """
+        # 🔌 Si circuit breaker está habilitado, verificar estado
+        if self.circuit_breaker_enabled and self.circuit_breaker:
+            try:
+                return self.circuit_breaker.call(
+                    self._generate_internal,
+                    prompt, model, system, temperature, max_tokens, stream, **kwargs
+                )
+            except CircuitBreakerError as e:
+                self.metrics['circuit_open_rejections'] += 1
+                logger.error(f"🔴 Circuit OPEN: {e}")
+                raise OllamaError(str(e)) from e
+        else:
+            return self._generate_internal(
+                prompt, model, system, temperature, max_tokens, stream, **kwargs
+            )
+    
+    def _generate_internal(
+        self,
+        prompt: str,
+        model: Optional[str],
+        system: Optional[str],
+        temperature: float,
+        max_tokens: int,
+        stream: bool,
+        **kwargs
+    ):
+        """Método interno de generación (protegido por circuit breaker)."""
         model = model or self.default_model
         start_time = time.time()
         

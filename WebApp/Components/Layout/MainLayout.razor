@@ -1,21 +1,16 @@
 ﻿@inherits LayoutComponentBase
 
-<div class="page">
+<link href="css/modern-sidebar.css" rel="stylesheet" />
+<link href="css/modern-chat.css" rel="stylesheet" />
 
+<div class="page">
     <div class="sidebar">
         <NavMenu />
     </div>
 
-    <main>
-        <div class="top-row px-4" style="background-color:#212529; border-bottom:none; margin-bottom:0; padding-bottom:0">
-            <h1 style="margin-bottom:0">Nombre Chat</h1>
-        </div>
-
-        <article class="content px-4">
-            @Body
-        </article>
+    <main style="margin-left: 280px; height: 100vh; overflow: hidden;">
+        @Body
     </main>
-
 </div>
 
 <div id="blazor-error-ui" data-nosnippet>

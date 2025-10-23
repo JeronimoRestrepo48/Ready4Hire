@@ -148,7 +148,7 @@ namespace Ready4Hire.MVVM.ViewModels
 
         private async Task SaveUserInfo()
         {
-            Password = EncryptPassword(Password);
+            Password = BCrypt.Net.BCrypt.HashPassword(Password);
 
             User user = new User
             {
@@ -165,6 +165,31 @@ namespace Ready4Hire.MVVM.ViewModels
 
             _db.Users.Add(user);
             await _db.SaveChangesAsync();
+        }
+
+        public async Task<User?> Login(string email, string password)
+        {
+            // Buscar usuario por email
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == email);
+            
+            if (user == null)
+                return null;
+
+            // Verificar contraseña con el hash almacenado
+            try
+            {
+                if (BCrypt.Net.BCrypt.Verify(password, user.Password))
+                {
+                    return user;
+                }
+            }
+            catch
+            {
+                // Si falla la verificación del hash, return null
+                return null;
+            }
+
+            return null;
         }
 
     }

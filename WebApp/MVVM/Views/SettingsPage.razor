@@ -1,0 +1,191 @@
+@page "/settings"
+@inject Ready4Hire.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<div class="settings-container">
+    <div class="settings-header">
+        <h1>⚙️ Configuración</h1>
+        <p>Personaliza tu experiencia en Ready4Hire</p>
+    </div>
+
+    <div class="settings-content">
+        <div class="setting-section">
+            <h3>🔔 Notificaciones</h3>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" />
+                    <span>Recibir notificaciones de nuevas preguntas</span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" checked />
+                    <span>Alertas de progreso</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="setting-section">
+            <h3>🎯 Preferencias de Entrevista</h3>
+            <div class="setting-item">
+                <label>
+                    Modo predeterminado:
+                    <select class="setting-select">
+                        <option value="practice">Práctica</option>
+                        <option value="exam">Examen</option>
+                    </select>
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>
+                    Dificultad predeterminada:
+                    <select class="setting-select">
+                        <option value="easy">Fácil</option>
+                        <option value="medium">Medio</option>
+                        <option value="hard">Difícil</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+
+        <div class="setting-section">
+            <h3>🎨 Apariencia</h3>
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" checked />
+                    <span>Modo oscuro</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="setting-section danger-zone">
+            <h3>⚠️ Zona de Peligro</h3>
+            <button class="btn-danger" @onclick="ClearHistory">
+                Borrar historial de conversaciones
+            </button>
+        </div>
+    </div>
+
+    <div class="settings-footer">
+        <button class="btn-secondary" @onclick="GoBack">
+            Volver al Chat
+        </button>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Verificar autenticación
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/chat/0", false);
+    }
+
+    private void ClearHistory()
+    {
+        // TODO: Implementar
+        Console.WriteLine("Clearing history...");
+    }
+}
+
+<style>
+    .settings-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .settings-header {
+        margin-bottom: 2rem;
+    }
+
+    .settings-header h1 {
+        font-size: 2rem;
+        color: var(--primary-color, #2563eb);
+        margin-bottom: 0.5rem;
+    }
+
+    .settings-header p {
+        color: #6b7280;
+    }
+
+    .setting-section {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .setting-section h3 {
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        color: #1f2937;
+    }
+
+    .setting-item {
+        padding: 0.75rem 0;
+    }
+
+    .setting-item label {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+    }
+
+    .setting-select {
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.95rem;
+    }
+
+    .danger-zone {
+        border-color: #ef4444;
+    }
+
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+
+    .settings-footer {
+        text-align: center;
+        margin-top: 2rem;
+    }
+
+    .btn-secondary {
+        background: #6b7280;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+    }
+
+    .btn-secondary:hover {
+        background: #4b5563;
+    }
+</style>
+

@@ -19,15 +19,14 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
 .venv
 
-# Environment Variables
+# Environment variables
 .env
 .env.local
 .env.*.local
@@ -40,71 +39,62 @@ ENV/
 *~
 .DS_Store
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.hypothesis/
-
 # Logs
-logs/*.log
-logs/*.jsonl
+logs/
 *.log
-
-# Models and Large Files
-*.pt
-*.pth
-*.pkl
-*.h5
-*.onnx
-app/embeddings/cache/*
-!app/embeddings/cache/.gitkeep
-
-# SSL Certificates (except for development)
-nginx/certs/*
-!nginx/certs/.gitkeep
-
-# Temporary Files
-/tmp/
-*.tmp
-*.temp
-/tmp/ready4hire_audio/*
-
-# Audio Files
-*.wav
-*.mp3
-*.m4a
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
 
+# ML Models
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+!app/datasets/ranknet_model.pt
+
+# Cache
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.cache
+
+# Coverage
+.coverage
+htmlcov/
+coverage.xml
+
 # Docker
 .dockerignore
 
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
 # OS
 Thumbs.db
-.DS_Store
 
-# Backup Files
-*.bak
-*.backup
+# Secrets and credentials
+secrets/
+*.pem
+*.key
+!nginx/certs/*.pem
+!nginx/certs/*.key
 
-# Compiled translations
-*.mo
-*.pot
+# Training data (sensitive)
+data/training/*.jsonl
+!data/training/.gitkeep
 
-# Documentation builds
-docs/_build/
-site/
+# Embeddings cache
+app/datasets/embeddings_cache.pkl
+app/embeddings/cache/*
+!app/embeddings/cache/.gitkeep
 
-# Static collected files
-staticfiles/
-
-# Local configuration
-local_settings.py
+# Archive directory (local only)
+/archive/

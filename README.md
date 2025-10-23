@@ -1,684 +1,607 @@
-# 🚀 Ready4Hire - Sistema de Entrevistas con IA
+# 🚀 Ready4Hire
 
-## 🎯 Estado Actual
+**Sistema Inteligente de Entrevistas Técnicas con IA**
 
-### ✅ SISTEMA COMPLETAMENTE FUNCIONAL Y PROBADO
+[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
+[![.NET](https://img.shields.io/badge/.NET-9.0-purple.svg)](https://dotnet.microsoft.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com/)
+[![Blazor](https://img.shields.io/badge/Blazor-Server-blueviolet.svg)](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Sistema avanzado de entrevistas técnicas y soft skills con evaluación automática mediante IA, que incluye:
-
-- ✅ **Fase de Contexto**: 5 preguntas iniciales para conocer al candidato
-- ✅ **Selección Inteligente de Preguntas**: Basada en análisis de contexto con ML
-- ✅ **Evaluación en Tiempo Real**: Feedback personalizado con detección de emociones
-- ✅ **Sistema de Reintentos**: Hasta 3 intentos por pregunta con hints progresivos
-- ✅ **Gamificación**: Motivación adaptativa según desempeño
-- ✅ **Arquitectura DDD**: Domain-Driven Design con Dependency Injection
+> Plataforma de entrevistas técnicas impulsada por IA que simula entrevistas reales, evalúa respuestas en tiempo real y proporciona feedback inteligente para preparación profesional.
 
 ---
 
-## ⚡ Inicio Rápido (1 Comando)
+## 📋 Tabla de Contenidos
 
-### 🐧 Linux / macOS
+- [Características](#-características-principales)
+- [Arquitectura](#️-arquitectura)
+- [Requisitos](#-requisitos-previos)
+- [Instalación](#-instalación-rápida)
+- [Uso](#-uso)
+- [Estructura del Proyecto](#-estructura-del-proyecto)
+- [API](#-api)
+- [Seguridad](#-seguridad)
+- [Contribuir](#-contribuir)
+- [Troubleshooting](#-troubleshooting)
+- [Licencia](#-licencia)
+
+---
+
+## ✨ Características Principales
+
+### 🎯 Sistema de Entrevistas Inteligente
+
+- **Entrevistas Contextuales**: Adaptación dinámica según respuestas del candidato
+- **Dos Modos de Operación**:
+  - 🎓 **Práctica**: Feedback inmediato y evaluación continua
+  - 📝 **Examen**: Evaluación final con timer y puntuación
+- **Categorías Múltiples**: Backend, Frontend, DevOps, Data Science, Mobile, etc.
+- **Niveles de Dificultad**: Easy, Medium, Hard
+
+### 🤖 IA Avanzada
+
+- **LLM Local con Ollama**: Modelo llama3.2:3b optimizado
+- **Embeddings Semánticos**: Búsqueda inteligente de preguntas relevantes
+- **Evaluación Contextual**: Análisis semántico de respuestas
+- **Follow-up Inteligente**: Preguntas de seguimiento automáticas
+
+### 💻 Frontend Moderno
+
+- **Diseño Inspirado en ChatGPT/Perplexity**: UI profesional y elegante
+- **Avatares con Iniciales**: Experiencia personalizada
+- **Sidebar con Historial**: Gestión de conversaciones
+- **Welcome Screen**: Pantalla de bienvenida personalizada
+- **Responsive Design**: Compatible con todos los dispositivos
+
+### 🔒 Seguridad Robusta
+
+- **Autenticación Obligatoria**: Sistema de login con sesión protegida
+- **BCrypt Hashing**: Contraseñas seguras con algoritmo industry-standard
+- **Anti-XSS/CSRF**: Protección contra ataques comunes
+- **Headers de Seguridad**: X-Frame-Options, CSP, etc.
+- **Input Sanitization**: Validación y limpieza de todos los inputs
+
+### 📊 Persistencia de Datos
+
+- **PostgreSQL**: Base de datos relacional robusta
+- **Entity Framework Core**: ORM moderno para .NET
+- **Historial de Conversaciones**: Guardado automático
+- **Perfil de Usuario**: Skills, intereses, experiencia
+
+---
+
+## 🏗️ Arquitectura
+
+### Stack Tecnológico
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      FRONTEND (Blazor Server)               │
+│  - .NET 9.0                                                 │
+│  - Blazor Server Components                                 │
+│  - Entity Framework Core                                    │
+│  - Modern CSS (ChatGPT-inspired)                            │
+└────────────────────────┬────────────────────────────────────┘
+                         │ HTTP/REST API
+                         ↓
+┌─────────────────────────────────────────────────────────────┐
+│                      BACKEND (FastAPI)                      │
+│  - Python 3.13                                              │
+│  - FastAPI (async)                                          │
+│  - Clean Architecture (DDD)                                 │
+│  - Dependency Injection                                     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+        ┌────────────────┼────────────────┐
+        ↓                ↓                ↓
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│   Ollama     │  │  PostgreSQL  │  │  Embeddings  │
+│  (LLM API)   │  │   Database   │  │   (Numpy)    │
+└──────────────┘  └──────────────┘  └──────────────┘
+```
+
+### Capas de la Aplicación (Backend)
+
+```
+app/
+├── domain/           # Lógica de negocio pura
+│   ├── entities/     # Entidades de dominio
+│   ├── value_objects/  # Objetos de valor
+│   ├── repositories/   # Interfaces de repos
+│   └── services/     # Servicios de dominio
+├── application/      # Casos de uso
+│   ├── use_cases/    # Lógica de aplicación
+│   ├── services/     # Servicios de aplicación
+│   └── dto/          # Data Transfer Objects
+└── infrastructure/   # Implementaciones concretas
+    ├── llm/          # Integración Ollama
+    ├── ml/           # Embeddings, evaluación
+    ├── persistence/  # Repositorios in-memory
+    ├── audio/        # STT/TTS
+    └── security/     # Auth, JWT
+```
+
+---
+
+## 📦 Requisitos Previos
+
+### Software Necesario
+
+- **Python**: 3.13+ ([Descargar](https://www.python.org/downloads/))
+- **.NET SDK**: 9.0+ ([Descargar](https://dotnet.microsoft.com/download))
+- **PostgreSQL**: 14+ ([Descargar](https://www.postgresql.org/download/))
+- **Ollama**: Latest ([Descargar](https://ollama.ai/download))
+
+### Hardware Recomendado
+
+- **RAM**: 8 GB mínimo, 16 GB recomendado
+- **Disco**: 10 GB libres
+- **GPU**: Opcional (NVIDIA para aceleración CUDA)
+
+---
+
+## ⚡ Instalación Rápida
+
+### 1. Clonar el Repositorio
 
 ```bash
-cd /path/to/Integracion
-./scripts/run.sh
+git clone https://github.com/tu-usuario/Ready4Hire.git
+cd Ready4Hire
 ```
 
-O directamente:
+### 2. Instalar Modelo de Ollama
 
 ```bash
-./scripts/run.sh
+ollama pull llama3.2:3b
 ```
 
-### 🪟 Windows
-
-#### Opción 1: PowerShell (Recomendado)
-
-```powershell
-cd C:\path\to\Integracion
-.\scripts\run.ps1
-```
-
-#### Opción 2: CMD / Batch
-
-```batch
-cd C:\path\to\Integracion
-scripts\run.bat
-```
-
-#### Opción 3: Desde cualquier directorio (PowerShell)
-
-```powershell
-.\scripts\run.ps1
-```
-
-### ✅ Esto iniciará automáticamente
-
-- ✅ **Ollama Server** (LLM en puerto 11434)
-- ✅ **Backend FastAPI** (puerto 8001) - Arquitectura DDD
-- ✅ **Frontend Blazor** (puerto 5214, si tienes .NET 9.0)
-
----
-
-## 🌐 Acceder a la Aplicación
-
-Una vez iniciado:
-
-| Servicio | URL | Descripción |
-|----------|-----|-------------|
-| **WebApp (Interfaz)** | <http://localhost:5214> | Frontend Blazor con chat interactivo |
-| **API Backend** | <http://localhost:8001> | Backend FastAPI con arquitectura DDD |
-| **API Docs (Swagger)** | <http://localhost:8001/docs> | Documentación interactiva de la API |
-| **Health Check** | <http://localhost:8001/api/v2/health> | Estado del sistema (LLM, STT, ML) |
-| **Ollama Server** | <http://localhost:11434> | Servidor LLM local |
-
----
-
-## 🔄 Flujo Conversacional Completo
-
-### Arquitectura del Sistema
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  Ready4Hire - Full Stack Integration v2.0                  │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌───────────────┐                                          │
-│  │  Ollama LLM   │  ← Modelo ready4hire:latest             │
-│  │  Port: 11434  │                                          │
-│  └───────┬───────┘                                          │
-│          │                                                  │
-│          ↓                                                  │
-│  ┌───────────────────────────────────────┐                 │
-│  │  FastAPI Backend (DDD Architecture)   │                 │
-│  │  Port: 8001                           │                 │
-│  │                                       │                 │
-│  │  Domain Layer:                        │                 │
-│  │  ├─ Interview Entity      ✅          │                 │
-│  │  ├─ Question Entity       ✅          │                 │
-│  │  ├─ Context Questions     ✅          │                 │
-│  │  └─ Interview Phases      ✅          │                 │
-│  │                                       │                 │
-│  │  Application Layer:                   │                 │
-│  │  ├─ Evaluation Service    ✅          │                 │
-│  │  ├─ Feedback Service      ✅          │                 │
-│  │  ├─ Question Selector     ✅          │                 │
-│  │  └─ ML Integration        ✅          │                 │
-│  │                                       │                 │
-│  │  Infrastructure Layer:                │                 │
-│  │  ├─ LLM Service (Ollama)  ✅          │                 │
-│  │  ├─ Audio (Whisper STT)   ✅          │                 │
-│  │  ├─ ML Embeddings         ✅          │                 │
-│  │  ├─ RankNet Model         ✅          │                 │
-│  │  └─ Security Layer        ✅          │                 │
-│  └───────────────┬───────────────────────┘                 │
-│                  │                                          │
-│                  ↓                                          │
-│  ┌───────────────────────────────────────┐                 │
-│  │  Blazor WebApp (.NET 9.0)             │                 │
-│  │  Port: 5214                           │                 │
-│  │                                       │                 │
-│  │  MVVM Architecture:                   │                 │
-│  │  ├─ Chat Page (Conversational UI) ✅  │                 │
-│  │  ├─ Interview API Service V2     ✅   │                 │
-│  │  ├─ Login Page                    ✅  │                 │
-│  │  └─ Bootstrap UI                  ✅  │                 │
-│  └───────────────────────────────────────┘                 │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Flujo de la Entrevista Conversacional
-
-```text
-┌─────────────────────────────────────────────────────────────┐
-│ 1. CONFIGURACIÓN INICIAL                                    │
-│    Usuario selecciona:                                      │
-│    • Rol (Backend Developer, Frontend, etc.)                │
-│    • Tipo (Technical / Soft Skills)                         │
-│    • Dificultad (Junior / Mid / Senior)                     │
-│    • Modo (Practice / Exam)                                 │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 2. INICIO DE ENTREVISTA                                     │
-│    POST /api/v2/interviews                                  │
-│    • Crea Interview Entity (phase="context")                │
-│    • Retorna primera pregunta de contexto                   │
-│    • Frontend muestra mensaje de bienvenida                 │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 3. FASE DE CONTEXTO (5 preguntas)                          │
-│    POST /api/v2/interviews/{id}/answers                     │
-│    • Usuario responde cada pregunta                         │
-│    • Se guardan en interview.context_answers                │
-│    • Cuando se completan las 5:                             │
-│       ✓ Analiza respuestas con LLM                         │
-│       ✓ Extrae: nivel, fortalezas, áreas de mejora        │
-│       ✓ Transiciona a phase="questions"                    │
-│       ✓ Mensaje: "¡Análisis completado! Iniciando..."     │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 4. SELECCIÓN INTELIGENTE DE PREGUNTAS                      │
-│    • Usa ML Selector (clustering + MAB + embeddings)        │
-│    • Selecciona las 10 mejores preguntas basadas en:        │
-│       ✓ Análisis de contexto del candidato                 │
-│       ✓ Nivel de experiencia detectado                     │
-│       ✓ Fortalezas identificadas                           │
-│       ✓ Áreas a evaluar prioritarias                       │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 5. FASE DE PREGUNTAS (10 preguntas seleccionadas)          │
-│    POST /api/v2/interviews/{id}/answers                     │
-│    • Para cada pregunta:                                    │
-│       ✓ Usuario responde                                   │
-│       ✓ Detecta emoción (Whisper + NLP)                   │
-│       ✓ Evalúa con LLM (score 0-10)                       │
-│       ✓ Si score >= 6.0: ✅ Siguiente pregunta            │
-│       ✓ Si score < 6.0:                                    │
-│         - Intento 1: Feedback + hint sutil                 │
-│         - Intento 2: Feedback + hint más directo           │
-│         - Intento 3: Feedback + hint explícito             │
-│         - Después de 3: ⚠️ Siguiente pregunta             │
-│       ✓ Genera feedback personalizado (fine-tuned LLM)     │
-│       ✓ Genera motivación adaptativa según desempeño       │
-└─────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────┐
-│ 6. COMPLETAR ENTREVISTA                                     │
-│    POST /api/v2/interviews/{id}/end                         │
-│    • Después de 10 preguntas correctas                      │
-│    • phase="completed"                                      │
-│    • Genera resumen final con:                              │
-│       ✓ Score total                                        │
-│       ✓ Fortalezas demostradas                             │
-│       ✓ Áreas de mejora                                    │
-│       ✓ Recomendaciones personalizadas                     │
-│       ✓ Siguientes pasos sugeridos                         │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📋 Endpoints de la API v2
-
-### 1. Iniciar Entrevista (Con Contexto)
-
-**POST** `/api/v2/interviews`
-
-**Request Body:**
-
-```json
-{
-  "user_id": "user-12345",
-  "role": "Backend Developer",
-  "category": "technical",
-  "difficulty": "mid"
-}
-```
-
-**Response:**
-
-```json
-{
-  "interview_id": "interview_user-12345_1729012345.67",
-  "first_question": {
-    "id": "context_0",
-    "text": "¿Cuántos años de experiencia tienes en desarrollo de software?",
-    "category": "context",
-    "difficulty": "context",
-    "expected_concepts": [],
-    "topic": "context"
-  },
-  "status": "context"
-}
-```
-
-### 2. Procesar Respuesta (Contexto o Pregunta)
-
-**POST** `/api/v2/interviews/{interview_id}/answers`
-
-**Request Body:**
-
-```json
-{
-  "answer": "Tengo 3 años de experiencia en desarrollo backend con Python y Java.",
-  "time_taken": 45
-}
-```
-
-**Response (Durante Contexto):**
-
-```json
-{
-  "evaluation": {
-    "score": 0,
-    "is_correct": false,
-    "feedback": ""
-  },
-  "feedback": "",
-  "emotion": {
-    "emotion": "neutral",
-    "confidence": 0.85
-  },
-  "next_question": {
-    "id": "context_1",
-    "text": "¿Qué tecnologías y frameworks dominas?",
-    "category": "context",
-    "difficulty": "context"
-  },
-  "phase": "context",
-  "progress": {
-    "context_completed": 1,
-    "questions_completed": 0
-  },
-  "interview_status": "active"
-}
-```
-
-**Response (Durante Preguntas Técnicas):**
-
-```json
-{
-  "evaluation": {
-    "score": 7.5,
-    "is_correct": true,
-    "feedback": "Excelente respuesta. Demostraste comprensión sólida de los conceptos."
-  },
-  "feedback": "Tu explicación sobre la arquitectura REST fue clara y precisa. Mencionaste los aspectos clave como verbos HTTP, recursos y estado. Para mejorar, podrías profundizar en HATEOAS.",
-  "emotion": {
-    "emotion": "confident",
-    "confidence": 0.92
-  },
-  "next_question": {
-    "id": "tech_42",
-    "text": "¿Cómo implementarías un sistema de caché distribuido?",
-    "category": "technical",
-    "difficulty": "mid",
-    "topic": "arquitectura"
-  },
-  "motivation": "¡Vas muy bien! Tu comprensión de REST es sólida. Sigamos con el siguiente desafío.",
-  "phase": "questions",
-  "progress": {
-    "context_completed": 5,
-    "questions_completed": 3
-  },
-  "attempts_left": 3,
-  "interview_status": "active"
-}
-```
-
-### 3. Finalizar Entrevista
-
-**POST** `/api/v2/interviews/{interview_id}/end`
-
-**Response:**
-
-```json
-{
-  "interview_id": "interview_user-12345_1729012345.67",
-  "summary": {
-    "total_score": 8.2,
-    "questions_answered": 10,
-    "correct_answers": 8,
-    "strengths": [
-      "Arquitectura de software",
-      "Diseño de APIs REST",
-      "Patrones de diseño"
-    ],
-    "areas_to_improve": [
-      "Optimización de queries SQL",
-      "Seguridad en autenticación"
-    ],
-    "recommendations": [
-      "Estudiar índices de base de datos",
-      "Profundizar en OAuth 2.0 y JWT"
-    ]
-  },
-  "status": "completed"
-}
-```
-
-### 4. Health Check
-
-**GET** `/api/v2/health`
-
-**Response:**
-
-```json
-{
-  "status": "healthy",
-  "components": {
-    "llm_service": "healthy",
-    "audio_stt": "healthy",
-    "ml_embeddings": "healthy",
-    "question_repository": "healthy"
-  },
-  "version": "2.0.0",
-  "timestamp": "2025-10-15T10:30:00Z"
-}
-```
-
----
-
-## 🎨 Frontend - Interfaz Conversacional
-
-### Componentes Principales
-
-#### 1. **ChatPage.razor / ChatPage.razor.cs**
-
-- ✅ Interfaz de chat interactiva
-- ✅ Mensajes del usuario (derecha, azul)
-- ✅ Mensajes del agente (izquierda, gris con icono de robot)
-- ✅ Scroll automático al final
-- ✅ Modal de configuración con:
-  - Selección de Rol
-  - Tipo de Entrevista
-  - Nivel de Dificultad
-  - Modo (Práctica/Examen)
-
-#### 2. **InterviewApiService.cs**
-
-Servicio que consume todos los endpoints de la API v2:
-
-```csharp
-public class InterviewApiService
-{
-    // API V2 - Flujo Conversacional
-    Task<JsonElement> StartInterviewV2Async(string userId, string role, string category, string difficulty);
-    Task<JsonElement> ProcessAnswerV2Async(string interviewId, string answer, int? timeTaken);
-    Task<JsonElement> EndInterviewV2Async(string interviewId);
-    Task<JsonElement> HealthCheckV2Async();
-    
-    // API V1 - Legacy (mantener compatibilidad)
-    Task<JsonElement> StartInterviewAsync(string userId, string role, string type, string mode);
-    Task<JsonElement> AnswerAsync(string userId, string answer);
-    // ... otros métodos legacy
-}
-```
-
-### Flujo de Interacción en el Frontend
-
-1. **Usuario abre la página de chat**
-   - Ve botón "Configurar"
-
-2. **Usuario hace clic en "Configurar"**
-   - Se abre modal con opciones:
-     - Rol: Backend Developer, Frontend Developer, etc.
-     - Tipo: Technical / Soft Skills
-     - Dificultad: Junior / Mid / Senior
-     - Modo: Practice / Exam
-
-3. **Usuario guarda configuración**
-   - Modal se cierra
-   - Botón "Comenzar Entrevista" se habilita
-
-4. **Usuario hace clic en "Comenzar Entrevista"**
-   - Frontend llama a `StartInterviewV2Async()`
-   - Backend retorna:
-     - `interview_id` (se guarda para siguientes llamadas)
-     - Primera pregunta de contexto
-   - Frontend muestra:
-     - Mensaje de bienvenida del agente
-     - Primera pregunta de contexto
-
-5. **Usuario responde cada pregunta**
-   - Usuario escribe respuesta y hace clic en "Enviar"
-   - Frontend llama a `ProcessAnswerV2Async(interviewId, answer)`
-   - Backend retorna:
-     - Feedback (si aplica)
-     - Motivación (si aplica)
-     - Siguiente pregunta
-     - Progreso (contexto/preguntas completadas)
-   - Frontend muestra secuencialmente:
-     - Mensaje del usuario (derecha)
-     - Feedback del agente (si existe)
-     - Motivación del agente (si existe)
-     - Siguiente pregunta del agente
-
-6. **Transición de Contexto a Preguntas Técnicas**
-   - Al completar 5 preguntas de contexto
-   - Backend analiza respuestas con LLM
-   - Selecciona 10 preguntas personalizadas
-   - Frontend muestra mensaje de transición:
-     - "✅ ¡Análisis de contexto completado! Ahora comenzaremos con las preguntas técnicas personalizadas según tu perfil."
-
-7. **Evaluación con Reintentos**
-   - Si `score < 6.0`:
-     - Backend retorna `retry: true` y `attempts_left: 2/1`
-     - Frontend muestra feedback + hint
-     - Usuario puede reintentar (hasta 3 veces)
-   - Si `score >= 6.0`:
-     - Backend retorna siguiente pregunta
-     - Contador de preguntas completadas aumenta
-
-8. **Finalización**
-   - Después de 10 preguntas correctas
-   - Backend retorna `phase: "completed"`
-   - Frontend muestra mensaje de felicitación
-   - (Opcional) Llama a `EndInterviewV2Async()` para resumen final
-
----
-
-## 📋 Comandos Disponibles
+### 3. Configurar PostgreSQL
 
 ```bash
-# Iniciar servicios (modo normal)
-./scripts/run.sh
+# Crear base de datos
+sudo -u postgres psql
+CREATE DATABASE ready4hire;
+CREATE USER ready4hire_user WITH PASSWORD 'tu_contraseña_segura';
+GRANT ALL PRIVILEGES ON DATABASE ready4hire TO ready4hire_user;
+\q
+```
 
-# Iniciar en modo desarrollo (auto-reload)
-./scripts/run.sh --dev
+### 4. Configurar Variables de Entorno
 
-# Ver estado de servicios
-./scripts/run.sh --status
+**Backend** (`Ready4Hire/.env`):
+```env
+# API
+API_HOST=0.0.0.0
+API_PORT=8001
+
+# Ollama
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:3b
+
+# Security
+SECRET_KEY=tu_secret_key_muy_seguro_cambiar_en_produccion
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+```
+
+**Frontend** (`WebApp/.env`):
+```env
+POSTGRES_CONNECTION=Host=localhost;Port=5432;Database=ready4hire;Username=ready4hire_user;Password=tu_contraseña_segura
+```
+
+### 5. Instalar Dependencias
+
+```bash
+# Python (Backend)
+cd Ready4Hire
+pip install -r ../requirements.txt
+
+# .NET (Frontend)
+cd ../WebApp
+dotnet restore
+```
+
+### 6. Aplicar Migraciones de Base de Datos
+
+```bash
+cd WebApp
+dotnet ef database update
+```
+
+### 7. Iniciar el Sistema
+
+**Opción A: Script Automatizado (Recomendado)**
+```bash
+./ready4hire.sh start
+```
+
+**Opción B: Usando Make**
+```bash
+make start
+```
+
+**Opción C: Manual**
+```bash
+# Terminal 1: Ollama
+ollama serve
+
+# Terminal 2: Backend
+cd Ready4Hire
+python3 -m uvicorn app.main_v2_improved:app --host 0.0.0.0 --port 8001
+
+# Terminal 3: Frontend
+cd WebApp
+dotnet run
+```
+
+### 8. Acceder a la Aplicación
+
+- **Frontend**: http://localhost:5214
+- **API Backend**: http://localhost:8001
+- **API Docs**: http://localhost:8001/docs
+
+---
+
+## 🎮 Uso
+
+### Comandos Rápidos
+
+```bash
+# Iniciar todos los servicios
+make start
+
+# Reiniciar todos los servicios
+make restart
+
+# Ver estado del sistema
+make status
+
+# Ver logs en tiempo real
+make logs
 
 # Detener todos los servicios
-./scripts/run.sh --stop
+make stop
 
-# Ayuda
-./scripts/run.sh --help
+# Modo interactivo (menú)
+./ready4hire.sh
+```
+
+### Flujo de Usuario
+
+1. **Registro/Login**: 
+   - Crear cuenta con email y contraseña segura
+   - Completar perfil (skills, intereses, experiencia)
+
+2. **Configurar Entrevista**:
+   - Elegir modo (Práctica/Examen)
+   - Seleccionar categoría (Backend, Frontend, etc.)
+   - Elegir dificultad (Easy, Medium, Hard)
+
+3. **Realizar Entrevista**:
+   - Responder preguntas del asistente IA
+   - Recibir feedback en tiempo real (modo Práctica)
+   - Ver evaluación final (modo Examen)
+
+4. **Revisar Historial**:
+   - Sidebar con conversaciones anteriores
+   - Métricas y puntuaciones
+   - Progreso a lo largo del tiempo
+
+---
+
+## 📁 Estructura del Proyecto
+
+```
+Ready4Hire/
+├── Ready4Hire/              # Backend (Python/FastAPI)
+│   ├── app/
+│   │   ├── domain/          # Lógica de negocio
+│   │   ├── application/     # Casos de uso
+│   │   ├── infrastructure/  # Implementaciones
+│   │   ├── container.py     # Dependency Injection
+│   │   └── main_v2_improved.py  # Entry point
+│   ├── docs/                # Documentación técnica
+│   ├── scripts/             # Scripts de entrenamiento
+│   └── tests/               # Tests unitarios
+├── WebApp/                  # Frontend (C#/Blazor)
+│   ├── Components/          # Componentes Blazor
+│   ├── MVVM/
+│   │   ├── Models/          # Modelos de datos
+│   │   ├── ViewModels/      # Lógica de vista
+│   │   └── Views/           # Vistas Blazor
+│   ├── Services/            # AuthService, SecurityService
+│   ├── Data/                # DbContext, Migrations
+│   └── wwwroot/             # Assets estáticos
+├── logs/                    # Logs del sistema
+├── ready4hire.sh            # Script de control principal
+├── Makefile                 # Comandos rápidos
+└── requirements.txt         # Dependencias Python
 ```
 
 ---
 
-## 🔧 Solución Rápida de Problemas
+## 🔌 API
 
-### Puerto ocupado
+### Endpoints Principales
 
-```bash
-# Detener todo y reiniciar
-./scripts/run.sh --stop
-./scripts/run.sh
+#### V2 - Flujo Conversacional
+
+```http
+POST /api/v2/interview/start
+Body: {
+  "user_id": "string",
+  "role": "string",
+  "category": "string",
+  "difficulty": "easy|medium|hard"
+}
+Response: {
+  "interview_id": "uuid",
+  "first_question": "string",
+  "phase": "context_gathering"
+}
 ```
 
-### Ver logs
-
-```bash
-# Logs del backend
-tail -f Ready4Hire/logs/ready4hire_api.log
-
-# Logs de Ollama
-tail -f Ready4Hire/logs/ollama.log
-
-# Evaluaciones
-tail -f Ready4Hire/logs/audit_log.jsonl
+```http
+POST /api/v2/interview/{interview_id}/answer
+Body: {
+  "answer": "string",
+  "time_taken": 120
+}
+Response: {
+  "next_question": "string",
+  "evaluation": {...},
+  "phase": "technical_questions",
+  "progress": {...}
+}
 ```
 
-### Verificar servicios manualmente
+```http
+GET /api/v2/interview/{interview_id}/end
+Response: {
+  "final_evaluation": {...},
+  "score": 85,
+  "recommendations": [...]
+}
+```
+
+```http
+GET /api/v2/health
+Response: {
+  "status": "healthy",
+  "version": "2.0.0",
+  "components": {...}
+}
+```
+
+### Documentación Completa
+
+Accede a la documentación interactiva en:
+- **Swagger UI**: http://localhost:8001/docs
+- **ReDoc**: http://localhost:8001/redoc
+
+---
+
+## 🔒 Seguridad
+
+### Implementaciones de Seguridad
+
+✅ **Autenticación**
+- Session-based auth con `ProtectedSessionStorage`
+- Tokens únicos por sesión
+- Validación en todas las rutas protegidas
+
+✅ **Protección de Contraseñas**
+- BCrypt hashing (industry standard)
+- Salt automático
+- Requisitos de complejidad (8+ chars, mayúsculas, minúsculas, números)
+
+✅ **Prevención de Ataques**
+- **XSS**: HTML encoding + sanitización de inputs
+- **CSRF**: Anti-forgery tokens automáticos
+- **SQL Injection**: Entity Framework (queries parametrizadas)
+- **Clickjacking**: `X-Frame-Options: DENY`
+
+✅ **Headers HTTP de Seguridad**
+```
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Content-Security-Policy: default-src 'self'; ...
+```
+
+✅ **Validación de Inputs**
+- Regex estricto para emails
+- Límites de longitud
+- Sanitización automática
+- Prevención de inyección
+
+### Servicios de Seguridad
+
+- **`AuthService`**: Gestión de sesiones y autenticación
+- **`SecurityService`**: Validación, sanitización, prevención de ataques
+
+---
+
+## 🤝 Contribuir
+
+### Guía de Contribución
+
+1. **Fork** el repositorio
+2. **Crea** una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. **Commit** tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** a la rama (`git push origin feature/AmazingFeature`)
+5. **Abre** un Pull Request
+
+### Estándares de Código
+
+- **Python**: PEP 8, type hints
+- **C#**: Microsoft conventions, async/await
+- **Commits**: Conventional Commits
+- **Tests**: Coverage mínimo 70%
+
+### Ejecutar Tests
 
 ```bash
-# Ollama
+# Backend
+cd Ready4Hire
+pytest tests/ -v --cov=app
+
+# Frontend
+cd WebApp
+dotnet test
+```
+
+---
+
+## 🐛 Troubleshooting
+
+### Backend no inicia
+
+```bash
+# Ver logs
+tail -f logs/ready4hire_api.log
+
+# Verificar puerto
+lsof -i :8001
+
+# Verificar Ollama
 curl http://localhost:11434/api/tags
-
-# Backend (Health Check)
-curl http://localhost:8001/api/v2/health
-
-# WebApp
-curl http://localhost:5214/
-
-# Modelo
-ollama list | grep ready4hire
 ```
 
----
-
-## 🧪 Ejecutar Pruebas de Integración
-
-Para validar que todo el sistema está funcionando correctamente:
+### Frontend no inicia
 
 ```bash
-./scripts/test_integration.sh
+# Ver logs
+tail -f logs/webapp.log
+
+# Compilar manualmente
+cd WebApp
+dotnet clean
+dotnet build
+dotnet run
 ```
 
-Esto ejecutará 16 pruebas automatizadas que verifican:
-
-- ✅ Ollama Server y modelo ready4hire:latest
-- ✅ API Python (todos los componentes: LLM, STT, ML)
-- ✅ WebApp Blazor (login, bootstrap, etc.)
-- ✅ Integración entre servicios
-
-Ver más detalles en [TESTING.md](TESTING.md)
-
----
-
-## 📚 Estructura del Proyecto
-
-```text
-Integracion/
-├── start.sh                 # ⚡ Inicio rápido
-├── scripts/
-│   ├── run.sh              # 🎯 Script maestro completo
-│   └── README.md           # 📖 Documentación de scripts
-├── QUICKSTART.md           # 🚀 Guía de inicio completa
-├── Ready4Hire/             # 🐍 Backend Python (FastAPI)
-│   ├── app/               # Código de aplicación
-│   ├── scripts/           # Scripts de ML/Data
-│   │   ├── 1_data/       # Generación de datos
-│   │   ├── 2_training/   # Fine-tuning
-│   │   ├── 3_deployment/ # Deployment
-│   │   └── 4_testing/    # Testing
-│   ├── logs/             # Logs del sistema
-│   └── .env              # Configuración
-└── WebApp/                # 🎨 Frontend Blazor (.NET)
-    ├── Ready4Hire.csproj
-    ├── Program.cs
-    ├── appsettings.json       # Config (puerto 8001)
-    └── MVVM/
-        ├── Models/
-        │   └── InterviewApiService.cs  # Cliente API (CORREGIDO)
-        └── Views/
-            ├── LoginView.razor
-            └── ChatPage.razor
-```
-
----
-
-## 🎓 Documentación Completa
-
-- **Inicio Rápido**: `QUICKSTART.md`
-- **Scripts**: `scripts/README.md`
-- **Pipeline ML**: `Ready4Hire/scripts/README.md`
-- **Fase 1 - Datos**: `Ready4Hire/scripts/1_data/README.md`
-- **Fase 2 - Training**: `Ready4Hire/scripts/2_training/README.md`
-- **Fase 3 - Deployment**: `Ready4Hire/scripts/3_deployment/README.md`
-- **Fase 4 - Testing**: `Ready4Hire/scripts/4_testing/README.md`
-
----
-
-## 🤖 Pipeline de ML
-
-Si quieres mejorar el modelo:
-
-### 1. Generar más datos
+### PostgreSQL no conecta
 
 ```bash
-cd Ready4Hire
-python3 scripts/1_data/step1_generate_demo_data.py --num-samples 1000
-python3 scripts/1_data/step2_convert_to_training.py
-python3 scripts/1_data/step3_create_dataset.py
+# Verificar servicio
+sudo systemctl status postgresql
+
+# Iniciar servicio
+sudo systemctl start postgresql
+
+# Verificar conexión
+psql -h localhost -U ready4hire_user -d ready4hire
 ```
 
-### 2. Fine-tuning en Google Colab
+### Ollama no responde
 
 ```bash
-# Abre el notebook en Colab
-Ready4Hire/scripts/2_training/COLAB_FINETUNE.ipynb
+# Reiniciar Ollama
+pkill ollama
+ollama serve
+
+# Verificar modelo
+ollama list
+
+# Descargar modelo si falta
+ollama pull llama3.2:3b
 ```
 
-- Activa GPU T4 (gratis)
-- Sube datasets
-- Ejecuta todas las celdas
-- Descarga modelo .gguf
-- Importa a Ollama
-
-### 3. Testear modelo
+### Ver todos los logs
 
 ```bash
-cd Ready4Hire
-python3 scripts/4_testing/step1_test_model.py --model ready4hire:latest
+make logs
 ```
 
----
-
-## 📊 Estado Actual del Sistema
-
-### Datos
-
-- ✅ 500 evaluaciones generadas
-- ✅ 214 ejemplos de entrenamiento
-- ✅ 54 ejemplos de validación
-- ✅ Dataset listo para fine-tuning
-
-### Modelos
-
-- ✅ `ready4hire:latest` - Modelo personalizado (llama3.2:3b + system prompt)
-- ✅ `llama3.2:3b` - Modelo base
-- ✅ `llama3:latest` - Modelo alternativo
-
-### Servicios
-
-- ✅ Ollama Server configurado
-- ✅ Backend FastAPI funcionando
-- ✅ Frontend Blazor (opcional)
-
----
-
-## 💡 Próximos Pasos
-
-1. **Usar la aplicación**: <http://localhost:8001>
-2. **Explorar API**: <http://localhost:8001/docs>
-3. **Generar más datos**: Para mejor fine-tuning
-4. **Fine-tune en Colab**: Mejorar accuracy a >80%
-5. **Conectar frontend**: Si tienes WebApp Blazor
-
----
-
-## 🆘 Soporte
-
-- **Documentación completa**: `QUICKSTART.md`
-- **Logs**: `Ready4Hire/logs/`
-- **Script ayuda**: `./scripts/run.sh --help`
-- **Estado**: `./scripts/run.sh --status`
-
----
-
-## 🎉 ¡Todo Listo!
-
-El sistema está completamente operativo. Solo ejecuta:
+### Reiniciar todo
 
 ```bash
-./start.sh
+make restart
 ```
-
-Y abre <http://localhost:8001> en tu navegador.
-
-### ¡A entrevistar con IA! 🚀
 
 ---
 
-**Version**: 2.0.0 (DDD Architecture)  
-**Stack**: Python + FastAPI + Ollama + Blazor  
-**ML**: LLM Fine-tuning con Unsloth
+## 📚 Documentación Adicional
+
+- **[Arquitectura](Ready4Hire/docs/ARCHITECTURE.md)**: Detalles técnicos de la arquitectura
+- **[API Documentation](Ready4Hire/docs/API_DOCUMENTATION.md)**: Guía completa de la API
+- **[Configuration](Ready4Hire/docs/CONFIGURATION.md)**: Opciones de configuración
+- **[Deployment](Ready4Hire/docs/DEPLOYMENT.md)**: Guía de despliegue en producción
+- **[Performance](Ready4Hire/docs/PERFORMANCE_OPTIMIZATIONS.md)**: Optimizaciones de rendimiento
+
+---
+
+## 🗺️ Roadmap
+
+### Q1 2025
+- [ ] Integración con LinkedIn para importar perfil
+- [ ] Modo multi-entrevistador (panel de entrevistas)
+- [ ] Análisis de sentimientos en respuestas
+- [ ] Recomendaciones personalizadas de estudio
+
+### Q2 2025
+- [ ] Soporte multiidioma (ES, EN, PT)
+- [ ] Video entrevistas con análisis de expresiones
+- [ ] Gamificación y sistema de logros
+- [ ] Marketplace de preguntas de entrevista
+
+### Q3 2025
+- [ ] Mobile app (React Native)
+- [ ] Integración con sistemas ATS
+- [ ] API pública para terceros
+- [ ] Analytics avanzados y reportes
+
+---
+
+## 📊 Estado del Proyecto
+
+- ✅ Backend API completamente funcional
+- ✅ Frontend moderno con Blazor
+- ✅ Sistema de autenticación robusto
+- ✅ Integración con Ollama (LLM)
+- ✅ Evaluación semántica de respuestas
+- ✅ Persistencia con PostgreSQL
+- ✅ Scripts de automatización
+- ✅ Documentación completa
+
+---
+
+## 👥 Equipo
+
+Desarrollado con ❤️ por el equipo de Ready4Hire.
+
+---
+
+## 📄 Licencia
+
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
+
+---
+
+## 🙏 Agradecimientos
+
+- [Ollama](https://ollama.ai/) por el runtime de LLM local
+- [FastAPI](https://fastapi.tiangolo.com/) por el excelente framework
+- [Blazor](https://dotnet.microsoft.com/apps/aspnet/web-apps/blazor) por el framework frontend
+- Comunidad open-source por las librerías utilizadas
+
+---
+
+## 📞 Contacto
+
+- **Email**: contact@ready4hire.com
+- **GitHub**: [github.com/ready4hire](https://github.com/ready4hire)
+- **Twitter**: [@ready4hire](https://twitter.com/ready4hire)
+
+---
+
+<div align="center">
+
+**⭐ Si este proyecto te ayuda, dale una estrella en GitHub ⭐**
+
+[Reportar Bug](https://github.com/ready4hire/issues) · [Solicitar Feature](https://github.com/ready4hire/issues) · [Documentación](Ready4Hire/docs/)
+
+</div>

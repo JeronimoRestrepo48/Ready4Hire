@@ -1,17 +1,38 @@
 ﻿using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
+using Ready4Hire.Data;
 using Ready4Hire.MVVM.Models;
+using Ready4Hire.MVVM.ViewModels;
+using Ready4Hire.Services;
 
 namespace Ready4Hire.MVVM.Views
 {
-    public partial class ChatPage : ComponentBase
+    public partial class ChatPage : ComponentBase, IDisposable
     {
+        // Servicio del agente
+        [Inject]
+        public InterviewApiService InterviewApi { get; set; } = null!;
+        
+        // Factory de base de datos (para evitar concurrencia)
+        [Inject]
+        private IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
 
         [Inject]
-        public InterviewApiService InterviewApi { get; set; }
+        private AuthService AuthService { get; set; } = null!;
 
+        [Inject]
+        private SecurityService SecurityService { get; set; } = null!;
 
+        [Inject]
+        private NavigationManager Navigation { get; set; } = null!;
+
+        // Id chat
+        [Parameter]
+        public int chatId { get; set; }
+
+        private ChatViewModel? vm;
+        private AppDbContext? currentDb;
         private List<Message> Messages = new();
 
         private string UserInput { get; set; } = "";
@@ -49,7 +70,38 @@ namespace Ready4Hire.MVVM.Views
         /// Indica si la configuración fue guardada y es válida.
         public bool IsConfigured { get; set; } = false;
 
-        
+        protected override async Task OnInitializedAsync()
+        {
+            // SEGURIDAD: Verificar autenticación obligatoria
+            if (!await AuthService.IsAuthenticatedAsync())
+            {
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            // Validar sesión activa
+            if (!await AuthService.ValidateSessionAsync())
+            {
+                await AuthService.LogoutAsync();
+                Navigation.NavigateTo("/", true);
+                return;
+            }
+
+            // Crear una nueva instancia de DbContext para este componente
+            currentDb = await DbFactory.CreateDbContextAsync();
+            vm = new ChatViewModel(currentDb, chatId);
+            await vm.LoadDataAsync(chatId);
+
+            if (chatId != 0 && vm.Messages != null)
+                Messages = vm.Messages;
+        }
+
+        public void Dispose()
+        {
+            // Liberar el DbContext cuando el componente se destruye
+            currentDb?.Dispose();
+        }
+
         /// Muestra el modal de configuración de entrevista.
         private void ShowSetup()
         {
@@ -137,10 +189,10 @@ namespace Ready4Hire.MVVM.Views
         /// <summary>
         /// [V2] Envía la respuesta del usuario a la API y procesa la respuesta del agente.
         /// Maneja:
-        /// 1. Fase de contexto (5 preguntas) - NO se evalúa con LLM
+        /// 1. Fase de contexto (5 preguntas)
         /// 2. Transición a preguntas técnicas/soft skills
-        /// 3. Evaluación con LLM (solo en fase técnica)
-        /// 4. Feedback, emoción y score (solo en fase técnica)
+        /// 3. Feedback y motivación
+        /// 4. Intentos múltiples (máximo 3)
         /// 5. Progreso de la entrevista
         /// </summary>
         private async Task SendMessage()
@@ -160,111 +212,63 @@ namespace Ready4Hire.MVVM.Views
                 // Llamar al endpoint V2 ProcessAnswer
                 var response = await InterviewApi.ProcessAnswerV2Async(interviewId, answer, elapsedSeconds);
 
-                // Obtener interview_status
-                var interviewStatus = response.GetProperty("interview_status").GetString();
-                
-                // Obtener interview_completed
-                var isCompleted = response.TryGetProperty("interview_completed", out var completedProp) 
-                    && completedProp.GetBoolean();
-
-                // FASE DE CONTEXTO: Solo mostrar confirmación, NO mostrar evaluación
-                if (interviewStatus == "context")
+                // Actualizar fase actual
+                if (response.TryGetProperty("phase", out var phaseProperty))
                 {
-                    contextQuestionsAnswered++;
-                    
-                    // Mostrar mensaje de confirmación (no evaluación)
-                    Messages.Add(new Message 
-                    { 
-                        Text = $"✅ Respuesta {contextQuestionsAnswered}/5 guardada. Continuemos...", 
-                        IsUser = false 
-                    });
+                    currentPhase = phaseProperty.GetString();
+                }
 
-                    // Mostrar siguiente pregunta si existe
-                    if (response.TryGetProperty("next_question", out var nextQuestion) && 
-                        !nextQuestion.ValueKind.Equals(System.Text.Json.JsonValueKind.Null))
+                // Mostrar feedback si existe
+                if (response.TryGetProperty("feedback", out var feedback))
+                {
+                    var feedbackText = feedback.GetString();
+                    if (!string.IsNullOrEmpty(feedbackText))
                     {
-                        var questionText = nextQuestion.GetProperty("text").GetString();
-                        Messages.Add(new Message { Text = questionText, IsUser = false });
-                    }
-                    else
-                    {
-                        // Transición a fase técnica
-                        Messages.Add(new Message 
-                        { 
-                            Text = "🔄 Analizando tus respuestas de contexto con clustering y embeddings...", 
-                            IsUser = false 
-                        });
-                        Messages.Add(new Message 
-                        { 
-                            Text = "🎯 ¡Perfecto! Ahora comenzaremos con las preguntas técnicas personalizadas. Cada respuesta será evaluada por el LLM.", 
-                            IsUser = false 
-                        });
+                        Messages.Add(new Message { Text = feedbackText, IsUser = false });
                     }
                 }
-                // FASE TÉCNICA: Mostrar evaluación completa del LLM
-                else if (interviewStatus == "questions")
+
+                // Mostrar motivación si existe
+                if (response.TryGetProperty("motivation", out var motivation))
                 {
-                    questionCount++;
-
-                    // Obtener evaluación del LLM
-                    if (response.TryGetProperty("evaluation", out var evaluation))
+                    var motivationText = motivation.GetString();
+                    if (!string.IsNullOrEmpty(motivationText))
                     {
-                        var score = evaluation.GetProperty("score").GetDouble();
-                        var isCorrect = evaluation.GetProperty("is_correct").GetBoolean();
-                        
-                        // Mostrar score y resultado
-                        var scoreEmoji = score >= 8 ? "🌟" : score >= 6 ? "👍" : "💡";
-                        Messages.Add(new Message 
-                        { 
-                            Text = $"{scoreEmoji} Score: {score:F1}/10 {(isCorrect ? "✅ Correcto" : "❌ Incorrecto")}", 
-                            IsUser = false 
-                        });
-
-                        // Mostrar feedback del LLM
-                        if (response.TryGetProperty("feedback", out var feedback))
-                        {
-                            var feedbackText = feedback.GetString();
-                            if (!string.IsNullOrEmpty(feedbackText))
-                            {
-                                Messages.Add(new Message { Text = $"📝 {feedbackText}", IsUser = false });
-                            }
-                        }
-
-                        // Mostrar emoción detectada
-                        if (response.TryGetProperty("emotion", out var emotion))
-                        {
-                            var emotionType = emotion.GetProperty("emotion").GetString();
-                            var confidence = emotion.GetProperty("confidence").GetDouble();
-                            var emotionEmoji = GetEmotionEmoji(emotionType);
-                            Messages.Add(new Message 
-                            { 
-                                Text = $"{emotionEmoji} Emoción detectada: {emotionType} ({confidence:F1}%)", 
-                                IsUser = false 
-                            });
-                        }
+                        Messages.Add(new Message { Text = "💪 " + motivationText, IsUser = false });
                     }
+                }
 
-                    // Mostrar siguiente pregunta si existe
-                    if (response.TryGetProperty("next_question", out var nextQuestion) && 
-                        !nextQuestion.ValueKind.Equals(System.Text.Json.JsonValueKind.Null))
+                // Actualizar progreso
+                if (response.TryGetProperty("progress", out var progress))
+                {
+                    contextQuestionsAnswered = progress.GetProperty("context_completed").GetInt32();
+                    questionCount = progress.GetProperty("questions_completed").GetInt32();
+                }
+
+                // Mostrar siguiente pregunta si existe
+                if (response.TryGetProperty("question", out var question))
+                {
+                    var questionText = question.GetProperty("text").GetString();
+                    Messages.Add(new Message { Text = questionText, IsUser = false });
+
+                    // Mostrar intentos restantes si está en retry
+                    if (question.TryGetProperty("retry", out var retry) && retry.GetBoolean())
                     {
-                        var questionText = nextQuestion.GetProperty("text").GetString();
+                        var attemptsLeft = response.GetProperty("attempts_left").GetInt32();
                         Messages.Add(new Message 
                         { 
-                            Text = $"\n📋 Pregunta {questionCount + 1}/10:\n{questionText}", 
+                            Text = $"ℹ️ Te quedan {attemptsLeft} intentos para esta pregunta.", 
                             IsUser = false 
                         });
                     }
                 }
 
                 // Si completó la entrevista
-                if (isCompleted)
+                if (currentPhase == "completed")
                 {
-                    currentPhase = "completed";
-                    StopExamTimer();
                     Messages.Add(new Message 
                     { 
-                        Text = "🎉 ¡Felicidades! Has completado la entrevista. Gracias por tu participación.", 
+                        Text = "� ¡Felicidades! Has completado la entrevista. Gracias por tu participación.", 
                         IsUser = false 
                     });
                 }
@@ -286,65 +290,33 @@ namespace Ready4Hire.MVVM.Views
         }
 
         /// <summary>
-        /// Retorna emoji basado en el tipo de emoción detectada
-        /// </summary>
-        private string GetEmotionEmoji(string emotionType)
-        {
-            return emotionType?.ToLower() switch
-            {
-                "confident" => "😊",
-                "neutral" => "😐",
-                "uncertain" => "🤔",
-                "frustrated" => "😓",
-                "excited" => "😄",
-                _ => "💭"
-            };
-        }
-
-        /// <summary>
-        /// [V2] Finaliza la entrevista y muestra el resumen devuelto por la API.
+        /// Finaliza la entrevista y muestra el resumen devuelto por la API.
         /// </summary>
         private async Task EndInterview()
         {
             StopExamTimer();
             try
             {
-                var result = await InterviewApi.EndInterviewV2Async(interviewId);
-                
-                // Mostrar resumen de la entrevista
+                var result = await InterviewApi.EndInterviewAsync(userId);
                 if (result.TryGetProperty("summary", out var summary))
                 {
                     var summaryText = summary.GetString() ?? "";
-                    Messages.Add(new Message { Text = "\n📊 RESUMEN DE ENTREVISTA\n" + summaryText, IsUser = false });
+                    // Gamificación: si contiene el bloque especial, mostrarlo resaltado
+                    if (summaryText.Contains("🎮 Sistema de Gamificación Avanzada 🎮"))
+                    {
+                        Messages.Add(new Message { Text = summaryText, IsUser = false });
+                    }
+                    else
+                    {
+                        Messages.Add(new Message { Text = summaryText, IsUser = false });
+                    }
                 }
-
-                // Mostrar estadísticas si están disponibles
-                if (result.TryGetProperty("statistics", out var stats))
-                {
-                    var totalQuestions = stats.GetProperty("total_questions").GetInt32();
-                    var correctAnswers = stats.GetProperty("correct_answers").GetInt32();
-                    var avgScore = stats.GetProperty("average_score").GetDouble();
-                    
-                    var statsText = $"\n📈 ESTADÍSTICAS:\n" +
-                                   $"✓ Total de preguntas: {totalQuestions}\n" +
-                                   $"✓ Respuestas correctas: {correctAnswers}\n" +
-                                   $"✓ Score promedio: {avgScore:F1}/10";
-                    
-                    Messages.Add(new Message { Text = statsText, IsUser = false });
-                }
-
-                currentPhase = "completed";
             }
             catch (Exception ex)
             {
                 errorMessage = $"Error al finalizar la entrevista: {ex.Message}";
-                Messages.Add(new Message 
-                { 
-                    Text = $"❌ Error al finalizar la entrevista. Por favor, intenta de nuevo.", 
-                    IsUser = false 
-                });
             }
-            
+            started = false;
             StateHasChanged();
             await ScrollToBottomAsync();
         }
@@ -394,26 +366,20 @@ namespace Ready4Hire.MVVM.Views
             timerDisplay = "00:00";
         }
 
-        /// <summary>
         /// Hace scroll automático al final del chat usando JS interop.
-        /// </summary>
         private async Task ScrollToBottomAsync()
         {
             await JS.InvokeVoidAsync("scrollToBottom");
         }
 
-        /// <summary>
         /// Hace scroll automático después de renderizar el componente.
-        /// </summary>
         protected override async Task OnAfterRenderAsync(bool firstRender)
         {
             await ScrollToBottomAsync();
         }
 
-        /// <summary>
-        /// Maneja el evento de teclado para enviar mensaje con Enter
-        /// </summary>
-        private async Task HandleKeyDown(KeyboardEventArgs e)
+        /// Maneja el evento de teclado para enviar con Enter
+        private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
         {
             if (e.Key == "Enter" && !e.ShiftKey && !string.IsNullOrWhiteSpace(UserInput))
             {
@@ -421,20 +387,28 @@ namespace Ready4Hire.MVVM.Views
             }
         }
 
-        /// <summary>
-        /// Reinicia la entrevista para comenzar una nueva
-        /// </summary>
-        private void RestartInterview()
+        /// Obtiene las iniciales del usuario para el avatar
+        private string GetUserInitials()
         {
-            Messages.Clear();
-            questionCount = 0;
-            contextQuestionsAnswered = 0;
-            started = false;
-            currentPhase = "config";
-            interviewId = "";
-            errorMessage = null;
-            StopExamTimer();
-            StateHasChanged();
+            if (vm?.User == null)
+                return "U";
+            
+            var firstName = vm.User.Name?.Trim() ?? "";
+            var lastName = vm.User.LastName?.Trim() ?? "";
+            
+            var initials = "";
+            if (!string.IsNullOrEmpty(firstName))
+                initials += firstName[0];
+            if (!string.IsNullOrEmpty(lastName))
+                initials += lastName[0];
+            
+            return string.IsNullOrEmpty(initials) ? "U" : initials.ToUpper();
+        }
+
+        /// Obtiene el nombre del usuario
+        private string GetUserFirstName()
+        {
+            return vm?.User?.Name ?? "Usuario";
         }
     }
 }

@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ready4hire_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ready4hire}
+      POSTGRES_USER: ${POSTGRES_USER:-ready4hire_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - ready4hire_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ready4hire_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: ready4hire_redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-change_me_in_production}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - ready4hire_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ready4hire_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - ready4hire_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]  # Si tienes GPU
+
+  # Ready4Hire API (FastAPI)
+  api:
+    build:
+      context: ./Ready4Hire
+      dockerfile: Dockerfile
+    container_name: ready4hire_api
+    environment:
+      # Application
+      ENVIRONMENT: production
+      DEBUG: "false"
+      
+      # Database
+      DATABASE_TYPE: postgres
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-ready4hire}
+      POSTGRES_USER: ${POSTGRES_USER:-ready4hire_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+      
+      # Redis
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis://:${REDIS_PASSWORD:-change_me_in_production}@redis:6379/0
+      
+      # Ollama
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      
+      # Security
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}  # DEBE estar en .env
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://ready4hire.com}
+      
+      # Sentry
+      SENTRY_DSN: ${SENTRY_DSN}
+      
+      # Monitoring
+      METRICS_ENABLED: "true"
+    ports:
+      - "8001:8001"
+    networks:
+      - ready4hire_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./Ready4Hire/app:/app/app
+      - ./Ready4Hire/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v2/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: ready4hire_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - ready4hire_network
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+
+networks:
+  ready4hire_network:
+    driver: bridge
+

@@ -1,0 +1,199 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  # ============================================================================
+  # Linting and Formatting
+  # ============================================================================
+  lint:
+    name: Lint and Format Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black flake8 isort bandit
+      
+      - name: Run Black
+        run: |
+          black --check --line-length=100 Ready4Hire/app/
+      
+      - name: Run Flake8
+        run: |
+          flake8 --max-line-length=100 --ignore=E203,W503,E501 Ready4Hire/app/
+      
+      - name: Run isort
+        run: |
+          isort --check-only --profile=black --line-length=100 Ready4Hire/app/
+      
+      - name: Run Bandit (Security)
+        run: |
+          bandit -r Ready4Hire/app/ -ll
+
+  # ============================================================================
+  # Unit Tests
+  # ============================================================================
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Ready4Hire/requirements.txt
+      
+      - name: Run tests with coverage
+        run: |
+          cd Ready4Hire
+          pytest tests/unit/ --cov=app --cov-report=xml --cov-report=term-missing
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./Ready4Hire/coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  # ============================================================================
+  # Integration Tests (requires Ollama)
+  # ============================================================================
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          ollama serve &
+          sleep 5
+          ollama pull llama3.2:3b
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r Ready4Hire/requirements.txt
+      
+      - name: Run integration tests
+        run: |
+          cd Ready4Hire
+          pytest tests/test_integration.py -v
+        timeout-minutes: 10
+
+  # ============================================================================
+  # Docker Build
+  # ============================================================================
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        run: |
+          cd Ready4Hire
+          docker build -t ready4hire:test .
+      
+      - name: Test Docker image
+        run: |
+          docker run --rm ready4hire:test python -c "import app; print('✅ Image OK')"
+
+  # ============================================================================
+  # Security Scanning
+  # ============================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: 'Ready4Hire/'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+      
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ============================================================================
+  # Deployment (optional, only on master)
+  # ============================================================================
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test, integration-test, docker-build]
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./Ready4Hire
+          push: true
+          tags: |
+            ready4hire/api:latest
+            ready4hire/api:${{ github.sha }}
+      
+      - name: Deploy notification
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Image: ready4hire/api:${{ github.sha }}"
+

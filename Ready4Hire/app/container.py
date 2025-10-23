@@ -10,6 +10,7 @@ from app.infrastructure.llm.ollama_client import OllamaClient
 from app.infrastructure.ml.multilingual_emotion_detector import MultilingualEmotionDetector
 from app.infrastructure.ml.neural_difficulty_adjuster import NeuralDifficultyAdjuster
 from app.infrastructure.ml.question_embeddings import get_embeddings_service
+from app.infrastructure.ml.gpu_detector import get_gpu_detector
 from app.infrastructure.persistence.memory_interview_repository import MemoryInterviewRepository
 from app.infrastructure.persistence.json_question_repository import JsonQuestionRepository
 
@@ -42,7 +43,7 @@ class Container:
     def __init__(
         self,
         ollama_url: str = "http://localhost:11434",
-        ollama_model: str = "llama3.2:3b",
+        ollama_model: Optional[str] = None,
         questions_path: Optional[str] = None
     ):
         """
@@ -50,14 +51,21 @@ class Container:
         
         Args:
             ollama_url: URL de Ollama
-            ollama_model: Modelo Ollama a usar
+            ollama_model: Modelo Ollama a usar (None = auto-detectar según GPU)
             questions_path: Path al directorio de datasets de preguntas
         """
+        # Detectar GPU y configurar modelo óptimo
+        self.gpu_detector = get_gpu_detector()
+        
         self.ollama_url = ollama_url
-        self.ollama_model = ollama_model
+        # Auto-seleccionar modelo según hardware si no se especifica
+        self.ollama_model = ollama_model or self.gpu_detector.get_recommended_model()
         self.questions_path = questions_path or os.path.join(
             os.path.dirname(__file__), "datasets"
         )
+        
+        # Obtener configuración optimizada
+        self.perf_config = self.gpu_detector.get_performance_config()
         
         # Inicializar componentes
         self._init_infrastructure()
@@ -66,12 +74,18 @@ class Container:
     
     def _init_infrastructure(self):
         """Inicializa componentes de infraestructura"""
-        # ⚡ LLM Service (Ollama) - OPTIMIZADO para velocidad con ready4hire:latest
+        # ⚡ LLM Service (Ollama) - OPTIMIZADO según hardware detectado
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"🖥️ Hardware: {self.gpu_detector.gpu_type.value}")
+        logger.info(f"🤖 Modelo seleccionado: {self.ollama_model}")
+        logger.info(f"⏱️ Latencia esperada: {self.perf_config['expected_latency_ms']/1000:.1f}s")
+        
         self.llm_service = OllamaLLMService(
             base_url=self.ollama_url,
-            model=self.ollama_model,  # ready4hire:latest (fine-tuned)
-            temperature=0.3,  # ⚡ Reducido para respuestas más consistentes y rápidas
-            max_tokens=256    # ⚡ Reducido para evaluaciones más concisas y rápidas
+            model=self.ollama_model,
+            temperature=0.3,
+            max_tokens=256
         )
         
         # ML Components
@@ -248,13 +262,31 @@ class Container:
     def _precompute_question_embeddings(self) -> None:
         """
         ⚡ Pre-computa embeddings de todas las preguntas al inicio.
-        Esto elimina el delay de encoding durante la selección de preguntas.
+        MEJORADO: Persiste en disco para evitar re-computar al reiniciar.
         """
         try:
             import logging
             import asyncio
+            import pickle
+            from pathlib import Path
+            
             logger = logging.getLogger(__name__)
             
+            # Ruta del cache de embeddings
+            cache_path = Path(self.questions_path) / "embeddings_cache.pkl"
+            
+            # ⚡ MEJORA: Intentar cargar desde disco primero
+            if cache_path.exists():
+                try:
+                    logger.info("⚡ Cargando embeddings desde caché en disco...")
+                    with open(cache_path, 'rb') as f:
+                        self.question_repository._embeddings_cache = pickle.load(f)
+                    logger.info(f"✅ Embeddings cargados desde caché: {len(self.question_repository._embeddings_cache)} preguntas")
+                    return
+                except Exception as e:
+                    logger.warning(f"⚠️ Error cargando caché, re-computando: {e}")
+            
+            # Si no hay cache, computar embeddings
             logger.info("⚡ Pre-computando embeddings de preguntas...")
             
             # Obtener todas las preguntas
@@ -266,6 +298,10 @@ class Container:
             
             all_questions = tech_questions + soft_questions
             
+            if not all_questions:
+                logger.warning("⚠️ No hay preguntas para pre-computar embeddings")
+                return
+            
             # Pre-computar embeddings en batch (mucho más rápido)
             question_texts = [q.text for q in all_questions]
             embeddings = self.embeddings_service.encode(question_texts)
@@ -274,6 +310,15 @@ class Container:
             self.question_repository._embeddings_cache = {
                 q.id: emb for q, emb in zip(all_questions, embeddings)
             }
+            
+            # ⚡ MEJORA: Persistir en disco
+            try:
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(cache_path, 'wb') as f:
+                    pickle.dump(self.question_repository._embeddings_cache, f)
+                logger.info(f"💾 Embeddings guardados en disco: {cache_path}")
+            except Exception as e:
+                logger.warning(f"⚠️ No se pudo guardar caché en disco: {e}")
             
             logger.info(f"✅ Embeddings pre-computados: {len(all_questions)} preguntas en caché")
             
@@ -295,7 +340,7 @@ def get_container() -> Container:
     global _container
     if _container is None:
         ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
-        ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+        ollama_model = os.getenv("OLLAMA_MODEL")  # None = auto-detectar según GPU
         _container = Container(
             ollama_url=ollama_url,
             ollama_model=ollama_model

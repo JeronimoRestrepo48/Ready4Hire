@@ -46,7 +46,7 @@ namespace Ready4Hire.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Chats");
+                    b.ToTable("Chats", (string)null);
                 });
 
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Message", b =>
@@ -71,7 +71,7 @@ namespace Ready4Hire.Migrations
 
                     b.HasIndex("ChatId");
 
-                    b.ToTable("Messages");
+                    b.ToTable("Messages", (string)null);
                 });
 
             modelBuilder.Entity("Ready4Hire.MVVM.Models.User", b =>
@@ -123,7 +123,7 @@ namespace Ready4Hire.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Chat", b =>
