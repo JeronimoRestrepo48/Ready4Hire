@@ -1,0 +1,711 @@
+@page "/certificates"
+@using Microsoft.EntityFrameworkCore
+@using Ready4Hire.Data
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+@inject HttpClient HttpClient
+
+<PageTitle>Mis Certificados - Ready4Hire</PageTitle>
+
+@attribute [StreamRendering(false)]
+
+<div class="certificates-container">
+    <!-- Header -->
+    <div class="certificates-header">
+        <div class="header-content">
+            <h1 class="page-title">Mis Certificados 🏆</h1>
+            <p class="page-subtitle">Certificados obtenidos al completar exitosamente exámenes</p>
+        </div>
+        
+        @if (certificates.Any())
+        {
+            <div class="header-stats">
+                <div class="stat-pill">
+                    <span class="stat-number">@certificates.Count</span>
+                    <span class="stat-label">Certificados</span>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar">
+        <button class="filter-btn @(selectedFilter == "all" ? "active" : "")" @onclick="@(() => SetFilter("all"))">
+            Todos (@certificates.Count)
+        </button>
+        <button class="filter-btn @(selectedFilter == "2024" ? "active" : "")" @onclick="@(() => SetFilter("2024"))">
+            2024 (@certificates.Count(c => c.IssuedAt.Year == 2024))
+        </button>
+        <button class="filter-btn @(selectedFilter == "2025" ? "active" : "")" @onclick="@(() => SetFilter("2025"))">
+            2025 (@certificates.Count(c => c.IssuedAt.Year == 2025))
+        </button>
+    </div>
+
+    <!-- Certificates Grid -->
+    @if (isLoading)
+    {
+        <div class="loading-container">
+            <div class="spinner"></div>
+            <p>Cargando certificados...</p>
+        </div>
+    }
+    else if (!filteredCertificates.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg width="120" height="120" viewBox="0 0 24 24" fill="none">
+                    <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M14 2V8H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9 13L12 16L15 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 16V10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h3 class="empty-title">Aún no tienes certificados</h3>
+            <p class="empty-description">
+                Completa un examen con éxito (≥70%) para obtener tu primer certificado verificable.
+            </p>
+            <button class="btn-primary-action" @onclick="StartExam">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 3L19 12L5 21V3Z" fill="currentColor"/>
+                </svg>
+                Comenzar un Examen
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="certificates-grid">
+            @foreach (var cert in filteredCertificates)
+            {
+                <div class="certificate-card @GetCertificateClass(cert.CertificationLevel)">
+                    <div class="certificate-badge">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 15L8 18V8L12 5L16 8V18L12 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <circle cx="12" cy="9" r="3" stroke="currentColor" stroke-width="2"/>
+                        </svg>
+                        <span class="certification-level">@cert.CertificationLevel</span>
+                    </div>
+
+                    <div class="certificate-content">
+                        <h3 class="certificate-role">@cert.Role</h3>
+                        <p class="certificate-name">@cert.CandidateName</p>
+                        
+                        <div class="certificate-score">
+                            <div class="score-circle">
+                                <span class="score-value">@Math.Round(cert.Score, 1)%</span>
+                            </div>
+                            <div class="score-details">
+                                <p class="score-label">Puntuación</p>
+                                <p class="score-percentile">Percentil @cert.Percentile</p>
+                            </div>
+                        </div>
+
+                        <div class="certificate-meta">
+                            <div class="meta-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                <span>@cert.IssuedAt.ToString("dd MMM yyyy")</span>
+                            </div>
+                            <div class="meta-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                <span>ID: @cert.CertificateId</span>
+                            </div>
+                        </div>
+
+                        <div class="certificate-actions">
+                            <button class="btn-view" @onclick="@(() => ViewCertificate(cert.Id))">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="2"/>
+                                    <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                Ver
+                            </button>
+                            <button class="btn-download" @onclick="@(() => DownloadCertificate(cert.Id))">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M12 15V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Descargar
+                            </button>
+                            <button class="btn-share" @onclick="@(() => ShareCertificate(cert.Id))">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M4 12V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M16 6L12 2L8 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M12 2V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Compartir
+                            </button>
+                        </div>
+
+                        @if (cert.IsValid)
+                        {
+                            <div class="certificate-verified">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.7088 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Certificado Verificado
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .certificates-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+        min-height: 100vh;
+        max-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .certificates-container::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .certificates-container::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .certificates-container::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 5px;
+        border: 2px solid #0a0a0a;
+    }
+
+    .certificates-container::-webkit-scrollbar-thumb:hover {
+        background: #444;
+    }
+
+    /* Header */
+    .certificates-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 32px;
+        padding-bottom: 24px;
+        border-bottom: 2px solid #334155;
+    }
+
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 8px;
+    }
+
+    .page-subtitle {
+        font-size: 1.125rem;
+        color: #94a3b8;
+    }
+
+    .header-stats {
+        display: flex;
+        gap: 16px;
+    }
+
+    .stat-pill {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 16px 24px;
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        border-radius: 12px;
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .stat-label {
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* Filters */
+    .filters-bar {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 8px 16px;
+        background: #1e293b;
+        border: 2px solid #334155;
+        color: #94a3b8;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .filter-btn:hover {
+        border-color: #6366f1;
+        color: #6366f1;
+    }
+
+    .filter-btn.active {
+        background: #6366f1;
+        border-color: #6366f1;
+        color: white;
+    }
+
+    /* Loading */
+    .loading-container {
+        text-align: center;
+        padding: 64px 24px;
+    }
+
+    .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid #334155;
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 64px 24px;
+    }
+
+    .empty-icon {
+        margin: 0 auto 24px;
+        opacity: 0.5;
+    }
+
+    .empty-icon svg {
+        stroke: #64748b;
+    }
+
+    .empty-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 12px;
+    }
+
+    .empty-description {
+        font-size: 1rem;
+        color: #94a3b8;
+        max-width: 500px;
+        margin: 0 auto 32px;
+    }
+
+    .btn-primary-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .btn-primary-action:hover {
+        transform: scale(1.05);
+    }
+
+    /* Certificates Grid */
+    .certificates-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+        gap: 24px;
+    }
+
+    .certificate-card {
+        background: #1e293b;
+        border-radius: 16px;
+        padding: 24px;
+        border-left: 4px solid;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .certificate-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+    }
+
+    .certificate-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .certificate-card:hover::before {
+        opacity: 1;
+    }
+
+    .certificate-card.gold {
+        border-color: #f59e0b;
+    }
+
+    .certificate-card.silver {
+        border-color: #94a3b8;
+    }
+
+    .certificate-card.bronze {
+        border-color: #cd7f32;
+    }
+
+    .certificate-card.advanced {
+        border-color: #6366f1;
+    }
+
+    .certificate-badge {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #334155;
+    }
+
+    .certificate-badge svg {
+        stroke: currentColor;
+    }
+
+    .certificate-card.gold .certificate-badge svg { stroke: #f59e0b; }
+    .certificate-card.silver .certificate-badge svg { stroke: #94a3b8; }
+    .certificate-card.bronze .certificate-badge svg { stroke: #cd7f32; }
+    .certificate-card.advanced .certificate-badge svg { stroke: #6366f1; }
+
+    .certification-level {
+        font-size: 0.875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .certificate-card.gold .certification-level { color: #f59e0b; }
+    .certificate-card.silver .certification-level { color: #94a3b8; }
+    .certificate-card.bronze .certification-level { color: #cd7f32; }
+    .certificate-card.advanced .certification-level { color: #6366f1; }
+
+    .certificate-content {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .certificate-role {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .certificate-name {
+        font-size: 0.875rem;
+        color: #94a3b8;
+    }
+
+    .certificate-score {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+    }
+
+    .score-circle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 60px;
+        height: 60px;
+        border: 3px solid #6366f1;
+        border-radius: 50%;
+    }
+
+    .score-value {
+        font-size: 1rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .score-label {
+        font-size: 0.875rem;
+        color: #94a3b8;
+        margin-bottom: 4px;
+    }
+
+    .score-percentile {
+        font-size: 0.75rem;
+        color: #64748b;
+    }
+
+    .certificate-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .meta-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.875rem;
+        color: #94a3b8;
+    }
+
+    .meta-item svg {
+        stroke: #64748b;
+    }
+
+    .certificate-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .btn-view,
+    .btn-download,
+    .btn-share {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px;
+        background: #334155;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-view::before,
+    .btn-download::before,
+    .btn-share::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+
+    .btn-view:hover::before,
+    .btn-download:hover::before,
+    .btn-share:hover::before {
+        width: 300px;
+        height: 300px;
+    }
+
+    .btn-view:hover {
+        background: #6366f1;
+        transform: scale(1.05);
+    }
+
+    .btn-download:hover {
+        background: #10b981;
+        transform: scale(1.05);
+    }
+
+    .btn-share:hover {
+        background: #f59e0b;
+        transform: scale(1.05);
+    }
+
+    .btn-view svg,
+    .btn-download svg,
+    .btn-share svg {
+        stroke: currentColor;
+    }
+
+    .certificate-verified {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px;
+        background: #10b98120;
+        border: 1px solid #10b981;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #10b981;
+    }
+
+    .certificate-verified svg {
+        stroke: currentColor;
+    }
+
+    @@media (max-width: 768px) {
+        .certificates-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+        }
+
+        .certificates-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+@code {
+    private User? currentUser;
+    private List<Certificate> certificates = new();
+    private List<Certificate> filteredCertificates = new();
+    private string selectedFilter = "all";
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var email = await AuthService.GetCurrentUserEmailAsync();
+            
+            if (!string.IsNullOrEmpty(email))
+            {
+                using var db = await DbFactory.CreateDbContextAsync();
+                
+                currentUser = await db.Users
+                    .FirstOrDefaultAsync(u => u.Email == email);
+                
+                if (currentUser != null)
+                {
+                    certificates = await db.Certificates
+                        .Where(c => c.CandidateName == $"{currentUser.Name} {currentUser.LastName}")
+                        .OrderByDescending(c => c.IssuedAt)
+                        .ToListAsync();
+                    
+                    filteredCertificates = certificates;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading certificates: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetFilter(string filter)
+    {
+        selectedFilter = filter;
+        
+        if (filter == "all")
+        {
+            filteredCertificates = certificates;
+        }
+        else if (int.TryParse(filter, out int year))
+        {
+            filteredCertificates = certificates.Where(c => c.IssuedAt.Year == year).ToList();
+        }
+    }
+
+    private string GetCertificateClass(string level)
+    {
+        return level.ToLower() switch
+        {
+            "gold" => "gold",
+            "silver" => "silver",
+            "bronze" => "bronze",
+            "advanced" => "advanced",
+            _ => "advanced"
+        };
+    }
+
+    private void ViewCertificate(int certId)
+    {
+        // TODO: Open certificate in modal or new page
+        Console.WriteLine($"Viewing certificate {certId}");
+    }
+
+    private async Task DownloadCertificate(int certId)
+    {
+        try
+        {
+            var cert = certificates.FirstOrDefault(c => c.Id == certId);
+            if (cert != null)
+            {
+                // TODO: Call API to download PDF
+                var response = await HttpClient.GetAsync($"http://localhost:8001/certificates/{cert.CertificateId}/download");
+                
+                if (response.IsSuccessStatusCode)
+                {
+                    // Download logic
+                    Console.WriteLine($"Downloading certificate {cert.CertificateId}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error downloading certificate: {ex.Message}");
+        }
+    }
+
+    private void ShareCertificate(int certId)
+    {
+        var cert = certificates.FirstOrDefault(c => c.Id == certId);
+        if (cert != null && !string.IsNullOrEmpty(cert.ValidationUrl))
+        {
+            // Copy to clipboard or share
+            Console.WriteLine($"Sharing: {cert.ValidationUrl}");
+        }
+    }
+
+    private void StartExam()
+    {
+        Navigation.NavigateTo("/chat/0");
+    }
+}
+

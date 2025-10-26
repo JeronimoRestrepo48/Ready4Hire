@@ -1,0 +1,676 @@
+@page "/game/quick-quiz"
+@inject Ready4Hire.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>⚡ Quiz Rápido - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">⏱️ @timeRemaining seg</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">❓ @currentQuestion/@totalQuestions</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">⚡</div>
+            <h1>Quiz Rápido</h1>
+            <p>Responde preguntas de conocimiento general lo más rápido posible</p>
+            <div class="game-rules">
+                <h3>📋 Reglas:</h3>
+                <ul>
+                    <li>⏰ 30 segundos por pregunta</li>
+                    <li>🎯 10 preguntas en total</li>
+                    <li>⭐ +100 pts por respuesta correcta</li>
+                    <li>⚡ Bonus por responder rápido (+50 pts si &lt; 10 seg)</li>
+                </ul>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame">
+                Comenzar Quiz
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetResultIcon()</div>
+            <h1>@GetResultTitle()</h1>
+            <div class="results-stats">
+                <div class="result-stat">
+                    <div class="stat-value">@currentScore</div>
+                    <div class="stat-label">Puntos Totales</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@correctAnswers/@totalQuestions</div>
+                    <div class="stat-label">Correctas</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@((int)((float)correctAnswers / totalQuestions * 100))%</div>
+                    <div class="stat-label">Precisión</div>
+                </div>
+            </div>
+            <button class="btn-play-again" @onclick="RestartGame">Jugar de Nuevo</button>
+            <button class="btn-back-results" @onclick="GoToGamification">Ver Gamificación</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-play">
+            <div class="question-container">
+                <div class="question-number">Pregunta @currentQuestion de @totalQuestions</div>
+                <h2 class="question-text">@questions[currentQuestion - 1].Question</h2>
+                
+                <div class="answers-grid">
+                    @for (int i = 0; i < questions[currentQuestion - 1].Options.Count; i++)
+                    {
+                        var index = i;
+                        var option = questions[currentQuestion - 1].Options[index];
+                        var cssClass = "answer-option";
+                        if (selectedAnswer == index)
+                        {
+                            cssClass += " selected";
+                        }
+                        if (showFeedback)
+                        {
+                            if (index == questions[currentQuestion - 1].CorrectAnswer)
+                            {
+                                cssClass += " correct";
+                            }
+                            else if (selectedAnswer == index)
+                            {
+                                cssClass += " incorrect";
+                            }
+                        }
+                        
+                        <button class="@cssClass" 
+                                @onclick="() => SelectAnswer(index)"
+                                disabled="@showFeedback">
+                            <span class="option-letter">@GetOptionLetter(index)</span>
+                            <span class="option-text">@option</span>
+                        </button>
+                    }
+                </div>
+
+                @if (showFeedback)
+                {
+                    <div class="feedback-box @(selectedAnswer == questions[currentQuestion - 1].CorrectAnswer ? "correct-feedback" : "incorrect-feedback")">
+                        @if (selectedAnswer == questions[currentQuestion - 1].CorrectAnswer)
+                        {
+                            <span>✅ ¡Correcto! +@lastQuestionPoints pts</span>
+                        }
+                        else
+                        {
+                            <span>❌ Incorrecto. La respuesta correcta era: @GetOptionLetter(questions[currentQuestion - 1].CorrectAnswer)</span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private class QuizQuestion
+    {
+        public string Question { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public int CorrectAnswer { get; set; }
+    }
+
+    private List<QuizQuestion> questions = new();
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool showFeedback = false;
+    private int currentQuestion = 1;
+    private int totalQuestions = 10;
+    private int timeRemaining = 30;
+    private int currentScore = 0;
+    private int correctAnswers = 0;
+    private int selectedAnswer = -1;
+    private int lastQuestionPoints = 0;
+    private System.Threading.Timer? gameTimer;
+    private DateTime questionStartTime;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+        
+        GenerateQuestions();
+    }
+
+    private void GenerateQuestions()
+    {
+        // Preguntas de ejemplo - en producción estas vendrían del backend
+        questions = new List<QuizQuestion>
+        {
+            new QuizQuestion
+            {
+                Question = "¿Cuál es el principio SOLID que establece que una clase debe tener una sola razón para cambiar?",
+                Options = new List<string> { "Open/Closed Principle", "Single Responsibility Principle", "Liskov Substitution Principle", "Dependency Inversion" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué patrón de diseño se utiliza para crear una única instancia de una clase?",
+                Options = new List<string> { "Factory", "Singleton", "Observer", "Strategy" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Cuál es la complejidad temporal del algoritmo de búsqueda binaria?",
+                Options = new List<string> { "O(n)", "O(log n)", "O(n²)", "O(1)" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué estructura de datos utiliza el principio LIFO?",
+                Options = new List<string> { "Queue", "Stack", "Tree", "Graph" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué protocolo se utiliza para transferencia segura de datos en HTTP?",
+                Options = new List<string> { "FTP", "SSH", "HTTPS", "SMTP" },
+                CorrectAnswer = 2
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué significa REST en desarrollo de APIs?",
+                Options = new List<string> { "Remote Execution Service Technology", "Representational State Transfer", "Real-time Execution Standard", "Resource Execution Service Tool" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Cuál es el puerto por defecto de PostgreSQL?",
+                Options = new List<string> { "3306", "5432", "27017", "6379" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué metodología ágil utiliza sprints de 2-4 semanas?",
+                Options = new List<string> { "Kanban", "Scrum", "XP", "Waterfall" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué comando de Git se utiliza para fusionar ramas?",
+                Options = new List<string> { "git combine", "git merge", "git join", "git unite" },
+                CorrectAnswer = 1
+            },
+            new QuizQuestion
+            {
+                Question = "¿Qué significa CI/CD en DevOps?",
+                Options = new List<string> { "Code Integration/Code Deployment", "Continuous Integration/Continuous Deployment", "Central Integration/Central Distribution", "Complete Implementation/Complete Delivery" },
+                CorrectAnswer = 1
+            }
+        };
+    }
+
+    private void StartGame()
+    {
+        gameStarted = true;
+        currentQuestion = 1;
+        currentScore = 0;
+        correctAnswers = 0;
+        questionStartTime = DateTime.Now;
+        StartTimer();
+        StateHasChanged();
+    }
+
+    private void StartTimer()
+    {
+        timeRemaining = 30;
+        gameTimer = new System.Threading.Timer(async _ =>
+        {
+            timeRemaining--;
+            if (timeRemaining <= 0)
+            {
+                await InvokeAsync(() => TimeUp());
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void TimeUp()
+    {
+        if (!showFeedback)
+        {
+            selectedAnswer = -1;
+            ShowFeedback();
+        }
+    }
+
+    private void SelectAnswer(int answerIndex)
+    {
+        if (showFeedback) return;
+        
+        selectedAnswer = answerIndex;
+        ShowFeedback();
+    }
+
+    private void ShowFeedback()
+    {
+        showFeedback = true;
+        gameTimer?.Dispose();
+        
+        var timeToAnswer = (DateTime.Now - questionStartTime).TotalSeconds;
+        lastQuestionPoints = 0;
+        
+        if (selectedAnswer == questions[currentQuestion - 1].CorrectAnswer)
+        {
+            correctAnswers++;
+            lastQuestionPoints = 100;
+            
+            // Bonus por rapidez
+            if (timeToAnswer < 10)
+            {
+                lastQuestionPoints += 50;
+            }
+            
+            currentScore += lastQuestionPoints;
+        }
+        
+        StateHasChanged();
+        
+        // Auto avanzar después de 2 segundos
+        Task.Delay(2000).ContinueWith(_ => InvokeAsync(NextQuestion));
+    }
+
+    private void NextQuestion()
+    {
+        if (currentQuestion >= totalQuestions)
+        {
+            EndGame();
+            return;
+        }
+        
+        currentQuestion++;
+        selectedAnswer = -1;
+        showFeedback = false;
+        questionStartTime = DateTime.Now;
+        StartTimer();
+        StateHasChanged();
+    }
+
+    private void EndGame()
+    {
+        gameTimer?.Dispose();
+        gameFinished = true;
+        StateHasChanged();
+        
+        // TODO: Enviar puntuación al backend
+        Console.WriteLine($"Game finished! Score: {currentScore}, Correct: {correctAnswers}/{totalQuestions}");
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedAnswer = -1;
+        showFeedback = false;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        gameTimer?.Dispose();
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetOptionLetter(int index)
+    {
+        return ((char)('A' + index)).ToString();
+    }
+
+    private string GetResultIcon()
+    {
+        var percentage = (float)correctAnswers / totalQuestions;
+        if (percentage >= 0.9) return "🏆";
+        if (percentage >= 0.7) return "⭐";
+        if (percentage >= 0.5) return "👍";
+        return "📚";
+    }
+
+    private string GetResultTitle()
+    {
+        var percentage = (float)correctAnswers / totalQuestions;
+        if (percentage >= 0.9) return "¡Excelente!";
+        if (percentage >= 0.7) return "¡Muy Bien!";
+        if (percentage >= 0.5) return "¡Bien Hecho!";
+        return "Sigue Practicando";
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        min-height: 100vh;
+        background: #0a0a0a;
+        color: #fff;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #1a1a1a;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #1a1a1a;
+        color: #fff;
+        border: 1px solid #374151;
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: #374151;
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #9ca3af;
+    }
+
+    /* Game Intro */
+    .game-intro {
+        text-align: center;
+        max-width: 600px;
+        margin: 4rem auto;
+    }
+
+    .intro-icon {
+        font-size: 5rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #9ca3af;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: #111;
+        border: 1px solid #1e1e1e;
+        border-radius: 12px;
+        padding: 2rem;
+        margin: 2rem 0;
+        text-align: left;
+    }
+
+    .game-rules h3 {
+        margin-bottom: 1rem;
+        color: #fff;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .game-rules li {
+        padding: 0.75rem 0;
+        color: #9ca3af;
+        font-size: 1.05rem;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        border-radius: 12px;
+        font-size: 1.2rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-start-game:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    }
+
+    /* Question Container */
+    .question-container {
+        background: #111;
+        border: 1px solid #1e1e1e;
+        border-radius: 16px;
+        padding: 2.5rem;
+        margin-top: 2rem;
+    }
+
+    .question-number {
+        color: #667eea;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 1rem;
+    }
+
+    .question-text {
+        font-size: 1.5rem;
+        color: #fff;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+
+    .answers-grid {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .answer-option {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: #0a0a0a;
+        border: 2px solid #374151;
+        border-radius: 12px;
+        padding: 1.25rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+    }
+
+    .answer-option:hover:not(:disabled) {
+        border-color: #667eea;
+        background: #1a1a1a;
+    }
+
+    .answer-option.selected {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+    }
+
+    .answer-option.correct {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .answer-option.incorrect {
+        border-color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .answer-option:disabled {
+        cursor: not-allowed;
+    }
+
+    .option-letter {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background: #374151;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .answer-option.correct .option-letter {
+        background: #10b981;
+    }
+
+    .answer-option.incorrect .option-letter {
+        background: #ef4444;
+    }
+
+    .option-text {
+        flex: 1;
+        font-size: 1.05rem;
+        color: #fff;
+    }
+
+    /* Feedback Box */
+    .feedback-box {
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 1.05rem;
+    }
+
+    .correct-feedback {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid #10b981;
+        color: #10b981;
+    }
+
+    .incorrect-feedback {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid #ef4444;
+        color: #ef4444;
+    }
+
+    /* Results */
+    .game-results {
+        text-align: center;
+        max-width: 600px;
+        margin: 4rem auto;
+    }
+
+    .results-icon {
+        font-size: 6rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h1 {
+        font-size: 2.5rem;
+        margin-bottom: 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 3rem;
+    }
+
+    .result-stat {
+        background: #111;
+        border: 1px solid #1e1e1e;
+        border-radius: 12px;
+        padding: 2rem 1rem;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+        color: #9ca3af;
+        font-size: 0.95rem;
+    }
+
+    .btn-play-again,
+    .btn-back-results {
+        padding: 1rem 2.5rem;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        border: none;
+        margin: 0.5rem;
+    }
+
+    .btn-play-again {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-play-again:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-back-results {
+        background: #374151;
+        color: white;
+    }
+
+    .btn-back-results:hover {
+        background: #4b5563;
+    }
+</style>
+

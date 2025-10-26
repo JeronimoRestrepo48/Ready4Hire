@@ -259,21 +259,32 @@ namespace Ready4Hire.MVVM.Views
                     questionCount = progress.GetProperty("questions_completed").GetInt32();
                 }
 
-                // Mostrar siguiente pregunta si existe
-                if (response.TryGetProperty("question", out var question))
+                // Mostrar siguiente pregunta si existe (puede venir como "question" o "next_question")
+                var questionProperty = response.TryGetProperty("next_question", out var nextQuestion) 
+                    ? nextQuestion 
+                    : (response.TryGetProperty("question", out var question) ? question : default);
+                    
+                if (questionProperty.ValueKind != System.Text.Json.JsonValueKind.Undefined && 
+                    questionProperty.ValueKind != System.Text.Json.JsonValueKind.Null)
                 {
-                    var questionText = question.GetProperty("text").GetString();
-                    Messages.Add(new Message { Text = questionText, IsUser = false });
+                    var questionText = questionProperty.GetProperty("text").GetString();
+                    if (!string.IsNullOrEmpty(questionText))
+                    {
+                        Messages.Add(new Message { Text = questionText, IsUser = false });
+                    }
 
                     // Mostrar intentos restantes si está en retry
-                    if (question.TryGetProperty("retry", out var retry) && retry.GetBoolean())
+                    if (questionProperty.TryGetProperty("retry", out var retry) && retry.GetBoolean())
                     {
-                        var attemptsLeft = response.GetProperty("attempts_left").GetInt32();
-                        Messages.Add(new Message 
-                        { 
-                            Text = $"ℹ️ Te quedan {attemptsLeft} intentos para esta pregunta.", 
-                            IsUser = false 
-                        });
+                        if (response.TryGetProperty("attempts_left", out var attemptsProperty))
+                        {
+                            var attemptsLeft = attemptsProperty.GetInt32();
+                            Messages.Add(new Message 
+                            { 
+                                Text = $"ℹ️ Te quedan {attemptsLeft} intentos para esta pregunta.", 
+                                IsUser = false 
+                            });
+                        }
                     }
                 }
 
@@ -384,6 +395,18 @@ namespace Ready4Hire.MVVM.Views
         private async Task ScrollToBottomAsync()
         {
             await JS.InvokeVoidAsync("scrollToBottom");
+        }
+
+        /// Redimensiona automáticamente el textarea según su contenido
+        private async Task AutoResizeTextarea()
+        {
+            await JS.InvokeVoidAsync("eval", @"
+                const textarea = document.getElementById('chatInput');
+                if (textarea) {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+                }
+            ");
         }
 
 

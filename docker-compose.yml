@@ -1,0 +1,436 @@
+version: '3.8'
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Ready4Hire v2.1 - Docker Compose Unificado
+# Soporta: Production, QA, Staging
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# USAGE:
+#   Production:  docker-compose --profile production up -d
+#   QA:          docker-compose --profile qa up -d
+#   Staging:     docker-compose --profile staging up -d
+#   Development: docker-compose --profile dev up -d
+#   All:         docker-compose --profile production --profile monitoring up -d
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ════════════════════════════════════════════════════════════════════════════
+  # CORE SERVICES (Todos los entornos)
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ready4hire_postgres_${ENVIRONMENT:-dev}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ready4hire_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ready4hire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - ready4hire_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ready4hire}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    profiles: ["production", "qa", "staging", "dev"]
+
+  # Redis - Cache + Celery Broker
+  redis:
+    image: redis:7-alpine
+    container_name: ready4hire_redis_${ENVIRONMENT:-dev}
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory ${REDIS_MAXMEMORY:-512mb}
+      --maxmemory-policy allkeys-lru
+      ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - ready4hire_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    profiles: ["production", "qa", "staging", "dev"]
+
+  # Qdrant - Vector Database
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: ready4hire_qdrant_${ENVIRONMENT:-dev}
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    profiles: ["production", "qa", "staging", "dev"]
+
+  # Ollama LLM Service
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ready4hire_ollama_${ENVIRONMENT:-dev}
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    networks:
+      - ready4hire_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    profiles: ["production", "qa", "staging", "dev"]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: ${GPU_COUNT:-0}
+              capabilities: [gpu]
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # BACKEND API
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  api:
+    build:
+      context: ./Ready4Hire
+      dockerfile: Dockerfile
+    container_name: ready4hire_api_${ENVIRONMENT:-dev}
+    environment:
+      # Application
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}
+      
+      # Redis
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      REDIS_ENABLED: "true"
+      
+      # Celery
+      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      
+      # Qdrant
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      
+      # Ollama
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      
+      # Security
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_me_in_production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5214,http://localhost:3000}
+      
+      # Monitoring
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      PROMETHEUS_PORT: ${PROMETHEUS_METRICS_PORT:-8000}
+      
+      # Sentry (Production only)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+    ports:
+      - "${API_PORT:-8001}:8001"
+      - "${PROMETHEUS_METRICS_PORT:-8000}:8000"
+    networks:
+      - ready4hire_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./Ready4Hire/app:/app/app:${VOLUME_MODE:-ro}
+      - ./Ready4Hire/logs:/app/logs
+      - ./Ready4Hire/datasets:/app/datasets:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/v2/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    profiles: ["production", "qa", "staging", "dev"]
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # CELERY WORKERS
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  celery_worker:
+    build:
+      context: ./Ready4Hire
+      dockerfile: Dockerfile
+    container_name: ready4hire_celery_worker_${ENVIRONMENT:-dev}
+    command: celery -A app.infrastructure.tasks.celery_app worker --loglevel=${CELERY_LOG_LEVEL:-info} --concurrency=${CELERY_CONCURRENCY:-4} -Q default,evaluations,ml_tasks,high_priority
+    environment:
+      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}
+      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    depends_on:
+      - redis
+      - postgres
+      - qdrant
+      - ollama
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    volumes:
+      - ./Ready4Hire/app:/app/app:${VOLUME_MODE:-ro}
+      - ./Ready4Hire/logs:/app/logs
+    profiles: ["production", "qa", "staging"]
+
+  celery_beat:
+    build:
+      context: ./Ready4Hire
+      dockerfile: Dockerfile
+    container_name: ready4hire_celery_beat_${ENVIRONMENT:-dev}
+    command: celery -A app.infrastructure.tasks.celery_app beat --loglevel=${CELERY_LOG_LEVEL:-info}
+    environment:
+      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    volumes:
+      - ./Ready4Hire/app:/app/app:${VOLUME_MODE:-ro}
+      - ./Ready4Hire/logs:/app/logs
+    profiles: ["production", "staging"]
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # MONITORING STACK
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  flower:
+    build:
+      context: ./Ready4Hire
+      dockerfile: Dockerfile
+    container_name: ready4hire_flower_${ENVIRONMENT:-dev}
+    command: celery -A app.infrastructure.tasks.celery_app flower --port=5555 --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-admin}
+    ports:
+      - "${FLOWER_PORT:-5555}:5555"
+    environment:
+      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+    depends_on:
+      - redis
+      - celery_worker
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    profiles: ["production", "qa", "staging", "monitoring"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ready4hire_prometheus_${ENVIRONMENT:-dev}
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    profiles: ["production", "qa", "staging", "monitoring"]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ready4hire_grafana_${ENVIRONMENT:-dev}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    profiles: ["production", "qa", "staging", "monitoring"]
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: ready4hire_node_exporter_${ENVIRONMENT:-dev}
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    command:
+      - '--path.rootfs=/host'
+    volumes:
+      - /:/host:ro,rslave
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    profiles: ["production", "monitoring"]
+
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: ready4hire_postgres_exporter_${ENVIRONMENT:-dev}
+    ports:
+      - "${POSTGRES_EXPORTER_PORT:-9187}:9187"
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}?sslmode=disable"
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    depends_on:
+      - postgres
+    profiles: ["production", "monitoring"]
+
+  redis_exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: ready4hire_redis_exporter_${ENVIRONMENT:-dev}
+    ports:
+      - "${REDIS_EXPORTER_PORT:-9121}:9121"
+    environment:
+      REDIS_ADDR: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    depends_on:
+      - redis
+    profiles: ["production", "monitoring"]
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # NGINX REVERSE PROXY (Production & Staging only)
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  nginx:
+    image: nginx:alpine
+    container_name: ready4hire_nginx_${ENVIRONMENT:-dev}
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.${ENVIRONMENT:-production}.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+    networks:
+      - ready4hire_network
+    depends_on:
+      - api
+    restart: unless-stopped
+    profiles: ["production", "staging"]
+
+# ══════════════════════════════════════════════════════════════════════════════
+# VOLUMES
+# ══════════════════════════════════════════════════════════════════════════════
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  ollama_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NETWORKS
+# ══════════════════════════════════════════════════════════════════════════════
+
+networks:
+  ready4hire_network:
+    driver: bridge
+
+# ══════════════════════════════════════════════════════════════════════════════
+# COMANDOS ÚTILES
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# PRODUCTION (todos los servicios + monitoring):
+#   docker-compose --profile production --profile monitoring up -d
+#
+# QA (sin Celery Beat, sin Nginx):
+#   docker-compose --profile qa --profile monitoring up -d
+#
+# STAGING (similar a production pero sin nginx):
+#   docker-compose --profile staging --profile monitoring up -d
+#
+# DEVELOPMENT (sin workers, sin monitoring):
+#   docker-compose --profile dev up -d
+#
+# Ver logs:
+#   docker-compose logs -f [service]
+#
+# Escalar workers:
+#   docker-compose --profile production up -d --scale celery_worker=4
+#
+# Health check:
+#   docker-compose ps
+#   curl http://localhost:8001/api/v2/health
+#
+# Detener:
+#   docker-compose --profile production --profile monitoring down
+#
+# Limpiar todo (⚠️ borra volúmenes):
+#   docker-compose --profile production --profile monitoring down -v
+#
+# ══════════════════════════════════════════════════════════════════════════════
+# URLS DE ACCESO
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Backend API:         http://localhost:8001
+# API Docs (Swagger):  http://localhost:8001/docs
+# Flower (Celery):     http://localhost:5555
+# Grafana:             http://localhost:3000 (admin/admin)
+# Prometheus:          http://localhost:9090
+# Qdrant Dashboard:    http://localhost:6333/dashboard
+#
+# ══════════════════════════════════════════════════════════════════════════════
+

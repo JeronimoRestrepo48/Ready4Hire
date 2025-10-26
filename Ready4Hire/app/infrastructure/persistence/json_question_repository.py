@@ -2,6 +2,7 @@
 JSON Implementation: Question Repository
 Lee preguntas desde archivos JSONL (compatible con estructura actual)
 """
+
 import json
 from typing import List, Optional
 from pathlib import Path
@@ -13,16 +14,21 @@ from app.domain.repositories.question_repository import QuestionRepository
 class JsonQuestionRepository(QuestionRepository):
     """
     Implementación que lee preguntas desde archivos JSONL.
-    Compatible con los archivos actuales tech_questions.jsonl y soft_skills.jsonl
+    Usa los datasets actualizados:
+    - technical_questions_by_profession_v3.jsonl: Preguntas técnicas por profesión
+    - soft_skills.jsonl: Preguntas de soft skills universales
     """
-    
-    def __init__(self, tech_file: str = "app/datasets/tech_questions.jsonl", 
-                 soft_file: str = "app/datasets/soft_skills.jsonl"):
+
+    def __init__(
+        self,
+        tech_file: str = "app/datasets/technical_questions_by_profession_v3.jsonl",
+        soft_file: str = "app/datasets/soft_skills.jsonl",
+    ):
         """
         Inicializa el repositorio con archivos JSONL.
-        
+
         Args:
-            tech_file: Ruta al archivo de preguntas técnicas
+            tech_file: Ruta al archivo de preguntas técnicas por profesión
             soft_file: Ruta al archivo de preguntas de soft skills
         """
         self.tech_file = Path(tech_file)
@@ -31,79 +37,96 @@ class JsonQuestionRepository(QuestionRepository):
         self._soft_cache: List[Question] = []
         self._embeddings_cache: dict = {}  # ⚡ Cache de embeddings pre-computados
         self._load_questions()
-    
+
     def _load_questions(self) -> None:
-        """Carga preguntas desde archivos JSONL"""
-        # Cargar preguntas técnicas
+        """Carga preguntas desde archivos JSONL actualizados"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Cargar preguntas técnicas por profesión
         if self.tech_file.exists():
-            with open(self.tech_file, 'r', encoding='utf-8') as f:
+            logger.info(f"📚 Loading technical questions from {self.tech_file}")
+            with open(self.tech_file, "r", encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
-                        data = json.loads(line)
-                        data['category'] = 'technical'
-                        self._tech_cache.append(Question.from_dict(data))
-        
+                        try:
+                            data = json.loads(line)
+                            data["category"] = "technical"
+                            self._tech_cache.append(Question.from_dict(data))
+                        except Exception as e:
+                            logger.warning(f"⚠️ Error loading technical question: {e}")
+            logger.info(f"✅ Loaded {len(self._tech_cache)} technical questions")
+        else:
+            logger.error(f"❌ Technical questions file not found: {self.tech_file}")
+
         # Cargar preguntas de soft skills
         if self.soft_file.exists():
-            with open(self.soft_file, 'r', encoding='utf-8') as f:
+            logger.info(f"📚 Loading soft skills questions from {self.soft_file}")
+            with open(self.soft_file, "r", encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
-                        data = json.loads(line)
-                        data['category'] = 'soft_skills'
-                        self._soft_cache.append(Question.from_dict(data))
-    
+                        try:
+                            data = json.loads(line)
+                            data["category"] = "soft_skills"
+                            self._soft_cache.append(Question.from_dict(data))
+                        except Exception as e:
+                            logger.warning(f"⚠️ Error loading soft skills question: {e}")
+            logger.info(f"✅ Loaded {len(self._soft_cache)} soft skills questions")
+        else:
+            logger.error(f"❌ Soft skills file not found: {self.soft_file}")
+
     async def find_by_id(self, question_id: str) -> Optional[Question]:
         """Busca pregunta por ID"""
         all_questions = self._tech_cache + self._soft_cache
-        
+
         for question in all_questions:
             if question.id == question_id:
                 return question
-        
+
         return None
-    
+
     async def find_by_role(self, role: str, category: str = "technical") -> List[Question]:
         """Busca preguntas por rol y categoría"""
         cache = self._tech_cache if category == "technical" else self._soft_cache
         role_lower = role.lower()
-        
-        return [
-            q for q in cache 
-            if role_lower in q.role.lower() or q.role.lower() in role_lower
-        ]
-    
+
+        return [q for q in cache if role_lower in q.role.lower() or q.role.lower() in role_lower]
+
     async def find_by_difficulty(self, difficulty: str, category: str = "technical") -> List[Question]:
         """Busca preguntas por dificultad"""
         cache = self._tech_cache if category == "technical" else self._soft_cache
-        
+
         return [q for q in cache if q.difficulty == difficulty]
-    
+
     async def find_all_technical(self) -> List[Question]:
         """Obtiene todas las preguntas técnicas"""
         return self._tech_cache.copy()
-    
+
     async def find_all_soft_skills(self) -> List[Question]:
         """Obtiene todas las preguntas de soft skills"""
         return self._soft_cache.copy()
-    
+
     async def search(self, query: str, category: Optional[str] = None) -> List[Question]:
         """Busca preguntas por texto"""
         query_lower = query.lower()
-        
+
         if category == "technical":
             cache = self._tech_cache
         elif category == "soft_skills":
             cache = self._soft_cache
         else:
             cache = self._tech_cache + self._soft_cache
-        
+
         return [
-            q for q in cache 
-            if (query_lower in q.text.lower() or 
-                query_lower in q.topic.lower() or
-                any(query_lower in kw.lower() for kw in q.keywords))
+            q
+            for q in cache
+            if (
+                query_lower in q.text.lower()
+                or query_lower in q.topic.lower()
+                or any(query_lower in kw.lower() for kw in q.keywords)
+            )
         ]
-    
+
     def reload(self) -> None:
         """Recarga las preguntas desde los archivos"""
         self._tech_cache.clear()

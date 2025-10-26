@@ -1,6 +1,7 @@
 """
 Use Case: Iniciar Entrevista
 """
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -15,7 +16,7 @@ from app.domain.repositories.question_repository import QuestionRepository
 class StartInterviewRequest:
     """
     Request DTO para iniciar una entrevista.
-    
+
     Attributes:
         user_id: Identificador único del usuario
         role: Rol para el que se realiza la entrevista (ej: "Backend Developer")
@@ -23,6 +24,7 @@ class StartInterviewRequest:
         skill_level: Nivel de habilidad ("junior", "mid", "senior")
         mode: Modo de entrevista ("practice", "exam")
     """
+
     user_id: str
     role: str
     interview_type: str = "technical"  # technical | soft_skills | mixed
@@ -34,7 +36,7 @@ class StartInterviewRequest:
 class StartInterviewResponse:
     """
     Response DTO para la respuesta de iniciar entrevista.
-    
+
     Attributes:
         interview_id: ID único de la entrevista creada
         first_question: Texto de la primera pregunta
@@ -42,6 +44,7 @@ class StartInterviewResponse:
         success: Indica si la operación fue exitosa
         error: Mensaje de error si success=False
     """
+
     interview_id: str
     first_question: str
     message: str
@@ -52,7 +55,7 @@ class StartInterviewResponse:
 class StartInterviewUseCase:
     """
     Caso de uso: Iniciar entrevista
-    
+
     Flujo:
     1. Validar que no haya entrevista activa
     2. Crear nueva entrevista
@@ -60,22 +63,18 @@ class StartInterviewUseCase:
     4. Persistir entrevista
     5. Retornar respuesta
     """
-    
-    def __init__(
-        self,
-        interview_repo: InterviewRepository,
-        question_repo: QuestionRepository
-    ):
+
+    def __init__(self, interview_repo: InterviewRepository, question_repo: QuestionRepository):
         """
         Inicializa el caso de uso con los repositorios necesarios.
-        
+
         Args:
             interview_repo: Repositorio para persistir entrevistas
             question_repo: Repositorio para acceder a preguntas
         """
         self.interview_repo = interview_repo
         self.question_repo = question_repo
-    
+
     async def execute(self, request: StartInterviewRequest) -> StartInterviewResponse:
         try:
             # 1. Validar que no exista entrevista activa
@@ -86,67 +85,57 @@ class StartInterviewUseCase:
                     first_question="",
                     message="Ya tienes una entrevista activa",
                     success=False,
-                    error="ACTIVE_INTERVIEW_EXISTS"
+                    error="ACTIVE_INTERVIEW_EXISTS",
                 )
-            
+
             # 2. Crear nueva entrevista
             interview = Interview(
                 user_id=request.user_id,
                 role=request.role,
                 interview_type=request.interview_type,
                 skill_level=SkillLevel(request.skill_level),
-                mode=request.mode
+                mode=request.mode,
             )
-            
+
             # 3. Iniciar entrevista
             interview.start()
-            
+
             # 4. Seleccionar primera pregunta
             first_question = await self._select_initial_question(
-                role=request.role,
-                interview_type=request.interview_type,
-                level=interview.skill_level
+                role=request.role, interview_type=request.interview_type, level=interview.skill_level
             )
-            
+
             if not first_question:
                 return StartInterviewResponse(
                     interview_id="",
                     first_question="",
                     message="No se encontraron preguntas para este rol",
                     success=False,
-                    error="NO_QUESTIONS_FOUND"
+                    error="NO_QUESTIONS_FOUND",
                 )
-            
+
             interview.add_question(first_question)
-            
+
             # 5. Persistir
             await self.interview_repo.save(interview)
-            
+
             # 6. Retornar respuesta
             welcome_message = self._generate_welcome_message(request.role, request.mode)
-            
+
             return StartInterviewResponse(
-                interview_id=interview.id,
-                first_question=first_question.text,
-                message=welcome_message,
-                success=True
+                interview_id=interview.id, first_question=first_question.text, message=welcome_message, success=True
             )
-        
+
         except Exception as e:
             return StartInterviewResponse(
                 interview_id="",
                 first_question="",
                 message=f"Error al iniciar entrevista: {str(e)}",
                 success=False,
-                error="INTERNAL_ERROR"
+                error="INTERNAL_ERROR",
             )
-    
-    async def _select_initial_question(
-        self,
-        role: str,
-        interview_type: str,
-        level: SkillLevel
-    ) -> Optional[Question]:
+
+    async def _select_initial_question(self, role: str, interview_type: str, level: SkillLevel) -> Optional[Question]:
         """Selecciona la pregunta inicial apropiada"""
         # Obtener preguntas del tipo correcto
         if interview_type == "technical":
@@ -157,28 +146,25 @@ class StartInterviewUseCase:
             tech_questions = await self.question_repo.find_by_role(role, "technical")
             soft_questions = await self.question_repo.find_all_soft_skills()
             questions = tech_questions + soft_questions
-        
+
         if not questions:
             return None
-        
+
         # Filtrar por dificultad apropiada para el nivel
-        difficulty_map = {
-            SkillLevel.JUNIOR: "easy",
-            SkillLevel.MID: "medium",
-            SkillLevel.SENIOR: "hard"
-        }
-        
+        difficulty_map = {SkillLevel.JUNIOR: "easy", SkillLevel.MID: "medium", SkillLevel.SENIOR: "hard"}
+
         target_difficulty = difficulty_map[level]
         suitable_questions = [q for q in questions if q.difficulty == target_difficulty]
-        
+
         # Si no hay preguntas del nivel exacto, usar todas
         if not suitable_questions:
             suitable_questions = questions
-        
+
         # Retornar la primera
         import random
+
         return random.choice(suitable_questions)
-    
+
     def _generate_welcome_message(self, role: str, mode: str) -> str:
         """Genera mensaje de bienvenida personalizado"""
         if mode == "exam":

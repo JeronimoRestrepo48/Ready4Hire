@@ -1,0 +1,31 @@
+[flake8]
+max-line-length = 120
+exclude =
+    venv,
+    __pycache__,
+    .git,
+    .pytest_cache,
+    *.egg-info,
+    build,
+    dist,
+    migrations
+
+# Ignorar algunos errores comunes que no afectan funcionalidad
+ignore =
+    # F401: Module imported but unused (algunos imports son para exportar)
+    # F541: f-string without placeholders (a veces se usa para consistencia)
+    # W503: line break before binary operator (estilo de PEP 8 actualizado)
+    # E203: whitespace before ':' (conflicto con black)
+    W503,
+    E203
+
+# Permitir algunos warnings específicos
+per-file-ignores =
+    __init__.py:F401,F403
+    app/infrastructure/security/auth.py:F824
+    app/infrastructure/ml/*.py:F401,F811
+
+# Contar errores
+count = True
+statistics = True
+

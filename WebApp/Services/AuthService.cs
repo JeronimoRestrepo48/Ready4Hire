@@ -70,6 +70,22 @@ namespace Ready4Hire.Services
         }
 
         /// <summary>
+        /// Obtiene el email del usuario actual
+        /// </summary>
+        public async Task<string?> GetCurrentUserEmailAsync()
+        {
+            try
+            {
+                var user = await GetCurrentUserAsync();
+                return user?.Email;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Verifica si hay un usuario autenticado
         /// </summary>
         public async Task<bool> IsAuthenticatedAsync()

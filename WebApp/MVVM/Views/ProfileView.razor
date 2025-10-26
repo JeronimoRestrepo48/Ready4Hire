@@ -1,0 +1,375 @@
+@page "/profile"
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@using Ready4Hire.Data
+@using Microsoft.EntityFrameworkCore
+@rendermode InteractiveServer
+
+<PageTitle>Mi Perfil - Ready4Hire</PageTitle>
+
+<div class="profile-container">
+    @if (isLoading)
+    {
+        <div class="loading">
+            <div class="spinner"></div>
+            <p>Cargando perfil...</p>
+        </div>
+    }
+    else if (user != null)
+    {
+        <!-- Header del Perfil -->
+        <div class="profile-header">
+            <div class="avatar-section">
+                <div class="avatar-large">
+                    @GetUserInitials()
+                </div>
+                <button class="btn-change-avatar">Cambiar Avatar</button>
+            </div>
+            
+            <div class="user-info-section">
+                <h1 class="profile-name">@user.Name @user.LastName</h1>
+                <p class="user-email-highlight">@user.Email</p>
+                <p class="user-profession">@(user.Profession ?? "Sin profesión asignada") • @(user.ExperienceLevel ?? "Principiante")</p>
+            </div>
+
+            <div class="profile-stats-quick">
+                <div class="quick-stat">
+                    <div class="stat-icon">🏆</div>
+                    <div class="stat-value">@user.TotalPoints</div>
+                    <div class="stat-label">Puntos</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="stat-icon">⭐</div>
+                    <div class="stat-value">Nivel @user.Level</div>
+                    <div class="stat-label">@GetXpProgress()% al siguiente</div>
+                </div>
+                <div class="quick-stat">
+                    <div class="stat-icon">🔥</div>
+                    <div class="stat-value">@user.StreakDays</div>
+                    <div class="stat-label">Días de racha</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="profile-tabs">
+            <button class="tab-btn @(activeTab == "info" ? "active" : "")" @onclick='() => activeTab = "info"'>
+                Información
+            </button>
+            <button class="tab-btn @(activeTab == "badges" ? "active" : "")" @onclick='() => activeTab = "badges"'>
+                🏅 Insignias (@userBadges.Count(b => b.IsUnlocked))
+            </button>
+            <button class="tab-btn @(activeTab == "progress" ? "active" : "")" @onclick='() => activeTab = "progress"'>
+                Progreso
+            </button>
+            <button class="tab-btn @(activeTab == "settings" ? "active" : "")" @onclick='() => activeTab = "settings"'>
+                Configuración
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="profile-content">
+            @if (activeTab == "info")
+            {
+                <div class="info-section">
+                    <div class="info-card">
+                        <h3>Información Personal</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>Nombre:</label>
+                                <span>@user.Name</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Apellido:</label>
+                                <span>@user.LastName</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Email:</label>
+                                <span>@user.Email</span>
+                            </div>
+                            <div class="info-item">
+                                <label>País:</label>
+                                <span>@user.Country</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Trabajo:</label>
+                                <span>@user.Job</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Profesión:</label>
+                                <span>@(user.Profession ?? "No especificada")</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Nivel de Experiencia:</label>
+                                <span>@(user.ExperienceLevel ?? "Principiante")</span>
+                            </div>
+                        </div>
+                        <button class="btn-edit">Editar Información</button>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="card-header-with-action">
+                            <h3>Habilidades Técnicas</h3>
+                            <button class="btn-add-skill" @onclick="@(() => ShowAddSkillModal("technical"))">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                Agregar
+                            </button>
+                        </div>
+                        <div class="skills-tags">
+                            @foreach (var skill in user.Skills)
+                            {
+                                <span class="skill-tag technical">
+                                    @skill
+                                    <button class="remove-skill" @onclick="@(() => RemoveSkill("technical", skill))">×</button>
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="card-header-with-action">
+                            <h3>Habilidades Blandas</h3>
+                            <button class="btn-add-skill" @onclick="@(() => ShowAddSkillModal("soft"))">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                Agregar
+                            </button>
+                        </div>
+                        <div class="skills-tags">
+                            @foreach (var skill in user.Softskills)
+                            {
+                                <span class="skill-tag soft">
+                                    @skill
+                                    <button class="remove-skill" @onclick="@(() => RemoveSkill("soft", skill))">×</button>
+                                </span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <div class="card-header-with-action">
+                            <h3>Intereses</h3>
+                            <button class="btn-add-skill" @onclick="@(() => ShowAddSkillModal("interest"))">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                Agregar
+                            </button>
+                        </div>
+                        <div class="skills-tags">
+                            @foreach (var interest in user.Interests)
+                            {
+                                <span class="skill-tag interest">
+                                    @interest
+                                    <button class="remove-skill" @onclick="@(() => RemoveSkill("interest", interest))">×</button>
+                                </span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "badges")
+            {
+                <div class="badges-section">
+                    <div class="badges-header">
+                        <h2>🏅 Mis Insignias</h2>
+                        <p>@userBadges.Count(b => b.IsUnlocked) de @availableBadges.Count desbloqueadas</p>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="badge-filters">
+                        <select @bind="badgeFilterRarity" class="filter-select">
+                            <option value="">Todas las raritas</option>
+                            <option value="common">Común</option>
+                            <option value="rare">Raro</option>
+                            <option value="epic">Épico</option>
+                            <option value="legendary">Legendario</option>
+                        </select>
+
+                        <select @bind="badgeFilterCategory" class="filter-select">
+                            <option value="">Todas las categorías</option>
+                            <option value="milestone">Hitos</option>
+                            <option value="technical">Técnicas</option>
+                            <option value="soft_skills">Soft Skills</option>
+                            <option value="achievement">Logros</option>
+                            <option value="general">General</option>
+                        </select>
+
+                        <label class="filter-checkbox">
+                            <input type="checkbox" @bind="showOnlyUnlocked" />
+                            <span>Solo desbloqueadas</span>
+                        </label>
+                    </div>
+
+                    <!-- Grid de Badges -->
+                    <div class="badges-grid">
+                        @foreach (var userBadge in GetFilteredBadges())
+                        {
+                            var badge = availableBadges.FirstOrDefault(b => b.Id == userBadge.BadgeId);
+                            if (badge != null)
+                            {
+                                <div class="badge-card @(userBadge.IsUnlocked ? "unlocked" : "locked") rarity-@badge.Rarity">
+                                    <div class="badge-icon-large">@badge.Icon</div>
+                                    <div class="badge-rarity">@GetRarityName(badge.Rarity)</div>
+                                    <h4>@badge.Name</h4>
+                                    <p>@badge.Description</p>
+                                    
+                                    @if (userBadge.IsUnlocked)
+                                    {
+                                        <div class="badge-unlocked-info">
+                                            <span class="unlocked-badge">✅ Desbloqueado</span>
+                                            <span class="unlock-date">@userBadge.UnlockedAt.ToString("dd MMM yyyy")</span>
+                                            <div class="badge-rewards">
+                                                <span>+@badge.RewardPoints pts</span>
+                                                <span>+@badge.RewardXp XP</span>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="badge-progress-section">
+                                            <div class="progress-bar">
+                                                <div class="progress-fill" style="width: @(userBadge.Progress * 100)%"></div>
+                                            </div>
+                                            <span class="progress-text">@((int)(userBadge.Progress * 100))% completo</span>
+                                            <div class="badge-requirement">
+                                                @GetRequirementText(badge)
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            else if (activeTab == "progress")
+            {
+                <div class="progress-section">
+                    <div class="progress-card">
+                        <h3>Progreso de Nivel</h3>
+                        <div class="level-progress">
+                            <div class="level-display">
+                                <div class="level-badge-large">
+                                    <span class="level-number">@user.Level</span>
+                                </div>
+                                <div class="level-info">
+                                    <p class="level-label">Nivel Actual</p>
+                                    <p class="xp-info">@user.Experience / @GetNextLevelXp() XP</p>
+                                </div>
+                            </div>
+                            <div class="xp-bar-large">
+                                <div class="xp-fill" style="width: @GetXpProgress()%"></div>
+                            </div>
+                            <p class="xp-remaining">@(GetNextLevelXp() - user.Experience) XP para el siguiente nivel</p>
+                        </div>
+                    </div>
+
+                    <div class="stats-grid-detailed">
+                        <div class="stat-card-detailed">
+                            <div class="stat-icon-large">🎯</div>
+                            <div class="stat-number">@user.TotalGamesPlayed</div>
+                            <div class="stat-label">Juegos Jugados</div>
+                        </div>
+                        <div class="stat-card-detailed">
+                            <div class="stat-icon-large">🏆</div>
+                            <div class="stat-number">@user.TotalGamesWon</div>
+                            <div class="stat-label">Juegos Ganados</div>
+                        </div>
+                        <div class="stat-card-detailed">
+                            <div class="stat-icon-large">📈</div>
+                            <div class="stat-number">@GetWinRate()%</div>
+                            <div class="stat-label">Win Rate</div>
+                        </div>
+                        <div class="stat-card-detailed">
+                            <div class="stat-icon-large">🎖️</div>
+                            <div class="stat-number">@userBadges.Count(b => b.IsUnlocked)</div>
+                            <div class="stat-label">Insignias</div>
+                        </div>
+                    </div>
+
+                    <div class="progress-card">
+                        <h3>Actividad Reciente</h3>
+                        <div class="activity-info">
+                            <p>Última actividad: @(user.LastActivityDate?.ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</p>
+                            <p>Racha actual: @user.StreakDays días 🔥</p>
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "settings")
+            {
+                <div class="settings-section">
+                    <div class="settings-card">
+                        <h3>Preferencias de Cuenta</h3>
+                        <button class="btn-action">Cambiar Contraseña</button>
+                        <button class="btn-action">Configurar Notificaciones</button>
+                        <button class="btn-action">Privacidad</button>
+                    </div>
+                    <div class="settings-card danger-zone">
+                        <h3>Zona Peligrosa</h3>
+                        <button class="btn-danger">Eliminar Cuenta</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="error-state">
+            <p>❌ No se pudo cargar el perfil</p>
+            <button @onclick="LoadUserData">Reintentar</button>
+        </div>
+    }
+</div>
+
+@if (showAddSkillModal)
+{
+    <div class="modern-modal-overlay" @onclick="HideAddSkillModal">
+        <div class="modern-modal" @onclick:stopPropagation style="max-width: 500px;">
+            <div class="modal-header">
+                <h2>Agregar @GetSkillTypeLabel(currentSkillType)</h2>
+                <button class="modal-close" @onclick="HideAddSkillModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group-modern">
+                    <label class="form-label">Buscar o escribir nueva habilidad:</label>
+                    <input type="text" 
+                           class="form-input" 
+                           @bind="newSkillInput"
+                           @oninput="FilterSkillSuggestions"
+                           placeholder="Escribe para buscar..."/>
+                </div>
+                
+                @if (filteredSuggestions.Any())
+                {
+                    <div class="autocomplete-suggestions">
+                        <p class="suggestions-label">Sugerencias:</p>
+                        @foreach (var suggestion in filteredSuggestions.Take(8))
+                        {
+                            <button class="suggestion-item" @onclick="() => SelectSuggestion(suggestion)">
+                                @suggestion
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn-secondary-modern" @onclick="HideAddSkillModal">Cancelar</button>
+                <button class="btn-primary-modern" @onclick="AddNewSkill" disabled="@string.IsNullOrWhiteSpace(newSkillInput)">
+                    Agregar
+                </button>
+            </div>
+        </div>
+    </div>
+}
+

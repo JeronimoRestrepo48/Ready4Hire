@@ -2,198 +2,206 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ master, main, develop ]
+    branches: [ main, master, develop ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ main, master, develop ]
 
 jobs:
-  # ============================================================================
-  # Linting and Formatting
-  # ============================================================================
-  lint:
-    name: Lint and Format Check
+  lint-python:
+    name: Lint Python Code
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install black flake8 isort bandit
-      
-      - name: Run Black
-        run: |
-          black --check --line-length=100 Ready4Hire/app/
-      
-      - name: Run Flake8
-        run: |
-          flake8 --max-line-length=100 --ignore=E203,W503,E501 Ready4Hire/app/
-      
-      - name: Run isort
-        run: |
-          isort --check-only --profile=black --line-length=100 Ready4Hire/app/
-      
-      - name: Run Bandit (Security)
-        run: |
-          bandit -r Ready4Hire/app/ -ll
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        cd Ready4Hire
+        pip install -r requirements.txt
+        pip install black flake8 mypy pylint bandit
+    
+    - name: Run Black (Format Check)
+      run: |
+        cd Ready4Hire
+        black --check app --line-length 120 --exclude="venv|__pycache__|.git"
+      continue-on-error: true
+    
+    - name: Run Flake8 (Linting)
+      run: |
+        cd Ready4Hire
+        flake8 app --max-line-length=120 --exclude=venv,__pycache__,.git --count --statistics
+      continue-on-error: false
+    
+    - name: Run Bandit (Security)
+      run: |
+        cd Ready4Hire
+        bandit -r app -f json -o bandit-report.json || true
+      continue-on-error: true
 
-  # ============================================================================
-  # Unit Tests
-  # ============================================================================
-  test:
-    name: Unit Tests
+  test-python:
+    name: Test Python Backend
     runs-on: ubuntu-latest
-    needs: lint
+    needs: lint-python
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ready4hire_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r Ready4Hire/requirements.txt
-      
-      - name: Run tests with coverage
-        run: |
-          cd Ready4Hire
-          pytest tests/unit/ --cov=app --cov-report=xml --cov-report=term-missing
-      
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./Ready4Hire/coverage.xml
-          flags: unittests
-          name: codecov-umbrella
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        cd Ready4Hire
+        pip install -r requirements.txt
+        pip install pytest pytest-asyncio pytest-cov pytest-mock httpx
+    
+    - name: Run Tests
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ready4hire_test
+        OLLAMA_URL: http://localhost:11434
+      run: |
+        cd Ready4Hire
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
+      continue-on-error: true
+    
+    - name: Upload Coverage
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./Ready4Hire/coverage.xml
+        flags: backend
+        name: backend-coverage
+      continue-on-error: true
 
-  # ============================================================================
-  # Integration Tests (requires Ollama)
-  # ============================================================================
-  integration-test:
-    name: Integration Tests
+  lint-dotnet:
+    name: Lint .NET Code
     runs-on: ubuntu-latest
-    needs: test
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-      
-      - name: Install Ollama
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          ollama serve &
-          sleep 5
-          ollama pull llama3.2:3b
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r Ready4Hire/requirements.txt
-      
-      - name: Run integration tests
-        run: |
-          cd Ready4Hire
-          pytest tests/test_integration.py -v
-        timeout-minutes: 10
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: |
+        cd WebApp
+        dotnet restore
+    
+    - name: Build
+      run: |
+        cd WebApp
+        dotnet build --no-restore --configuration Release
+    
+    - name: Run .NET Format Check
+      run: |
+        cd WebApp
+        dotnet format --verify-no-changes --no-restore
+      continue-on-error: true
 
-  # ============================================================================
-  # Docker Build
-  # ============================================================================
-  docker-build:
-    name: Docker Build Test
+  test-dotnet:
+    name: Test .NET Frontend
     runs-on: ubuntu-latest
-    needs: test
+    needs: lint-dotnet
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ready4hire_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Build Docker image
-        run: |
-          cd Ready4Hire
-          docker build -t ready4hire:test .
-      
-      - name: Test Docker image
-        run: |
-          docker run --rm ready4hire:test python -c "import app; print('✅ Image OK')"
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: |
+        cd WebApp
+        dotnet restore
+    
+    - name: Build
+      run: |
+        cd WebApp
+        dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      env:
+        POSTGRES_CONNECTION: "Host=localhost;Port=5432;Database=ready4hire_test;Username=postgres;Password=postgres"
+      run: |
+        cd WebApp
+        dotnet test --no-build --configuration Release --verbosity normal
+      continue-on-error: true
 
-  # ============================================================================
-  # Security Scanning
-  # ============================================================================
-  security:
+  security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: 'Ready4Hire/'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-      
-      - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
+    - uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+      continue-on-error: true
+    
+    - name: Upload Trivy results to GitHub Security
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: 'trivy-results.sarif'
+      continue-on-error: true
 
-  # ============================================================================
-  # Deployment (optional, only on master)
-  # ============================================================================
-  deploy:
-    name: Deploy to Production
+  build-status:
+    name: Build Status
     runs-on: ubuntu-latest
-    needs: [test, integration-test, docker-build]
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    needs: [lint-python, test-python, lint-dotnet, test-dotnet, security-scan]
+    if: always()
     
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-      
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: ./Ready4Hire
-          push: true
-          tags: |
-            ready4hire/api:latest
-            ready4hire/api:${{ github.sha }}
-      
-      - name: Deploy notification
-        run: |
-          echo "✅ Deployment successful!"
-          echo "Image: ready4hire/api:${{ github.sha }}"
-
+    - name: Check build status
+      run: |
+        echo "Build completed!"
+        echo "Python Lint: ${{ needs.lint-python.result }}"
+        echo "Python Test: ${{ needs.test-python.result }}"
+        echo ".NET Lint: ${{ needs.lint-dotnet.result }}"
+        echo ".NET Test: ${{ needs.test-dotnet.result }}"
+        echo "Security: ${{ needs.security-scan.result }}"

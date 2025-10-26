@@ -1,93 +1,83 @@
 """
 DTOs for Interview API endpoints.
 """
-from pydantic import BaseModel, Field, validator
+
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
 
 class StartInterviewRequest(BaseModel):
     """Request to start a new interview."""
-    
-    user_id: str = Field(
-        ...,
-        min_length=3,
-        max_length=100,
-        description="Unique user identifier",
-        example="user-12345"
-    )
-    role: str = Field(
-        ...,
-        min_length=1,
-        max_length=100,
-        description="Job role/position",
-        example="Backend Developer"
-    )
+
+    user_id: str = Field(..., min_length=3, max_length=100, description="Unique user identifier", example="user-12345")
+    role: str = Field(..., min_length=1, max_length=100, description="Job role/position", example="Backend Developer")
     category: str = Field(
         ...,
         pattern="^(technical|soft_skills)$",
         description="Interview category: technical or soft_skills",
-        example="technical"
+        example="technical",
     )
     difficulty: str = Field(
-        ...,
-        pattern="^(junior|mid|senior)$",
-        description="Difficulty level: junior, mid, or senior",
-        example="mid"
+        ..., pattern="^(junior|mid|senior)$", description="Difficulty level: junior, mid, or senior", example="mid"
     )
-    
-    @validator("user_id")
+
+    @field_validator("user_id")
+    @classmethod
     def validate_user_id(cls, v):
         """Validate user_id format."""
         if not v or v.strip() == "":
             raise ValueError("user_id cannot be empty")
-        
+
         stripped = v.strip()
-        
+
         # 🔐 Solo alfanuméricos, guiones y guiones bajos
         import re
-        if not re.match(r'^[a-zA-Z0-9_-]+$', stripped):
+
+        if not re.match(r"^[a-zA-Z0-9_-]+$", stripped):
             raise ValueError("user_id contains invalid characters")
-        
+
         # 🔐 No permitir IDs demasiado largos (DoS)
         if len(stripped) > 100:
             raise ValueError("user_id too long (max 100 characters)")
-        
+
         return stripped
-    
-    @validator("role")
+
+    @field_validator("role")
+    @classmethod
     def validate_role(cls, v):
         """Validate role."""
         stripped = v.strip()
-        
+
         # 🔐 Sanitizar rol
         import re
+
         # Solo permitir letras, números, espacios y algunos caracteres especiales
-        if not re.match(r'^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s./-]+$', stripped):
+        if not re.match(r"^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ\s./-]+$", stripped):
             raise ValueError("role contains invalid characters")
-        
+
         # Detectar patrones peligrosos
-        dangerous = ['<script', 'javascript:', 'onerror=', 'onload=']
+        dangerous = ["<script", "javascript:", "onerror=", "onload="]
         for pattern in dangerous:
             if pattern.lower() in stripped.lower():
                 raise ValueError(f"Contenido no permitido detectado en rol")
-        
+
         return stripped
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "user_id": "user-12345",
                 "role": "Backend Developer",
                 "category": "technical",
-                "difficulty": "mid"
+                "difficulty": "mid",
             }
         }
 
 
 class QuestionDTO(BaseModel):
     """Question data transfer object."""
-    
+
     id: str
     text: str
     category: str
@@ -98,12 +88,12 @@ class QuestionDTO(BaseModel):
 
 class StartInterviewResponse(BaseModel):
     """Response when starting an interview."""
-    
+
     interview_id: str = Field(..., description="Unique interview identifier")
     first_question: QuestionDTO = Field(..., description="First question")
     status: str = Field(..., description="Current interview phase")
     message: Optional[str] = Field(None, description="Welcome message")
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -114,56 +104,48 @@ class StartInterviewResponse(BaseModel):
                     "category": "context",
                     "difficulty": "context",
                     "topic": "context",
-                    "expected_concepts": []
+                    "expected_concepts": [],
                 },
                 "status": "context",
-                "message": "¡Bienvenido! Responde 5 preguntas de contexto."
+                "message": "¡Bienvenido! Responde 5 preguntas de contexto.",
             }
         }
 
 
 class ProcessAnswerRequest(BaseModel):
     """Request to process a user's answer."""
-    
-    answer: str = Field(
-        ...,
-        min_length=1,
-        max_length=10000,
-        description="User's answer to the question"
-    )
-    time_taken: Optional[int] = Field(
-        None,
-        ge=0,
-        le=3600,
-        description="Time taken to answer in seconds"
-    )
-    
-    @validator("answer")
+
+    answer: str = Field(..., min_length=1, max_length=10000, description="User's answer to the question")
+    time_taken: Optional[int] = Field(None, ge=0, le=3600, description="Time taken to answer in seconds")
+
+    @field_validator("answer")
+    @classmethod
     def validate_answer(cls, v):
         """Validate answer content."""
         stripped = v.strip()
         if not stripped:
             raise ValueError("Answer cannot be empty or only whitespace")
-        
+
         # 🔐 Detección de prompt injection
         import re
+
         injection_patterns = [
-            r'ignore\s+(all\s+)?(previous|all)\s+instructions',  # Más flexible
-            r'system:\s*you\s+are',
-            r'</s>',
-            r'<\|endoftext\|>',
-            r'{{\s*system',
-            r'\[\[system\]\]',
-            r'<script',
-            r'javascript:',
-            r'onerror\s*=',
-            r'onload\s*='
+            r"ignore\s+(all\s+)?(previous|all)\s+instructions",  # Más flexible
+            r"system:\s*you\s+are",
+            r"</s>",
+            r"<\|endoftext\|>",
+            r"{{\s*system",
+            r"\[\[system\]\]",
+            r"<script",
+            r"javascript:",
+            r"onerror\s*=",
+            r"onload\s*=",
         ]
-        
+
         for pattern in injection_patterns:
             if re.search(pattern, stripped, re.IGNORECASE):
                 raise ValueError(f"Contenido no permitido detectado: patrón sospechoso")
-        
+
         # 🔐 Verificar repetición excesiva (spam)
         words = stripped.split()
         if len(words) > 10:
@@ -171,25 +153,25 @@ class ProcessAnswerRequest(BaseModel):
             repetition_ratio = len(words) / max(len(unique_words), 1)
             if repetition_ratio > 15:  # >15x la misma palabra
                 raise ValueError("Respuesta con repetición excesiva detectada")
-        
+
         # 🔐 Verificar caracteres de control peligrosos
-        if re.search(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', stripped):
+        if re.search(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", stripped):
             raise ValueError("Caracteres de control no permitidos detectados")
-        
+
         return stripped
-    
+
     class Config:
         json_schema_extra = {
             "example": {
                 "answer": "Tengo 3 años de experiencia en desarrollo backend con Python y FastAPI.",
-                "time_taken": 45
+                "time_taken": 45,
             }
         }
 
 
 class EvaluationDTO(BaseModel):
     """Evaluation result DTO."""
-    
+
     score: float = Field(..., ge=0, le=10)
     is_correct: bool
     feedback: str
@@ -202,7 +184,7 @@ class EvaluationDTO(BaseModel):
 
 class EmotionDTO(BaseModel):
     """Emotion detection result DTO."""
-    
+
     emotion: str
     confidence: float = Field(..., ge=0, le=1)
     language: Optional[str] = None
@@ -210,7 +192,7 @@ class EmotionDTO(BaseModel):
 
 class ProgressDTO(BaseModel):
     """Interview progress DTO."""
-    
+
     context_completed: int
     questions_completed: int
     total_questions: int = 10
@@ -219,7 +201,7 @@ class ProgressDTO(BaseModel):
 
 class ProcessAnswerResponse(BaseModel):
     """Response when processing an answer."""
-    
+
     evaluation: EvaluationDTO
     feedback: str
     emotion: EmotionDTO
@@ -230,7 +212,7 @@ class ProcessAnswerResponse(BaseModel):
     attempts_left: Optional[int] = None
     interview_status: str
     interview_completed: bool = False
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -238,29 +220,20 @@ class ProcessAnswerResponse(BaseModel):
                     "score": 7.5,
                     "is_correct": True,
                     "feedback": "Buena respuesta",
-                    "breakdown": {
-                        "completeness": 2.5,
-                        "technical_depth": 2.0,
-                        "clarity": 1.5,
-                        "key_concepts": 1.5
-                    },
+                    "breakdown": {"completeness": 2.5, "technical_depth": 2.0, "clarity": 1.5, "key_concepts": 1.5},
                     "strengths": ["Claridad", "Estructura"],
                     "improvements": ["Profundizar en detalles"],
                     "concepts_covered": ["Python", "FastAPI"],
-                    "missing_concepts": []
+                    "missing_concepts": [],
                 },
                 "feedback": "Excelente descripción de tu experiencia...",
-                "emotion": {
-                    "emotion": "confident",
-                    "confidence": 0.85,
-                    "language": "es"
-                },
+                "emotion": {"emotion": "confident", "confidence": 0.85, "language": "es"},
                 "next_question": {
                     "id": "tech_42",
                     "text": "¿Qué es REST?",
                     "category": "technical",
                     "difficulty": "mid",
-                    "topic": "api_design"
+                    "topic": "api_design",
                 },
                 "motivation": "¡Vas muy bien! Continúa así.",
                 "phase": "questions",
@@ -268,18 +241,18 @@ class ProcessAnswerResponse(BaseModel):
                     "context_completed": 5,
                     "questions_completed": 3,
                     "total_questions": 10,
-                    "percentage": 30.0
+                    "percentage": 30.0,
                 },
                 "attempts_left": 3,
                 "interview_status": "active",
-                "interview_completed": False
+                "interview_completed": False,
             }
         }
 
 
 class InterviewSummaryDTO(BaseModel):
     """Summary of completed interview."""
-    
+
     total_score: float = Field(..., ge=0, le=10)
     questions_answered: int
     correct_answers: int
@@ -292,12 +265,12 @@ class InterviewSummaryDTO(BaseModel):
 
 class EndInterviewResponse(BaseModel):
     """Response when ending an interview."""
-    
+
     interview_id: str
     status: str
     summary: InterviewSummaryDTO
     completed_at: datetime
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -311,9 +284,8 @@ class EndInterviewResponse(BaseModel):
                     "time_taken_seconds": 1200,
                     "strengths": ["API Design", "Python"],
                     "areas_to_improve": ["Testing", "Security"],
-                    "recommendations": ["Estudiar pytest", "Revisar OWASP"]
+                    "recommendations": ["Estudiar pytest", "Revisar OWASP"],
                 },
-                "completed_at": "2025-10-21T10:30:00Z"
+                "completed_at": "2025-10-21T10:30:00Z",
             }
         }
-

@@ -1,0 +1,114 @@
+# ══════════════════════════════════════════════════════════════════════════
+# Ready4Hire - Nuevas Dependencias para 14 Mejoras
+# ══════════════════════════════════════════════════════════════════════════
+
+# ──────────────────────────────────────────────────────────────────────────
+# 1. REDIS CACHE DISTRIBUIDO
+# ──────────────────────────────────────────────────────────────────────────
+redis>=5.0.0
+redis[hiredis]>=5.0.0  # Parser C para mejor performance
+aioredis>=2.0.1  # Async Redis client
+
+# ──────────────────────────────────────────────────────────────────────────
+# 2. WEBSOCKETS
+# ──────────────────────────────────────────────────────────────────────────
+# Ya incluido en FastAPI, solo asegurar version
+websockets>=12.0
+
+# ──────────────────────────────────────────────────────────────────────────
+# 3. RETRY LOGIC + CIRCUIT BREAKER
+# ──────────────────────────────────────────────────────────────────────────
+tenacity>=8.2.3  # Retry con backoff exponencial
+pybreaker>=1.0.1  # Circuit breaker pattern
+
+# ──────────────────────────────────────────────────────────────────────────
+# 4. BACKGROUND TASKS - CELERY
+# ──────────────────────────────────────────────────────────────────────────
+celery[redis]>=5.3.0  # Task queue
+kombu>=5.3.0  # Messaging library
+flower>=2.0.1  # Monitoring UI para Celery
+
+# ──────────────────────────────────────────────────────────────────────────
+# 5. MONITORING - OPENTELEMETRY + GRAFANA
+# ──────────────────────────────────────────────────────────────────────────
+opentelemetry-api>=1.21.0
+opentelemetry-sdk>=1.21.0
+opentelemetry-instrumentation-fastapi>=0.42b0
+opentelemetry-instrumentation-redis>=0.42b0
+opentelemetry-instrumentation-sqlalchemy>=0.42b0
+opentelemetry-instrumentation-celery>=0.42b0
+opentelemetry-exporter-prometheus>=0.42b0
+opentelemetry-exporter-otlp>=1.21.0
+prometheus-client>=0.19.0
+
+# ──────────────────────────────────────────────────────────────────────────
+# 6. VECTOR DATABASE - QDRANT
+# ──────────────────────────────────────────────────────────────────────────
+qdrant-client>=1.7.0  # Vector DB para búsqueda semántica
+# Alternative: milvus>=2.3.0
+
+# ──────────────────────────────────────────────────────────────────────────
+# 7. A/B TESTING FRAMEWORK
+# ──────────────────────────────────────────────────────────────────────────
+# Custom implementation, no external deps needed
+
+# ──────────────────────────────────────────────────────────────────────────
+# 8. SISTEMA DE RECOMENDACIONES
+# ──────────────────────────────────────────────────────────────────────────
+scikit-learn>=1.3.0  # ML básico
+surprise>=0.1  # Collaborative filtering
+implicit>=0.7.0  # Implicit feedback models
+lightfm>=1.17  # Hybrid recommender
+
+# ──────────────────────────────────────────────────────────────────────────
+# 9. PROGRESSIVE WEB APP (PWA)
+# ──────────────────────────────────────────────────────────────────────────
+# Frontend only, no Python deps
+
+# ──────────────────────────────────────────────────────────────────────────
+# 10. MULTI-TENANCY
+# ──────────────────────────────────────────────────────────────────────────
+# Ya incluido en arquitectura existente
+
+# ──────────────────────────────────────────────────────────────────────────
+# 11. GAMIFICACIÓN AVANZADA
+# ──────────────────────────────────────────────────────────────────────────
+# Custom implementation, usa DB existente
+
+# ──────────────────────────────────────────────────────────────────────────
+# 12. VOICE INTERVIEW MODE
+# ──────────────────────────────────────────────────────────────────────────
+# Ya tenemos Whisper STT y TTS, solo integración
+
+# ──────────────────────────────────────────────────────────────────────────
+# 13. CODE EXECUTION SANDBOX
+# ──────────────────────────────────────────────────────────────────────────
+piston-rspy>=1.0.0  # Piston API client
+docker>=6.1.0  # Para sandbox containerizado
+docker-py>=6.1.0
+
+# ──────────────────────────────────────────────────────────────────────────
+# 14. MULTI-IDIOMA (i18n)
+# ──────────────────────────────────────────────────────────────────────────
+babel>=2.13.0  # i18n framework
+polib>=1.2.0  # .po files parser
+deep-translator>=1.11.4  # Traducción automática
+langdetect>=1.0.9  # Detección de idioma
+
+# ══════════════════════════════════════════════════════════════════════════
+# UTILIDADES ADICIONALES
+# ══════════════════════════════════════════════════════════════════════════
+python-multipart>=0.0.6  # Para file uploads
+python-jose[cryptography]>=3.3.0  # JWT tokens
+passlib[bcrypt]>=1.7.4  # Password hashing
+email-validator>=2.1.0  # Email validation
+python-magic>=0.4.27  # File type detection
+pillow>=10.1.0  # Image processing
+reportlab>=4.0.7  # PDF generation para certificados
+qrcode[pil]>=7.4.2  # QR codes para certificados
+
+# ══════════════════════════════════════════════════════════════════════════
+# INSTALACIÓN:
+# pip install -r requirements-new-features.txt
+# ══════════════════════════════════════════════════════════════════════════
+

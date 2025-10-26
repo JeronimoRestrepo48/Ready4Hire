@@ -12,6 +12,17 @@
     position: fixed;
     left: 0;
     top: 0;
+    z-index: 1000;
+}
+
+/* Main Content Area - Sin espacio negro */
+.main-content {
+    margin-left: 280px;
+    height: 100vh;
+    overflow: hidden;
+    background: #0a0a0a;
+    width: calc(100% - 280px);
+    padding: 0;
 }
 
 /* ============================================

@@ -22,6 +22,131 @@ namespace Ready4Hire.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Badge", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("PointsRequired")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Rarity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RequirementType")
+                        .HasColumnType("text");
+
+                    b.Property<int>("RequirementValue")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RewardPoints")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RewardXp")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.ToTable("Badges");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Certificate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CandidateName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CertificateData")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CertificateId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CertificationLevel")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("DownloadUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("InterviewId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsValid")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Percentile")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ValidationUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CertificateId")
+                        .IsUnique();
+
+                    b.HasIndex("InterviewId")
+                        .IsUnique();
+
+                    b.ToTable("Certificates");
+                });
+
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Chat", b =>
                 {
                     b.Property<int>("Id")
@@ -55,6 +180,280 @@ namespace Ready4Hire.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Chats");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Interview", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("AverageScore")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContextAnswers")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("ContextQuestionIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CorrectAnswers")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CurrentPhase")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("CurrentStreak")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("InterviewId")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("InterviewType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("MaxStreak")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SkillLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("TotalHintsUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalQuestions")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalTimeSeconds")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("InterviewId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("Interviews");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewAnswer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AnswerText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("AttemptsCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Emotion")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<double>("EmotionConfidence")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("EvaluationDetails")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Feedback")
+                        .HasColumnType("text");
+
+                    b.Property<int>("HintsUsed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("InterviewId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("TimeTakenSeconds")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InterviewId");
+
+                    b.HasIndex("QuestionId")
+                        .IsUnique();
+
+                    b.HasIndex("Score");
+
+                    b.ToTable("InterviewAnswers");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewQuestion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AskedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Difficulty")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ExpectedConcepts")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("InterviewId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Keywords")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("QuestionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Topic")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InterviewId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.ToTable("InterviewQuestions");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("AverageScore")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ConceptsMastered")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ConceptsWeak")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Improvements")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("InterviewId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Percentile")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PerformanceByTopic")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("RecommendedResources")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ScoreTrend")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ShareableUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Strengths")
+                        .HasColumnType("jsonb");
+
+                    b.Property<double>("SuccessRate")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("TimePerQuestion")
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InterviewId")
+                        .IsUnique();
+
+                    b.ToTable("InterviewReports");
                 });
 
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Message", b =>
@@ -93,12 +492,24 @@ namespace Ready4Hire.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AvatarUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Bio")
+                        .HasColumnType("text");
+
                     b.Property<string>("Country")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Experience")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExperienceLevel")
                         .HasColumnType("text");
 
                     b.Property<string>("Interests")
@@ -109,9 +520,15 @@ namespace Ready4Hire.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("LastActivityDate")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -119,6 +536,12 @@ namespace Ready4Hire.Migrations
 
                     b.Property<string>("Password")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Profession")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ProfessionCategory")
                         .HasColumnType("text");
 
                     b.Property<string>("Skills")
@@ -129,9 +552,127 @@ namespace Ready4Hire.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("StreakDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalGamesPlayed")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalGamesWon")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalPoints")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("Level");
+
+                    b.HasIndex("TotalPoints");
+
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.UserBadge", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BadgeId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsUnlocked")
+                        .HasColumnType("boolean");
+
+                    b.Property<float>("Progress")
+                        .HasColumnType("real");
+
+                    b.Property<DateTime>("UnlockedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BadgeId");
+
+                    b.HasIndex("UserId", "BadgeId")
+                        .IsUnique();
+
+                    b.ToTable("UserBadges");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.UserProgress", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("CurrentLevel")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime>("FirstEncountered")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastUpdated")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double>("MasteryLevel")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ScoreHistory")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("SkillOrTopic")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SkillVector")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("TimesEncountered")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TimesSuccessful")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MasteryLevel");
+
+                    b.HasIndex("UserId", "SkillOrTopic", "Type")
+                        .IsUnique();
+
+                    b.ToTable("UserProgress");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Certificate", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.Interview", "Interview")
+                        .WithOne("Certificate")
+                        .HasForeignKey("Ready4Hire.MVVM.Models.Certificate", "InterviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Interview");
                 });
 
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Chat", b =>
@@ -145,6 +686,58 @@ namespace Ready4Hire.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Interview", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewAnswer", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.Interview", "Interview")
+                        .WithMany("Answers")
+                        .HasForeignKey("InterviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ready4Hire.MVVM.Models.InterviewQuestion", "Question")
+                        .WithOne("Answer")
+                        .HasForeignKey("Ready4Hire.MVVM.Models.InterviewAnswer", "QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Interview");
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewQuestion", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.Interview", "Interview")
+                        .WithMany("Questions")
+                        .HasForeignKey("InterviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Interview");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewReport", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.Interview", "Interview")
+                        .WithOne("Report")
+                        .HasForeignKey("Ready4Hire.MVVM.Models.InterviewReport", "InterviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Interview");
+                });
+
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Message", b =>
                 {
                     b.HasOne("Ready4Hire.MVVM.Models.Chat", "Chat")
@@ -156,13 +749,66 @@ namespace Ready4Hire.Migrations
                     b.Navigation("Chat");
                 });
 
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.UserBadge", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.Badge", "Badge")
+                        .WithMany("UserBadges")
+                        .HasForeignKey("BadgeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ready4Hire.MVVM.Models.User", "User")
+                        .WithMany("Badges")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Badge");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.UserProgress", b =>
+                {
+                    b.HasOne("Ready4Hire.MVVM.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Badge", b =>
+                {
+                    b.Navigation("UserBadges");
+                });
+
             modelBuilder.Entity("Ready4Hire.MVVM.Models.Chat", b =>
                 {
                     b.Navigation("Messages");
                 });
 
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.Interview", b =>
+                {
+                    b.Navigation("Answers");
+
+                    b.Navigation("Certificate");
+
+                    b.Navigation("Questions");
+
+                    b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("Ready4Hire.MVVM.Models.InterviewQuestion", b =>
+                {
+                    b.Navigation("Answer");
+                });
+
             modelBuilder.Entity("Ready4Hire.MVVM.Models.User", b =>
                 {
+                    b.Navigation("Badges");
+
                     b.Navigation("Chats");
                 });
 #pragma warning restore 612, 618

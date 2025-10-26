@@ -99,9 +99,10 @@
                     class="modern-chat-input"
                     placeholder="Escribe tu respuesta aquí..."
                     @bind="UserInput"
-                    @bind:event="oninput"
                     @onkeydown="HandleKeyDown"
+                    @oninput="AutoResizeTextarea"
                     rows="1"
+                    id="chatInput"
                     disabled="@(!started && !IsConfigured)"></textarea>
                 
                 <div class="input-actions">
@@ -169,21 +170,54 @@
                             Rol / Posición
                         </label>
                         <select class="form-select-modern" @bind="SelectedRole">
-                        <option value="Backend Developer - .NET">Backend Developer (.NET)</option>
-                        <option value="Backend Developer - Java">Backend Developer (Java)</option>
-                        <option value="Frontend Developer - React">Frontend Developer (React)</option>
-                        <option value="Frontend Developer - Angular">Frontend Developer (Angular)</option>
-                        <option value="Full Stack Developer">Full Stack Developer</option>
-                        <option value="DevOps Engineer - Azure">DevOps Engineer (Azure)</option>
-                        <option value="DevOps Engineer - AWS">DevOps Engineer (AWS)</option>
-                        <option value="Data Scientist">Data Scientist</option>
-                        <option value="Data Engineer">Data Engineer</option>
-                        <option value="QA Engineer - Manual">QA Engineer (Manual)</option>
-                        <option value="QA Engineer - Automation">QA Engineer (Automation)</option>
-                        <option value="Mobile Developer - Android">Mobile Developer (Android)</option>
-                        <option value="Mobile Developer - iOS">Mobile Developer (iOS)</option>
-                        <option value="Product Manager">Product Manager</option>
-                        <option value="Scrum Master">Scrum Master</option>
+                        <!-- Technology -->
+                        <optgroup label="💻 Technology">
+                            <option value="Software Engineer">Software Engineer</option>
+                            <option value="Frontend Developer">Frontend Developer</option>
+                            <option value="Backend Developer">Backend Developer</option>
+                            <option value="Full Stack Developer">Full Stack Developer</option>
+                            <option value="Android Developer">Android Developer</option>
+                            <option value="iOS Developer">iOS Developer</option>
+                            <option value="DevOps Engineer">DevOps Engineer</option>
+                            <option value="Cloud Architect">Cloud Architect</option>
+                            <option value="QA Engineer (Manual)">QA Engineer (Manual)</option>
+                            <option value="QA Engineer (Automation)">QA Engineer (Automation)</option>
+                            <option value="Security Analyst">Security Analyst</option>
+                            <option value="Technical Project Manager">Technical Project Manager</option>
+                            <option value="Scrum Master">Scrum Master</option>
+                        </optgroup>
+                        <!-- Data -->
+                        <optgroup label="📊 Data & Analytics">
+                            <option value="Data Scientist">Data Scientist</option>
+                            <option value="Data Engineer">Data Engineer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                        </optgroup>
+                        <!-- Design -->
+                        <optgroup label="🎨 Design">
+                            <option value="UX/UI Designer">UX/UI Designer</option>
+                            <option value="Graphic Designer">Graphic Designer</option>
+                        </optgroup>
+                        <!-- Business -->
+                        <optgroup label="💼 Business">
+                            <option value="Product Manager">Product Manager</option>
+                            <option value="Business Analyst">Business Analyst</option>
+                        </optgroup>
+                        <!-- Finance -->
+                        <optgroup label="💰 Finance">
+                            <option value="Financial Analyst">Financial Analyst</option>
+                            <option value="Accountant">Accountant</option>
+                        </optgroup>
+                        <!-- Marketing & Sales -->
+                        <optgroup label="📈 Marketing & Sales">
+                            <option value="Digital Marketing Specialist">Digital Marketing Specialist</option>
+                            <option value="Sales Representative">Sales Representative</option>
+                            <option value="Content Writer">Content Writer</option>
+                        </optgroup>
+                        <!-- HR & Support -->
+                        <optgroup label="👥 HR & Support">
+                            <option value="HR Specialist">HR Specialist</option>
+                            <option value="Customer Support Specialist">Customer Support Specialist</option>
+                        </optgroup>
                     </select>
                     </div>
 

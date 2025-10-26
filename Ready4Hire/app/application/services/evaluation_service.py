@@ -10,6 +10,7 @@ Mejoras v2.1:
 Mejoras v2.2:
 - Recopilación automática de datos para fine-tuning
 """
+
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 import json
@@ -28,16 +29,16 @@ class EvaluationService:
     """
     Servicio para evaluar respuestas de entrevistas usando Ollama local.
     Elimina dependencias de APIs externas (OpenAI, Anthropic).
-    
+
     Mejoras v2.1:
     - Caché inteligente de 2 niveles (95% reducción de latencia)
     - Model warm-up automático
     - Explicaciones detalladas mejoradas
-    
+
     Mejoras v2.2:
     - Recopilación automática de datos para fine-tuning
     """
-    
+
     def __init__(
         self,
         llm_service: Optional[OllamaLLMService] = None,
@@ -46,11 +47,12 @@ class EvaluationService:
         enable_cache: bool = True,
         cache_ttl_days: int = 7,
         collect_training_data: bool = False,
-        training_collector: Optional[TrainingDataCollector] = None
+        training_collector: Optional[TrainingDataCollector] = None,
+        use_advanced_prompts: bool = True,
     ):
         """
         Inicializa el servicio de evaluación.
-        
+
         Args:
             llm_service: Servicio LLM Ollama (se crea uno si no se provee)
             model: Modelo Ollama a usar
@@ -60,18 +62,14 @@ class EvaluationService:
             collect_training_data: Recopilar datos para fine-tuning (default: False) (v2.2)
             training_collector: Collector personalizado (se crea uno si collect_training_data=True) (v2.2)
         """
-        self.llm_service = llm_service or OllamaLLMService(
-            model=model,
-            temperature=temperature,
-            max_tokens=1024
-        )
+        self.llm_service = llm_service or OllamaLLMService(model=model, temperature=temperature, max_tokens=1024)
         self.model = model
         self.temperature = temperature
-        
+
         # Caché de evaluaciones (Mejora v2.1)
         self.enable_cache = enable_cache
         self.cache = EvaluationCache(ttl_days=cache_ttl_days) if enable_cache else None
-        
+
         # Training data collection (Mejora v2.2)
         self.collect_training_data = collect_training_data
         if collect_training_data and training_collector is None:
@@ -79,15 +77,29 @@ class EvaluationService:
             logger.info("TrainingDataCollector inicializado para recopilación automática")
         else:
             self.training_collector = training_collector
-        
+
+        # Advanced prompts (Mejora v3.2)
+        self.use_advanced_prompts = use_advanced_prompts
+        if use_advanced_prompts:
+            try:
+                from app.infrastructure.llm.advanced_prompts import get_prompt_engine
+
+                self.prompt_engine = get_prompt_engine()
+                logger.info("✅ Advanced prompt engine initialized")
+            except Exception as e:
+                logger.warning(f"Could not load advanced prompts: {e}, using fallback")
+                self.prompt_engine = None
+        else:
+            self.prompt_engine = None
+
         # Model warm-up (Mejora v2.1)
         self._warmup_model()
-        
+
         logger.info(
             f"EvaluationService inicializado (model={model}, cache={enable_cache}, "
-            f"training_collection={collect_training_data})"
+            f"training_collection={collect_training_data}, advanced_prompts={use_advanced_prompts})"
         )
-    
+
     def _warmup_model(self):
         """
         Pre-carga el modelo para eliminar cold start (~30s → 5s).
@@ -96,19 +108,16 @@ class EvaluationService:
         try:
             logger.info("Iniciando warm-up del modelo...")
             start_time = datetime.now()
-            
+
             # Generar respuesta corta para cargar modelo en memoria
-            self.llm_service.generate(
-                prompt="Hello, ready for interviews!",
-                max_tokens=10
-            )
-            
+            self.llm_service.generate(prompt="Hello, ready for interviews!", max_tokens=10)
+
             elapsed = (datetime.now() - start_time).total_seconds()
             logger.info(f"Warm-up completado en {elapsed:.2f}s")
-            
+
         except Exception as e:
             logger.warning(f"Warm-up falló (no crítico): {e}")
-    
+
     def evaluate_answer(
         self,
         question: str,
@@ -117,15 +126,15 @@ class EvaluationService:
         keywords: List[str],
         category: str,
         difficulty: str,
-        role: str
+        role: str,
     ) -> Dict[str, Any]:
         """
         Evalúa una respuesta del candidato usando Ollama.
-        
+
         Mejoras v2.1:
         - Busca en caché antes de llamar al LLM (95% más rápido)
         - Guarda resultado en caché para futuras consultas
-        
+
         Args:
             question: Texto de la pregunta
             answer: Respuesta del candidato
@@ -134,7 +143,7 @@ class EvaluationService:
             category: Categoría (soft_skills, technical)
             difficulty: Dificultad (junior, mid, senior)
             role: Rol/posición
-        
+
         Returns:
             Dict con score (0-10), puntuación detallada y justificación
         """
@@ -146,45 +155,58 @@ class EvaluationService:
                 model=self.model,
                 temperature=self.temperature,
                 expected_concepts=expected_concepts,
-                keywords=keywords
+                keywords=keywords,
             )
             if cached_result:
                 cached_result["from_cache"] = True
                 logger.debug("Evaluación obtenida del caché (latencia <10ms)")
                 return cached_result
-        
+
         # No está en caché, evaluar con LLM
         try:
             start_time = datetime.now()
-            
-            prompt = self._build_evaluation_prompt(
-                question=question,
-                answer=answer,
-                expected_concepts=expected_concepts,
-                keywords=keywords,
-                category=category,
-                difficulty=difficulty,
-                role=role
-            )
-            
+
+            # Use advanced prompts if available (v3.2)
+            if self.use_advanced_prompts and self.prompt_engine:
+                interview_mode = "practice"  # TODO: Get from context
+                prompt = self.prompt_engine.get_evaluation_prompt(
+                    role=role,
+                    question=question,
+                    answer=answer,
+                    expected_concepts=expected_concepts,
+                    difficulty=difficulty,
+                    interview_mode=interview_mode,
+                )
+                logger.debug("Using advanced profession-specific prompt")
+            else:
+                prompt = self._build_evaluation_prompt(
+                    question=question,
+                    answer=answer,
+                    expected_concepts=expected_concepts,
+                    keywords=keywords,
+                    category=category,
+                    difficulty=difficulty,
+                    role=role,
+                )
+
             # ⚡ Generar evaluación con Ollama OPTIMIZADO para velocidad
             response = self.llm_service.generate(
                 prompt=prompt,
                 temperature=self.temperature,
-                max_tokens=512  # ⚡ Reducido de 1024 a 512 para respuestas más rápidas
+                max_tokens=512,  # ⚡ Reducido de 1024 a 512 para respuestas más rápidas
             )
-            
+
             # Parsear respuesta JSON
             result = self._parse_evaluation_response(response)
-            
+
             # Validar estructura
             validated_result = self._validate_evaluation_result(result)
-            
+
             # MEJORA v2.1: Guardar en caché para futuras consultas
             elapsed = (datetime.now() - start_time).total_seconds()
             validated_result["evaluation_time_seconds"] = round(elapsed, 2)
             validated_result["from_cache"] = False
-            
+
             if self.enable_cache and self.cache:
                 self.cache.set(
                     question=question,
@@ -193,10 +215,10 @@ class EvaluationService:
                     temperature=self.temperature,
                     expected_concepts=expected_concepts,
                     keywords=keywords,
-                    result=validated_result
+                    result=validated_result,
                 )
                 logger.debug(f"Evaluación LLM completada en {elapsed:.2f}s y guardada en caché")
-            
+
             # MEJORA v2.2: Recopilar datos para fine-tuning (solo evaluaciones LLM exitosas)
             if self.collect_training_data and self.training_collector:
                 try:
@@ -208,21 +230,21 @@ class EvaluationService:
                         keywords=keywords,
                         category=category,
                         difficulty=difficulty,
-                        role=role
+                        role=role,
                     )
                     logger.debug("Datos de entrenamiento recopilados exitosamente")
                 except Exception as e:
                     logger.warning(f"Error al recopilar datos de entrenamiento: {e}")
-            
+
             return validated_result
-            
+
         except Exception as e:
             logger.error(f"Error en evaluación LLM: {str(e)}, usando fallback heurístico")
             # Fallback a evaluación heurística
             fallback_result = self._heuristic_evaluation(answer, expected_concepts, keywords)
             fallback_result["from_cache"] = False
             return fallback_result
-    
+
     def _build_evaluation_prompt(
         self,
         question: str,
@@ -231,26 +253,49 @@ class EvaluationService:
         keywords: List[str],
         category: str,
         difficulty: str,
-        role: str
+        role: str,
     ) -> str:
-        """⚡ Construye el prompt de evaluación OPTIMIZADO para respuestas rápidas."""
-        return f"""Evalúa esta respuesta técnica. Rol: {role}, Nivel: {difficulty}
+        """⚡ Construye el prompt de evaluación OPTIMIZADO y MULTIPROFESIÓN."""
+
+        # Contexto específico por categoría
+        context_type = "técnica" if category == "technical" else "de habilidades blandas"
+
+        # Criterios adaptativos según la categoría
+        criteria_guide = ""
+        if category == "technical":
+            criteria_guide = """
+CRITERIOS TÉCNICOS:
+- Completitud: Cubre todos los aspectos de la pregunta
+- Profundidad: Demuestra comprensión técnica profunda
+- Claridad: Explica de forma estructurada y comprensible
+- Conceptos: Usa terminología técnica correcta"""
+        else:
+            criteria_guide = """
+CRITERIOS SOFT SKILLS:
+- Completitud: Proporciona ejemplo concreto y relevante
+- Profundidad: Muestra reflexión y aprendizaje
+- Claridad: Estructura clara (situación-acción-resultado)
+- Conceptos: Demuestra competencia comportamental"""
+
+        return f"""Eres un evaluador experto en entrevistas para {role} a nivel {difficulty}.
+Evalúa esta respuesta {context_type} con criterios profesionales.
 
 PREGUNTA: {question}
 
-RESPUESTA: {answer}
+RESPUESTA DEL CANDIDATO: {answer}
 
-CONCEPTOS ESPERADOS: {', '.join(expected_concepts) if expected_concepts else 'N/A'}
+CONCEPTOS CLAVE ESPERADOS: {', '.join(expected_concepts) if expected_concepts else 'Variados'}
+{criteria_guide}
 
-EVALÚA (0-10):
-1. Completitud (0-3): ¿Responde todo?
-2. Profundidad (0-3): ¿Comprende el tema?
-3. Claridad (0-2): ¿Explica bien?
-4. Conceptos (0-2): ¿Usa términos clave?
+EVALÚA OBJETIVAMENTE (0-10):
+1. Completitud (0-3 puntos)
+2. Profundidad técnica/comportamental (0-3 puntos)  
+3. Claridad y estructura (0-2 puntos)
+4. Uso de conceptos clave (0-2 puntos)
 
-RESPONDE SOLO JSON (sin texto extra):
+RESPONDE SOLO EN FORMATO JSON (sin texto adicional):
 {{
-  "score": <0-10>,
+  "score": <número 0-10>,
   "breakdown": {{
     "completeness": <0-3>,
     "technical_depth": <0-3>,
@@ -263,7 +308,7 @@ RESPONDE SOLO JSON (sin texto extra):
   "concepts_covered": ["<concepto 1>", "<concepto 2>"],
   "missing_concepts": ["<falta 1>", "<falta 2>"]
 }}"""
-    
+
     def _parse_evaluation_response(self, response: str) -> Dict[str, Any]:
         """
         Parsea la respuesta del LLM extrayendo el JSON.
@@ -274,22 +319,22 @@ RESPONDE SOLO JSON (sin texto extra):
             return json.loads(response)
         except json.JSONDecodeError:
             pass
-        
+
         # Intentar extraer JSON con regex
-        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        json_match = re.search(r"\{.*\}", response, re.DOTALL)
         if json_match:
             try:
                 return json.loads(json_match.group(0))
             except json.JSONDecodeError:
                 pass
-        
+
         # Si falla todo, lanzar excepción para usar fallback
         raise ValueError("No se pudo parsear respuesta JSON del LLM")
-    
+
     def _validate_evaluation_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
         Valida y normaliza el resultado de evaluación.
-        
+
         Mejoras v2.1:
         - Agrega missing_concepts para feedback más claro
         - Incluye confidence score del breakdown
@@ -297,38 +342,38 @@ RESPONDE SOLO JSON (sin texto extra):
         # Asegurar que score esté entre 0 y 10
         score = float(result.get("score", 5.0))
         score = max(0.0, min(10.0, score))
-        
+
         # Validar breakdown
         breakdown = result.get("breakdown", {})
         breakdown = {
             "completeness": max(0, min(3, float(breakdown.get("completeness", 1.5)))),
             "technical_depth": max(0, min(3, float(breakdown.get("technical_depth", 1.5)))),
             "clarity": max(0, min(2, float(breakdown.get("clarity", 1.0)))),
-            "key_concepts": max(0, min(2, float(breakdown.get("key_concepts", 1.0))))
+            "key_concepts": max(0, min(2, float(breakdown.get("key_concepts", 1.0)))),
         }
-        
+
         # Calcular confidence score del breakdown (qué tan bien distribuido está)
         breakdown_total = sum(breakdown.values())
         breakdown_confidence = round((breakdown_total / 10) * 100, 1)  # Porcentaje
-        
+
         # Asegurar listas
         strengths = result.get("strengths", [])
         if not isinstance(strengths, list):
             strengths = [str(strengths)]
-        
+
         improvements = result.get("improvements", [])
         if not isinstance(improvements, list):
             improvements = [str(improvements)]
-        
+
         concepts_covered = result.get("concepts_covered", [])
         if not isinstance(concepts_covered, list):
             concepts_covered = [str(concepts_covered)]
-        
+
         # MEJORA v2.1: Agregar missing_concepts
         missing_concepts = result.get("missing_concepts", [])
         if not isinstance(missing_concepts, list):
             missing_concepts = []
-        
+
         return {
             "score": round(score, 1),
             "is_correct": score >= 6.0,  # ⚡ Agregar campo is_correct basado en score
@@ -340,15 +385,10 @@ RESPONDE SOLO JSON (sin texto extra):
             "concepts_covered": concepts_covered[:5],  # Máximo 5
             "missing_concepts": missing_concepts[:3],  # Máximo 3 (NUEVO v2.1)
             "evaluated_at": datetime.now(timezone.utc).isoformat(),
-            "model": self.model
+            "model": self.model,
         }
-    
-    def _heuristic_evaluation(
-        self,
-        answer: str,
-        expected_concepts: List[str],
-        keywords: List[str]
-    ) -> Dict[str, Any]:
+
+    def _heuristic_evaluation(self, answer: str, expected_concepts: List[str], keywords: List[str]) -> Dict[str, Any]:
         """
         Evaluación heurística de respaldo cuando el LLM falla.
         Análisis basado en longitud, palabras clave y conceptos.
@@ -356,7 +396,7 @@ RESPONDE SOLO JSON (sin texto extra):
         answer_lower = answer.lower()
         answer_words = answer.split()
         answer_length = len(answer_words)
-        
+
         # 1. Puntuación por longitud
         if answer_length < 10:
             base_score = 2.0
@@ -366,26 +406,26 @@ RESPONDE SOLO JSON (sin texto extra):
             base_score = 7.0
         else:
             base_score = 8.0
-        
+
         # 2. Bonus por conceptos esperados
         concepts_found = 0
         for concept in expected_concepts:
             if concept.lower() in answer_lower:
                 concepts_found += 1
-        
+
         concept_bonus = (concepts_found / max(len(expected_concepts), 1)) * 2.0
-        
+
         # 3. Bonus por keywords
         keywords_found = 0
         for keyword in keywords:
             if keyword.lower() in answer_lower:
                 keywords_found += 1
-        
+
         keyword_bonus = (keywords_found / max(len(keywords), 1)) * 1.0
-        
+
         # Score final
         final_score = min(10.0, base_score + concept_bonus + keyword_bonus)
-        
+
         return {
             "score": round(final_score, 1),
             "is_correct": final_score >= 6.0,  # ⚡ Agregar campo is_correct basado en score
@@ -393,7 +433,7 @@ RESPONDE SOLO JSON (sin texto extra):
                 "completeness": round(final_score * 0.3, 1),
                 "technical_depth": round(final_score * 0.3, 1),
                 "clarity": round(final_score * 0.2, 1),
-                "key_concepts": round(final_score * 0.2, 1)
+                "key_concepts": round(final_score * 0.2, 1),
             },
             "justification": f"Evaluación heurística: {concepts_found}/{len(expected_concepts)} conceptos encontrados, {keywords_found}/{len(keywords)} keywords detectadas.",
             "strengths": ["Respuesta proporcionada"],
@@ -401,19 +441,16 @@ RESPONDE SOLO JSON (sin texto extra):
             "concepts_covered": [c for c in expected_concepts if c.lower() in answer_lower],
             "evaluated_at": datetime.now(timezone.utc).isoformat(),
             "fallback": True,
-            "model": "heuristic"
+            "model": "heuristic",
         }
-    
-    def batch_evaluate(
-        self,
-        evaluations: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+
+    def batch_evaluate(self, evaluations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Evalúa múltiples respuestas en batch (útil para optimización futura).
-        
+
         Args:
             evaluations: Lista de dicts con question, answer, expected_concepts, etc.
-        
+
         Returns:
             Lista de resultados de evaluación
         """
@@ -424,120 +461,109 @@ RESPONDE SOLO JSON (sin texto extra):
                 results.append(result)
             except Exception as e:
                 logger.error(f"Error en batch evaluation: {str(e)}")
-                results.append(self._heuristic_evaluation(
-                    answer=eval_data.get('answer', ''),
-                    expected_concepts=eval_data.get('expected_concepts', []),
-                    keywords=eval_data.get('keywords', [])
-                ))
-        
+                results.append(
+                    self._heuristic_evaluation(
+                        answer=eval_data.get("answer", ""),
+                        expected_concepts=eval_data.get("expected_concepts", []),
+                        keywords=eval_data.get("keywords", []),
+                    )
+                )
+
         return results
-    
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """
         Obtiene estadísticas del caché de evaluaciones.
-        
+
         Returns:
             Dict con hit_rate, latencia, entradas, etc.
         """
         if not self.enable_cache or not self.cache:
-            return {
-                "enabled": False,
-                "message": "Caché deshabilitado"
-            }
-        
+            return {"enabled": False, "message": "Caché deshabilitado"}
+
         stats = self.cache.get_stats()
         stats["enabled"] = True
         return stats
-    
+
     def clear_cache(self):
         """Limpia todo el caché de evaluaciones."""
         if self.enable_cache and self.cache:
             self.cache.clear()
             logger.info("Caché de evaluaciones limpiado")
-    
+
     def clear_expired_cache(self):
         """Limpia solo las entradas expiradas del caché."""
         if self.enable_cache and self.cache:
             self.cache.clear_expired()
             logger.info("Entradas expiradas del caché eliminadas")
-    
+
     def get_top_cached_evaluations(self, limit: int = 10) -> List[tuple]:
         """
         Obtiene las evaluaciones más frecuentemente cacheadas.
-        
+
         Returns:
             Lista de (pregunta_snippet, hit_count)
         """
         if not self.enable_cache or not self.cache:
             return []
-        
+
         return self.cache.get_top_cached(limit=limit)
-    
+
     # =========================================================================
     # TRAINING DATA COLLECTION (v2.2)
     # =========================================================================
-    
+
     def get_training_stats(self) -> Dict[str, Any]:
         """
         Obtiene estadísticas de la recopilación de datos de entrenamiento.
-        
+
         Returns:
             Dict con total_examples, por categoría, dificultad, etc.
         """
         if not self.collect_training_data or not self.training_collector:
-            return {
-                "enabled": False,
-                "message": "Recopilación de datos deshabilitada"
-            }
-        
+            return {"enabled": False, "message": "Recopilación de datos deshabilitada"}
+
         stats = self.training_collector.get_stats()
         stats["enabled"] = True
         return stats
-    
-    def enable_training_collection(
-        self,
-        min_score_threshold: float = 3.0
-    ):
+
+    def enable_training_collection(self, min_score_threshold: float = 3.0):
         """
         Habilita la recopilación de datos de entrenamiento.
-        
+
         Args:
             min_score_threshold: Score mínimo para recopilar (default: 3.0)
         """
         if self.training_collector is None:
-            self.training_collector = TrainingDataCollector(
-                min_score_threshold=min_score_threshold
-            )
+            self.training_collector = TrainingDataCollector(min_score_threshold=min_score_threshold)
         self.collect_training_data = True
         logger.info("Recopilación de datos de entrenamiento habilitada")
-    
+
     def disable_training_collection(self):
         """Deshabilita la recopilación de datos de entrenamiento."""
         self.collect_training_data = False
         logger.info("Recopilación de datos de entrenamiento deshabilitada")
-    
+
     def export_training_data(self, output_path: Optional[str] = None) -> str:
         """
         Exporta los datos de entrenamiento recopilados.
-        
+
         Args:
             output_path: Ruta personalizada (opcional)
-        
+
         Returns:
             Ruta del archivo exportado
         """
         if not self.training_collector:
             raise ValueError("TrainingDataCollector no inicializado")
-        
+
         if output_path:
             import shutil
-            shutil.copy(
-                self.training_collector.storage_path,
-                output_path
-            )
+
+            shutil.copy(self.training_collector.storage_path, output_path)
             logger.info(f"Datos de entrenamiento exportados a: {output_path}")
             return output_path
-        
+
         storage_path_str = str(self.training_collector.storage_path)
         logger.info(f"Datos de entrenamiento en: {storage_path_str}")
         return storage_path_str

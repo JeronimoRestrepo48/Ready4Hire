@@ -1,0 +1,23 @@
+# Safety - Python Dependency Security Scanner
+# Configuration for Ready4Hire
+
+security:
+  # Ignore specific vulnerabilities (with justification)
+  ignore-vulnerabilities:
+    # Add specific CVEs here if needed with justification
+    # Example:
+    # - id: 12345
+    #   reason: "False positive - not applicable to our use case"
+  
+  # Only fail on vulnerabilities with severity >= MEDIUM
+  continue-on-vulnerability-error: false
+  
+  # Minimum severity level to report
+  minimum-severity: medium
+
+# Audit settings
+audit:
+  # Check for vulnerabilities
+  and-licenses: false
+  and-announcements: false
+

@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: 'Ready4Hire Dashboards'
+    orgId: 1
+    folder: 'Ready4Hire'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: true
+

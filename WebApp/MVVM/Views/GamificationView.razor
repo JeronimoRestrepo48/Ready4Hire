@@ -1,0 +1,236 @@
+@page "/gamification"
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@using Microsoft.JSInterop
+@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+
+<PageTitle>🎮 Gamificación - Ready4Hire</PageTitle>
+
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<div class="gamification-container">
+    
+    @if (isLoading)
+    {
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>Cargando tus estadísticas...</p>
+        </div>
+    }
+    else if (stats != null)
+    {
+        <!-- Header con Stats del Usuario -->
+        <div class="gamification-header">
+            <h1>🎮 Gamificación</h1>
+            <div class="user-level-card">
+                <div class="level-badge">
+                    <span class="level-number">@stats.Level</span>
+                    <span class="level-label">Nivel</span>
+                </div>
+                <div class="xp-progress">
+                    <div class="xp-bar">
+                        <div class="xp-fill" style="width: @GetXpPercentage()%"></div>
+                    </div>
+                    <span class="xp-text">@stats.Experience / @GetNextLevelXp() XP</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🏆</div>
+                <div class="stat-value">@stats.TotalPoints</div>
+                <div class="stat-label">Puntos Totales</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">🎯</div>
+                <div class="stat-value">@stats.Rank</div>
+                <div class="stat-label">Ranking Global</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">🔥</div>
+                <div class="stat-value">@stats.StreakDays</div>
+                <div class="stat-label">Días de Racha</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-icon">🎮</div>
+                <div class="stat-value">@stats.TotalGamesWon</div>
+                <div class="stat-label">Juegos Ganados</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-button @(activeTab == "stats" ? "active" : "")" 
+                    @onclick='() => SwitchTab("stats")'>
+                📊 Estadísticas
+            </button>
+            <button class="tab-button @(activeTab == "games" ? "active" : "")" 
+                    @onclick='() => SwitchTab("games")'>
+                🎮 Juegos
+            </button>
+            <button class="tab-button @(activeTab == "achievements" ? "active" : "")" 
+                    @onclick='() => SwitchTab("achievements")'>
+                🏆 Logros
+            </button>
+            <button class="tab-button @(activeTab == "leaderboard" ? "active" : "")" 
+                    @onclick='() => SwitchTab("leaderboard")'>
+                🏅 Ranking
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content">
+            @if (activeTab == "stats")
+            {
+                <div class="stats-charts-grid">
+                    <div class="chart-card">
+                        <h3>📊 Progreso Semanal</h3>
+                        <canvas id="weeklyProgressChart" style="max-height: 300px;"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>🎮 Juegos por Tipo</h3>
+                        <canvas id="gamesByTypeChart" style="max-height: 300px;"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>📈 Puntuación por Día</h3>
+                        <canvas id="dailyScoreChart" style="max-height: 300px;"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>⚡ Tiempo de Respuesta</h3>
+                        <canvas id="responseTimeChart" style="max-height: 300px;"></canvas>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "games")
+            {
+                <div class="games-grid">
+                    @if (games != null && games.Count > 0)
+                    {
+                        @foreach (var game in games)
+                        {
+                            <div class="game-card">
+                                <div class="game-icon">
+                                    @GetGameIcon(game.Type)
+                                </div>
+                                <h3>@game.Name</h3>
+                                <p>@game.Description</p>
+                                <div class="game-stats">
+                                    <div class="game-stars">
+                                        @for (int i = 0; i < 5; i++)
+                                        {
+                                            <span class="star @(i < game.Stars ? "filled" : "")">★</span>
+                                        }
+                                    </div>
+                                    <span class="game-duration">⏱️ ~@game.AverageTimeMinutes min</span>
+                                    <span class="game-points">🏆 @game.PointsReward pts</span>
+                                </div>
+                                @if (game.AiPowered)
+                                {
+                                    <div class="ai-badge">🤖 AI-Powered</div>
+                                }
+                                <button class="btn-play" @onclick="() => StartGame(game.Id, game.Type)">Jugar Ahora</button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p>No hay juegos disponibles.</p>
+                    }
+                </div>
+            }
+            else if (activeTab == "achievements")
+            {
+                <div class="achievements-grid">
+                    @if (achievements != null && achievements.Count > 0)
+                    {
+                        @foreach (var achievement in achievements)
+                        {
+                            <div class="achievement-card @(achievement.Unlocked ? "unlocked" : "locked")">
+                                <div class="achievement-icon">@achievement.Icon</div>
+                                <h3>@achievement.Name</h3>
+                                <p>@achievement.Description</p>
+                                <div class="achievement-points">+@achievement.Points pts</div>
+                                @if (achievement.Unlocked)
+                                {
+                                    <div class="achievement-status unlocked">
+                                        ✅ Desbloqueado
+                                        @if (achievement.UnlockedAt.HasValue)
+                                        {
+                                            <br/><small>@achievement.UnlockedAt.Value.ToString("dd/MM/yyyy")</small>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="achievement-progress">
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" style="width: @(achievement.Progress * 100)%"></div>
+                                        </div>
+                                        <span>@((int)(achievement.Progress * 100))% completado</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            else if (activeTab == "leaderboard")
+            {
+                <div class="leaderboard">
+                    @if (leaderboard != null && leaderboard.Count > 0)
+                    {
+                        <table class="leaderboard-table">
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Usuario</th>
+                                    <th>Nivel</th>
+                                    <th>Puntos</th>
+                                    <th>Juegos Ganados</th>
+                                    <th>Logros</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var entry in leaderboard)
+                                {
+                                    <tr class="@(entry.UserId == userId ? "current-user" : "")">
+                                        <td class="rank">
+                                            @if (entry.Rank <= 3)
+                                            {
+                                                <span class="medal">@GetRankMedal(entry.Rank)</span>
+                                            }
+                                            else
+                                            {
+                                                <span>#@entry.Rank</span>
+                                            }
+                                        </td>
+                                        <td>@entry.Username</td>
+                                        <td>@entry.Level</td>
+                                        <td class="points">@entry.TotalPoints</td>
+                                        <td>@entry.GamesWon</td>
+                                        <td>@entry.AchievementsCount</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="error-message">
+            <p>❌ Error cargando los datos. Intenta de nuevo.</p>
+            <button @onclick="LoadData">Reintentar</button>
+        </div>
+    }
+</div>
+

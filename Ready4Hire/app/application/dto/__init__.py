@@ -2,6 +2,7 @@
 Data Transfer Objects (DTOs) for Ready4Hire API.
 Separates API layer from domain layer.
 """
+
 from .interview_dto import (
     StartInterviewRequest,
     StartInterviewResponse,
@@ -12,10 +13,11 @@ from .interview_dto import (
     QuestionDTO,
     EvaluationDTO,
     EmotionDTO,
-    ProgressDTO
+    ProgressDTO,
 )
 from .health_dto import HealthResponse, ComponentHealth
 from .auth_dto import LoginRequest, TokenResponse, UserDTO
+from .gamification_dto import *
 
 __all__ = [
     # Interview DTOs
@@ -37,4 +39,3 @@ __all__ = [
     "TokenResponse",
     "UserDTO",
 ]
-

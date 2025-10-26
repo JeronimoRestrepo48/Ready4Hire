@@ -16,12 +16,16 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 // Servicios de seguridad y autenticación
 builder.Services.AddScoped<Ready4Hire.Services.AuthService>();
 builder.Services.AddScoped<Ready4Hire.Services.SecurityService>();
+builder.Services.AddScoped<Ready4Hire.Services.FileUploadService>();
 
 // HttpClient para APIs
 builder.Services.AddHttpClient();
 
 // Registrar el servicio de consumo de la API Python
 builder.Services.AddHttpClient<InterviewApiService>();
+
+// Registrar servicio de gamificación
+builder.Services.AddHttpClient<Ready4Hire.Services.GamificationService>();
 
 // Agregar controladores API
 builder.Services.AddControllers();
@@ -63,7 +67,7 @@ app.Use(async (context, next) =>
     context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
     context.Response.Headers["Content-Security-Policy"] = 
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; " +
         "style-src 'self' 'unsafe-inline'; " +
         "img-src 'self' data: https:; " +
         "font-src 'self' data:; " +

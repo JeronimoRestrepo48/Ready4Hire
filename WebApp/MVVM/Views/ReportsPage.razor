@@ -1,0 +1,780 @@
+@page "/reports"
+@using Ready4Hire.Services
+@using Ready4Hire.MVVM.Models
+@inject AuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Nav
+@attribute [StreamRendering(false)]
+
+<PageTitle>Reportes - Ready4Hire</PageTitle>
+
+<div class="reports-container">
+    <!-- Header -->
+    <div class="reports-header">
+        <div class="header-content">
+            <h1>📊 Mis Reportes de Entrevistas</h1>
+            <p class="subtitle">Análisis detallado de tu desempeño y progreso</p>
+        </div>
+        
+        <div class="header-actions">
+            <button class="btn btn-primary" @onclick="RefreshReports">
+                <span class="icon">🔄</span>
+                Actualizar
+            </button>
+            <button class="btn btn-secondary" @onclick="ExportAllReports">
+                <span class="icon">📥</span>
+                Exportar Todo
+            </button>
+        </div>
+    </div>
+    
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Cargando reportes...</p>
+        </div>
+    }
+    else if (reports == null || reports.Count == 0)
+    {
+        <div class="empty-state">
+            <span class="empty-icon">📝</span>
+            <h3>No hay reportes disponibles</h3>
+            <p>Completa tu primera entrevista para ver tu reporte aquí</p>
+            <button class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/chat"))">
+                Iniciar Entrevista
+            </button>
+        </div>
+    }
+    else
+    {
+        <!-- Filters -->
+        <div class="filters-section">
+            <div class="filter-group">
+                <label>Profesión:</label>
+                <select @bind="filterRole" @bind:after="ApplyFilters">
+                    <option value="">Todas</option>
+                    @foreach (var role in availableRoles)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Período:</label>
+                <select @bind="filterPeriod" @bind:after="ApplyFilters">
+                    <option value="all">Todo el tiempo</option>
+                    <option value="week">Última semana</option>
+                    <option value="month">Último mes</option>
+                    <option value="year">Último año</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Modo:</label>
+                <select @bind="filterMode" @bind:after="ApplyFilters">
+                    <option value="">Todos</option>
+                    <option value="practice">Práctica</option>
+                    <option value="exam">Examen</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="card-icon">🎯</div>
+                <div class="card-content">
+                    <h3>@filteredReports.Count</h3>
+                    <p>Entrevistas Completadas</p>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <div class="card-icon">⭐</div>
+                <div class="card-content">
+                    <h3>@averageScore.ToString("F1")</h3>
+                    <p>Score Promedio</p>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <div class="card-icon">📈</div>
+                <div class="card-content">
+                    <h3>@successRate%</h3>
+                    <p>Tasa de Éxito</p>
+                </div>
+            </div>
+            
+            <div class="summary-card">
+                <div class="card-icon">🏆</div>
+                <div class="card-content">
+                    <h3>@certificatesCount</h3>
+                    <p>Certificados Obtenidos</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Performance Trends Chart -->
+        <div class="chart-section">
+            <h2>📈 Tendencia de Performance</h2>
+            <div class="chart-card">
+                <canvas id="performanceTrendChart"></canvas>
+            </div>
+        </div>
+        
+        <!-- Reports List -->
+        <div class="reports-list-section">
+            <div class="section-header-with-actions">
+                <h2>📋 Historial de Entrevistas (@filteredReports.Count)</h2>
+                <div class="sort-controls">
+                    <label>Ordenar por:</label>
+                    <select class="sort-select">
+                        <option value="date-desc">Más reciente</option>
+                        <option value="date-asc">Más antiguo</option>
+                        <option value="score-desc">Mayor puntaje</option>
+                        <option value="score-asc">Menor puntaje</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="reports-list">
+                @foreach (var report in filteredReports.OrderByDescending(r => r.CompletedAt))
+                {
+                    <div class="report-card @GetScoreClass(report.AverageScore)">
+                        <div class="report-status-indicator"></div>
+                        <div class="report-header">
+                            <div class="report-title">
+                                <div class="role-icon">💼</div>
+                                <div>
+                                    <h3>@report.Role</h3>
+                                    <span class="report-mode-badge @(report.Mode == "exam" ? "exam-mode" : "practice-mode")">
+                                        @(report.Mode == "exam" ? "📝 Examen" : "🎓 Práctica")
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="report-date">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/>
+                                    <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2"/>
+                                    <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2"/>
+                                    <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                @report.CompletedAt.ToString("dd MMM yyyy HH:mm")
+                            </div>
+                        </div>
+                        
+                        <div class="report-body">
+                            <div class="report-metrics-enhanced">
+                                <div class="metric-enhanced">
+                                    <div class="metric-icon score-icon">⭐</div>
+                                    <div class="metric-details">
+                                        <span class="metric-value-large">@report.AverageScore.ToString("F1")</span>
+                                        <span class="metric-label-enhanced">Score / 10</span>
+                                    </div>
+                                </div>
+                                <div class="metric-enhanced">
+                                    <div class="metric-icon">📝</div>
+                                    <div class="metric-details">
+                                        <span class="metric-value-large">@report.TotalQuestions</span>
+                                        <span class="metric-label-enhanced">Preguntas</span>
+                                    </div>
+                                </div>
+                                <div class="metric-enhanced">
+                                    <div class="metric-icon">✅</div>
+                                    <div class="metric-details">
+                                        <span class="metric-value-large">@report.CorrectAnswers</span>
+                                        <span class="metric-label-enhanced">Correctas</span>
+                                    </div>
+                                </div>
+                                <div class="metric-enhanced">
+                                    <div class="metric-icon">⏱️</div>
+                                    <div class="metric-details">
+                                        <span class="metric-value-large">@FormatTime(report.TotalTimeSeconds)</span>
+                                        <span class="metric-label-enhanced">Duración</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="progress-bar-container">
+                                <div class="progress-label">
+                                    <span>Progreso de respuestas</span>
+                                    <span>@((int)((double)report.CorrectAnswers / report.TotalQuestions * 100))%</span>
+                                </div>
+                                <div class="progress-bar-wrapper">
+                                    <div class="progress-bar-fill" style="width: @((int)((double)report.CorrectAnswers / report.TotalQuestions * 100))%"></div>
+                                </div>
+                            </div>
+                            
+                            @if (!string.IsNullOrEmpty(report.CertificateId))
+                            {
+                                <div class="certificate-badge-enhanced">
+                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                                        <path d="M12 15L8 18V8L12 5L16 8V18L12 15Z" stroke="currentColor" stroke-width="2"/>
+                                        <circle cx="12" cy="9" r="3" stroke="currentColor" stroke-width="2"/>
+                                    </svg>
+                                    <div>
+                                        <strong>Certificado Obtenido</strong>
+                                        <span>ID: @report.CertificateId</span>
+                                    </div>
+                                </div>
+                            }
+                            
+                            <div class="report-actions">
+                                <button class="btn btn-sm btn-primary" @onclick="@(() => ViewDetailedReport(report.InterviewId))">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                                        <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2"/>
+                                    </svg>
+                                    Ver Detalles
+                                </button>
+                                @if (!string.IsNullOrEmpty(report.CertificateId))
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="@(() => DownloadCertificate(report.CertificateId))">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                            <path d="M21 15V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V15" stroke="currentColor" stroke-width="2"/>
+                                            <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2"/>
+                                            <path d="M12 15V3" stroke="currentColor" stroke-width="2"/>
+                                        </svg>
+                                        Descargar Certificado
+                                    </button>
+                                }
+                                <button class="btn btn-sm btn-outline" @onclick="@(() => ShareReport(report.InterviewId))">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="2"/>
+                                        <circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                                        <circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="2"/>
+                                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" stroke="currentColor" stroke-width="2"/>
+                                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" stroke="currentColor" stroke-width="2"/>
+                                    </svg>
+                                    Compartir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+.reports-container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.reports-container::-webkit-scrollbar {
+    width: 10px;
+}
+
+.reports-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.reports-container::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 5px;
+    border: 2px solid #0a0a0a;
+}
+
+.reports-container::-webkit-scrollbar-thumb:hover {
+    background: #444;
+}
+
+.reports-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+}
+
+.header-content h1 {
+    color: #ffffff;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: #94a3b8;
+    font-size: 1rem;
+}
+
+.header-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.btn-secondary {
+    background: #334155;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #475569;
+}
+
+.filters-section {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.filter-group label {
+    color: #cbd5e1;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.filter-group select {
+    padding: 0.75rem;
+    border-radius: 8px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(15, 23, 42, 0.8);
+    color: white;
+    font-size: 1rem;
+}
+
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.summary-card {
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    backdrop-filter: blur(10px);
+    transition: all 0.2s;
+}
+
+.summary-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.card-icon {
+    font-size: 2.5rem;
+}
+
+.card-content h3 {
+    color: #ffffff;
+    font-size: 2rem;
+    margin-bottom: 0.25rem;
+}
+
+.card-content p {
+    color: #94a3b8;
+    font-size: 0.875rem;
+}
+
+.chart-section {
+    margin-bottom: 2rem;
+}
+
+.chart-section h2 {
+    color: #ffffff;
+    margin-bottom: 1rem;
+}
+
+.chart-card {
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 12px;
+    padding: 2rem;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.reports-list-section h2 {
+    color: #ffffff;
+    margin-bottom: 1rem;
+}
+
+.reports-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.report-card {
+    background: rgba(30, 41, 59, 0.6);
+    border-radius: 12px;
+    padding: 1.5rem;
+    border-left: 4px solid #6366f1;
+    backdrop-filter: blur(10px);
+    transition: all 0.2s;
+}
+
+.report-card:hover {
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2);
+}
+
+.report-card.excellent { border-left-color: #10b981; }
+.report-card.good { border-left-color: #6366f1; }
+.report-card.fair { border-left-color: #f59e0b; }
+.report-card.poor { border-left-color: #ef4444; }
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.report-title {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.report-title h3 {
+    color: #ffffff;
+    margin: 0;
+}
+
+.report-mode-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.exam-mode {
+    background: rgba(99, 102, 241, 0.2);
+    color: #a5b4fc;
+}
+
+.practice-mode {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+}
+
+.report-date {
+    color: #94a3b8;
+    font-size: 0.875rem;
+}
+
+.report-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 8px;
+}
+
+.metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.metric-label {
+    color: #94a3b8;
+    font-size: 0.75rem;
+}
+
+.metric-value {
+    color: #ffffff;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.score-value {
+    color: #6366f1;
+}
+
+.certificate-badge {
+    padding: 0.75rem;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(251, 191, 36, 0.2) 100%);
+    border-radius: 8px;
+    color: #fbbf24;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.report-actions {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 1px solid rgba(99, 102, 241, 0.5);
+    color: #a5b4fc;
+}
+
+.btn-outline:hover {
+    background: rgba(99, 102, 241, 0.1);
+    border-color: #6366f1;
+}
+
+.loading-state, .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    text-align: center;
+}
+
+.spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid rgba(99, 102, 241, 0.2);
+    border-top-color: #6366f1;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+    color: #ffffff;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    color: #94a3b8;
+    margin-bottom: 1.5rem;
+}
+
+/* Enhanced Report Card Styles */
+.section-header-with-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.sort-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.sort-controls label {
+    color: #cbd5e1;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.sort-select {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    background: rgba(15, 23, 42, 0.8);
+    color: white;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.report-status-indicator {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: currentColor;
+    border-radius: 12px 0 0 12px;
+}
+
+.role-icon {
+    font-size: 2rem;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: 12px;
+}
+
+.report-metrics-enhanced {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 12px;
+}
+
+.metric-enhanced {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.metric-icon {
+    font-size: 1.75rem;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(99, 102, 241, 0.15);
+    border-radius: 10px;
+}
+
+.score-icon {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.2));
+}
+
+.metric-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.metric-value-large {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.metric-label-enhanced {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.progress-bar-container {
+    margin-bottom: 1.5rem;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    color: #cbd5e1;
+    font-weight: 600;
+}
+
+.progress-bar-wrapper {
+    height: 10px;
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1 0%, #8b5cf6 100%);
+    transition: width 0.3s ease;
+    border-radius: 5px;
+}
+
+.certificate-badge-enhanced {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%);
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+}
+
+.certificate-badge-enhanced svg {
+    stroke: #fbbf24;
+    flex-shrink: 0;
+}
+
+.certificate-badge-enhanced div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.certificate-badge-enhanced strong {
+    color: #fbbf24;
+    font-weight: 700;
+    font-size: 1rem;
+}
+
+.certificate-badge-enhanced span {
+    color: #cbd5e1;
+    font-size: 0.875rem;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.report-date svg {
+    stroke: #94a3b8;
+}
+</style>
+
