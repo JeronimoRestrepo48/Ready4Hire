@@ -16,10 +16,10 @@ class NotificationService {
     if (this.initialized) return;
 
     PushNotification.configure({
-      onRegister: (token) => {
+      onRegister: (token: any) => {
         console.log('📱 Push notification token:', token);
       },
-      onNotification: (notification) => {
+      onNotification: (notification: any) => {
         console.log('📬 Notification:', notification);
         if (notification.userInteraction) {
           // Handle notification tap

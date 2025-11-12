@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     REDIS_ENABLED: bool = False
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_CACHE_TTL_SECONDS: int = 3600
+    REDIS_PASSWORD: str = "Ready4Hire2024!"
     REDIS_MAX_CONNECTIONS: int = 10
 
     # Rate Limiting

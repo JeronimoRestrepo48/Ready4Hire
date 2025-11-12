@@ -4,7 +4,7 @@
 
 import {createSlice, createAsyncThunk} from '@reduxjs/toolkit';
 import {apiClient} from '../../services/api/ApiClient';
-import {GamificationState, UserStats, Badge, LeaderboardEntry, Game} from '../../types';
+import {GamificationState, UserStats, Badge, UserBadge, LeaderboardEntry, Game} from '../../types';
 
 const initialState: GamificationState = {
   stats: null,
@@ -66,7 +66,7 @@ const gamificationSlice = createSlice({
         state.badges = action.payload;
       })
       .addCase(fetchUserBadges.fulfilled, (state, action) => {
-        state.userBadges = action.payload;
+        state.userBadges = action.payload as UserBadge[];
       })
       .addCase(fetchLeaderboard.fulfilled, (state, action) => {
         state.leaderboard = action.payload;

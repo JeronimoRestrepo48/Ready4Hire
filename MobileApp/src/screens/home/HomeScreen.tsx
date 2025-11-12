@@ -42,14 +42,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({navigation}) => {
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={[styles.quickAction, {backgroundColor: theme.colors.primary}]}
-            onPress={() => navigation.navigate('Interview')}>
+            onPress={() => (navigation as any).navigate('Interview', {screen: 'InterviewList'})}>
             <Icon name="chat-question" size={32} color="#fff" />
             <Text style={styles.quickActionText}>Iniciar Entrevista</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.quickAction, {backgroundColor: theme.colors.secondary}]}
-            onPress={() => navigation.navigate('Games')}>
+            onPress={() => (navigation as any).navigate('Gamification', {screen: 'Games'})}>
             <Icon name="puzzle" size={32} color="#fff" />
             <Text style={styles.quickActionText}>Juegos</Text>
           </TouchableOpacity>

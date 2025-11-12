@@ -23,7 +23,7 @@
     "axios": "^1.6.2",
     "lodash": "^4.17.21",
     "react": "18.2.0",
-    "react-native": "0.72.6",
+    "react-native": "^0.82.1",
     "react-native-code-push": "^8.1.1",
     "react-native-dotenv": "^3.4.9",
     "react-native-fast-image": "^8.6.3",

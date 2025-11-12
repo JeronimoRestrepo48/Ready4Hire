@@ -62,7 +62,9 @@ class ApiClient {
     // Response interceptor
     this.client.interceptors.response.use(
       (response) => {
-        const duration = Date.now() - response.config.metadata.startTime;
+        const duration = response.config.metadata?.startTime
+          ? Date.now() - response.config.metadata.startTime
+          : 0;
         console.log(`✅ ${response.config.method?.toUpperCase()} ${response.config.url} (${duration}ms)`);
         return response;
       },

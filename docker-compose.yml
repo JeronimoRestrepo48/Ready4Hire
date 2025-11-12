@@ -1,8 +1,8 @@
-version: '3.8'
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Ready4Hire v2.1 - Docker Compose Unificado
-# Soporta: Production, QA, Staging
+# Soporta: Production, QA, Staging, Development
 # ══════════════════════════════════════════════════════════════════════════════
 #
 # USAGE:
@@ -11,6 +11,12 @@ version: '3.8'
 #   Staging:     docker-compose --profile staging up -d
 #   Development: docker-compose --profile dev up -d
 #   All:         docker-compose --profile production --profile monitoring up -d
+#
+# GPU CONFIGURATION:
+#   With GPU:    docker-compose up -d (set USE_GPU=true in .env)
+#   CPU Only:    docker-compose -f docker-compose.yml -f docker-compose.cpu-only.yml up -d
+#
+# NOTE: Ollama will automatically fall back to CPU mode if GPU is not available
 #
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -46,11 +52,13 @@ services:
     image: redis:7-alpine
     container_name: ready4hire_redis_${ENVIRONMENT:-dev}
     command: >
+      sh -c "
       redis-server
       --appendonly yes
       --maxmemory ${REDIS_MAXMEMORY:-512mb}
       --maxmemory-policy allkeys-lru
-      ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}
+      --requirepass \"${REDIS_PASSWORD:-Ready4Hire2024!}\"
+      "
     volumes:
       - redis_data:/data
     ports:
@@ -58,10 +66,19 @@ services:
     networks:
       - ready4hire_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: >
+        sh -c "
+        if [ -n \"$$REDIS_PASSWORD\" ]; then
+          redis-cli -a \"$$REDIS_PASSWORD\" ping || exit 1
+        else
+          redis-cli ping || exit 1
+        fi
+        "
       interval: 10s
       timeout: 3s
       retries: 5
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-Ready4Hire2024!}
     restart: unless-stopped
     profiles: ["production", "qa", "staging", "dev"]
 
@@ -87,6 +104,17 @@ services:
     profiles: ["production", "qa", "staging", "dev"]
 
   # Ollama LLM Service
+  # Supports both GPU and CPU-only modes
+  # 
+  # GPU Mode (if available):
+  #   - Set USE_GPU=true in .env
+  #   - Ensure nvidia-docker2 is installed
+  #   - GPU will be automatically detected and used
+  #
+  # CPU Mode (default, no GPU required):
+  #   - Ollama runs in CPU mode automatically if GPU is not available
+  #   - Use: docker-compose -f docker-compose.yml -f docker-compose.cpu-only.yml up
+  #   - Or simply don't set USE_GPU (defaults to CPU)
   ollama:
     image: ollama/ollama:latest
     container_name: ready4hire_ollama_${ENVIRONMENT:-dev}
@@ -96,6 +124,10 @@ services:
       - "${OLLAMA_PORT:-11434}:11434"
     networks:
       - ready4hire_network
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_NUM_GPU=${GPU_COUNT:-0}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
@@ -103,13 +135,20 @@ services:
       retries: 3
     restart: unless-stopped
     profiles: ["production", "qa", "staging", "dev"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: ${GPU_COUNT:-0}
-              capabilities: [gpu]
+    # GPU configuration - Commented out by default to avoid errors when GPU is not available
+    # To enable GPU:
+    #   1. Uncomment the deploy section below
+    #   2. Set GPU_COUNT=1 in .env
+    #   3. Ensure nvidia-docker2 is installed
+    # 
+    # For CPU-only mode (default), use: docker compose -f docker-compose.yml -f docker-compose.cpu-only.yml --profile dev up
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: ${GPU_COUNT:-0}
+    #           capabilities: [gpu]
 
   # ════════════════════════════════════════════════════════════════════════════
   # BACKEND API
@@ -130,12 +169,12 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}
       
       # Redis
-      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/0
       REDIS_ENABLED: "true"
       
       # Celery
-      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
-      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
       
       # Qdrant
       QDRANT_HOST: qdrant
@@ -193,10 +232,10 @@ services:
     container_name: ready4hire_celery_worker_${ENVIRONMENT:-dev}
     command: celery -A app.infrastructure.tasks.celery_app worker --loglevel=${CELERY_LOG_LEVEL:-info} --concurrency=${CELERY_CONCURRENCY:-4} -Q default,evaluations,ml_tasks,high_priority
     environment:
-      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
-      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
       DATABASE_URL: postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}
-      REDIS_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/0
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       OLLAMA_URL: http://ollama:11434
@@ -221,8 +260,8 @@ services:
     container_name: ready4hire_celery_beat_${ENVIRONMENT:-dev}
     command: celery -A app.infrastructure.tasks.celery_app beat --loglevel=${CELERY_LOG_LEVEL:-info}
     environment:
-      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
-      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
       DATABASE_URL: postgresql://${POSTGRES_USER:-ready4hire}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-ready4hire_db}
     depends_on:
       - redis
@@ -248,8 +287,8 @@ services:
     ports:
       - "${FLOWER_PORT:-5555}:5555"
     environment:
-      CELERY_BROKER_URL: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
-      CELERY_RESULT_BACKEND: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/1
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379/1
     depends_on:
       - redis
       - celery_worker
@@ -354,7 +393,7 @@ services:
     ports:
       - "${REDIS_EXPORTER_PORT:-9121}:9121"
     environment:
-      REDIS_ADDR: redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379
+      REDIS_ADDR: redis://:${REDIS_PASSWORD:-Ready4Hire2024!}@redis:6379
     restart: unless-stopped
     networks:
       - ready4hire_network

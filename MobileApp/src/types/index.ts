@@ -38,6 +38,11 @@ export interface RegisterData {
   password: string;
   name: string;
   lastName?: string;
+  country?: string;
+  job?: string;
+  skills?: string[];
+  softskills?: string[];
+  interests?: string[];
 }
 
 // Interview Types

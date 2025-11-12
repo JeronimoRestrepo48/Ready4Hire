@@ -1,0 +1,23 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Docker Compose - CPU Only Override
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# Use this file to explicitly disable GPU and run in CPU-only mode
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.cpu-only.yml --profile dev up -d
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+version: '3.8'
+
+services:
+  ollama:
+    # Remove GPU configuration for CPU-only mode
+    # This override removes the GPU device reservation
+    deploy: {}
+    environment:
+      - OLLAMA_NUM_GPU=0
+      - OLLAMA_HOST=0.0.0.0
+      - OLLAMA_KEEP_ALIVE=24h
+

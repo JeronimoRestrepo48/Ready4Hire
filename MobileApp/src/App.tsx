@@ -22,7 +22,7 @@ import {initializeServices} from './services/ServiceInitializer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Ensure fonts are loaded
-MaterialCommunityIcons.loadFont().catch((err) => {
+MaterialCommunityIcons.loadFont().catch((err: any) => {
   console.warn('Failed to load MaterialCommunityIcons font:', err);
 });
 
