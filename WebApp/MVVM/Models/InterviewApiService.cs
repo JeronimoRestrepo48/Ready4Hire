@@ -20,7 +20,7 @@ namespace Ready4Hire.MVVM.Models
         public InterviewApiService(HttpClient httpClient, IConfiguration configuration)
         {
             _httpClient = httpClient;
-            _baseUrl = configuration["Ready4HireApi:BaseUrl"] ?? "http://localhost:8000";
+            _baseUrl = configuration["Ready4HireApi:BaseUrl"] ?? "http://localhost:8001";
         }
 
         // ============================================================================
@@ -37,16 +37,69 @@ namespace Ready4Hire.MVVM.Models
         /// <param name="difficulty">Dificultad: junior, mid, senior</param>
         public async Task<JsonElement> StartInterviewV2Async(string userId, string role, string category, string difficulty)
         {
-            var payload = new 
-            { 
-                user_id = userId, 
-                role = role, 
-                category = category, 
-                difficulty = difficulty 
-            };
-            var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/v2/interviews", payload);
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<JsonElement>();
+            try
+            {
+                var payload = new 
+                { 
+                    user_id = userId, 
+                    role = role, 
+                    category = category, 
+                    difficulty = difficulty 
+                };
+                
+                var response = await _httpClient.PostAsJsonAsync($"{_baseUrl}/api/v2/interviews", payload);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    throw new HttpRequestException($"API Error ({response.StatusCode}): {errorContent}");
+                }
+                
+                var jsonContent = await response.Content.ReadAsStringAsync();
+                
+                // Verificar que la respuesta no esté vacía y sea JSON válido
+                if (string.IsNullOrWhiteSpace(jsonContent))
+                {
+                    throw new InvalidOperationException("La respuesta del servidor está vacía");
+                }
+                
+                // Verificar que no empiece con caracteres inválidos
+                var trimmedContent = jsonContent.TrimStart();
+                if (trimmedContent.StartsWith("#"))
+                {
+                    if (trimmedContent.Contains("python_gc_objects") || trimmedContent.Contains("HELP") || trimmedContent.Contains("TYPE"))
+                    {
+                        throw new InvalidOperationException("El servidor está devolviendo métricas de Prometheus en lugar de la API. Verifica que la URL base sea correcta y que el backend de entrevistas esté ejecutándose en el puerto correcto.");
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Respuesta inválida del servidor: {jsonContent.Substring(0, Math.Min(100, jsonContent.Length))}...");
+                    }
+                }
+                if (trimmedContent.StartsWith("<"))
+                {
+                    throw new InvalidOperationException("El servidor está devolviendo HTML en lugar de JSON. Verifica que la URL de la API sea correcta.");
+                }
+                
+                return JsonSerializer.Deserialize<JsonElement>(jsonContent);
+            }
+            catch (HttpRequestException)
+            {
+                // Re-throw HTTP errors as-is
+                throw;
+            }
+            catch (TaskCanceledException)
+            {
+                throw new TimeoutException("La conexión con el servidor ha expirado. Verifica que el backend esté ejecutándose.");
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException($"Error al parsear la respuesta JSON: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error inesperado al comunicarse con el servidor: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -179,7 +232,7 @@ namespace Ready4Hire.MVVM.Models
     /// </summary>
     /// <param name="role">Rol (opcional)</param>
     /// <param name="level">Nivel (opcional)</param>
-    public async Task<JsonElement> GetQuestionBankAsync(string role = null, string level = null)
+    public async Task<JsonElement> GetQuestionBankAsync(string? role = null, string? level = null)
     {
             var url = $"{_baseUrl}/get_question_bank";
             var query = new List<string>();
@@ -226,9 +279,9 @@ namespace Ready4Hire.MVVM.Models
     public async Task<JsonElement> SpeechToTextAsync(byte[] audioBytes, string lang = "es")
     {
             var content = new MultipartFormDataContent();
-            content.Add(new ByteArrayContent(audioBytes), "audio", "audio.wav");
-            content.Add(new StringContent(lang), "lang");
-            var response = await _httpClient.PostAsync($"{_baseUrl}/stt", content);
+            content.Add(new ByteArrayContent(audioBytes), "audio_file", "audio.wav");
+            content.Add(new StringContent(lang), "language");
+            var response = await _httpClient.PostAsync($"{_baseUrl}/api/v2/audio/speech-to-text", content);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<JsonElement>();
         }
@@ -241,10 +294,21 @@ namespace Ready4Hire.MVVM.Models
     /// <param name="lang">Idioma (por defecto "es")</param>
     public async Task<byte[]> TextToSpeechAsync(string text, string lang = "es")
     {
-            var content = new MultipartFormDataContent();
-            content.Add(new StringContent(text), "text");
-            content.Add(new StringContent(lang), "lang");
-            var response = await _httpClient.PostAsync($"{_baseUrl}/tts", content);
+            var payload = new 
+            {
+                text = text,
+                language = lang,
+                rate = 150,
+                volume = 1.0f,
+                output_format = "mp3"
+            };
+            
+            var jsonContent = new StringContent(
+                JsonSerializer.Serialize(payload),
+                Encoding.UTF8,
+                "application/json");
+            
+            var response = await _httpClient.PostAsync($"{_baseUrl}/api/v2/audio/text-to-speech-bytes", jsonContent);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsByteArrayAsync();
         }

@@ -249,6 +249,36 @@ Evalúas candidatos para posiciones de Software Engineer considerando:
                 ],
                 industry_context="E-commerce, SaaS, D2C brands, startups",
             ),
+            # FASHION & DESIGN
+            "fashion_designer": PromptTemplate(
+                evaluation_system="""Eres un Creative Director de una casa de moda reconocida con 15+ años de experiencia:
+- Diseño conceptual y desarrollo de colecciones
+- Conocimiento profundo de materiales, tejidos y construcción
+- Tendencias globales, forecasting y consumer insights
+- Proceso de producción desde sketch hasta prenda final
+- Sostenibilidad y ethical fashion
+- Branding y estrategia comercial en moda""",
+                evaluation_criteria="""Evalúa:
+1. **Conocimiento Técnico** (30%): ¿Domina materiales, patronaje, construcción?
+2. **Visión Creativa** (25%): ¿Demuestra originalidad y coherencia estética?
+3. **Conocimiento del Mercado** (20%): ¿Entiende trends, pricing, target audience?
+4. **Proceso de Diseño** (15%): ¿Conoce el flujo desde concept hasta producción?
+5. **Sostenibilidad** (10%): ¿Considera impacto ambiental y ético?""",
+                feedback_tone="Creativo y técnico. Usa terminología de moda (silueta, drape, fit). Menciona diseñadores icónicos y tendencias actuales.",
+                key_concepts=[
+                    "patronaje",
+                    "tejidos",
+                    "silueta",
+                    "colección",
+                    "fit",
+                    "trends",
+                    "sostenibilidad",
+                    "tech pack",
+                    "producción",
+                    "branding"
+                ],
+                industry_context="Fast fashion, luxury brands, sustainable fashion, independent designers",
+            ),
             # Agregar más profesiones...
             "cybersecurity_engineer": PromptTemplate(
                 evaluation_system="""Eres un CISO (Chief Information Security Officer) con certificaciones CISSP, CEH:
@@ -317,64 +347,39 @@ Evalúas candidatos para posiciones de Software Engineer considerando:
 
 {mode_context}
 
-**CONTEXTO DE LA INDUSTRIA:**
-{template.industry_context}
+Industria: {template.industry_context}
+Nivel: {difficulty.upper()}
 
-**CRITERIOS DE EVALUACIÓN:**
+P: {question}
+R: {answer}
+Conceptos: {', '.join(expected_concepts[:5])}
+
+Criterios:
 {template.evaluation_criteria}
 
-**NIVEL DE DIFICULTAD:** {difficulty.upper()}
+Instrucciones:
+- NO uses "como modelo de IA" ni "no puedo"
+- Sé directo y profesional
+- Usa terminología de {role}
 
-**PREGUNTA:**
-{question}
+Evalúa (0-10):
+- 9-10: Excelente, completa y profunda
+- 7-8: Buena, esencial cubierto
+- 5-6: Aceptable, básico pero falta profundidad
+- 3-4: Insuficiente, errores importantes
+- 0-2: Muy pobre, incorrecta
 
-**CONCEPTOS CLAVE ESPERADOS:**
-{', '.join(expected_concepts)}
-
-**RESPUESTA DEL CANDIDATO:**
-{answer}
-
-**TU TAREA:**
-Evalúa la respuesta del candidato y proporciona:
-
-1. **score** (0-10): Puntuación numérica
-   - 9-10: Excelente, respuesta completa y profunda
-   - 7-8: Buena, cubre lo esencial con claridad
-   - 5-6: Aceptable, conceptos básicos pero falta profundidad
-   - 3-4: Insuficiente, errores o gaps importantes
-   - 0-2: Muy pobre, respuesta incorrecta o irrelevante
-
-2. **is_correct** (true/false): ¿Es fundamentalmente correcta?
-
-3. **feedback**: Feedback constructivo (2-3 oraciones)
-   {template.feedback_tone}
-   - Inicia con emoji apropiado (🎯 ✅ 💪 📚 ⚠️ según score)
-   - Destaca lo bueno
-   - Señala áreas de mejora
-   - {' - Ofrece hint o pista si modo práctica' if interview_mode == 'practice' else ''}
-
-4. **strengths** (lista): Fortalezas identificadas (2-3 puntos)
-
-5. **improvements** (lista): Áreas de mejora (2-3 puntos)
-
-6. **concepts_covered** (lista): Conceptos que el candidato mencionó correctamente
-
-7. **missing_concepts** (lista): Conceptos importantes que faltaron
-
-8. **hint** (opcional): Si modo práctica y score < 6, ofrece una pista útil
-
-Responde SOLO con JSON válido:
+JSON solo:
 {{
   "score": <float>,
   "is_correct": <boolean>,
-  "feedback": "<string>",
-  "strengths": ["<string>", ...],
-  "improvements": ["<string>", ...],
-  "concepts_covered": ["<string>", ...],
-  "missing_concepts": ["<string>", ...],
-  "hint": "<string opcional>"
-}}
-"""
+  "feedback": "<2-3 oraciones>",
+  "strengths": ["<1>", "<2>"],
+  "improvements": ["<1>", "<2>"],
+  "concepts_covered": ["<1>", "<2>"],
+  "missing_concepts": ["<1>", "<2>"],
+  "hint": "{'<1-2 oraciones si score<6>' if interview_mode == 'practice' else 'null'}"
+}}"""
 
         return prompt
 
@@ -495,9 +500,201 @@ Genera solo el texto de la pista, sin JSON ni formato adicional.
 
         return prompt
 
+    def get_motivational_feedback_prompt(
+        self,
+        role: str,
+        question: str,
+        answer: str,
+        evaluation: Dict,
+        attempt: int,
+    ) -> str:
+        """
+        Genera prompt para feedback motivacional cuando la respuesta es incorrecta.
+        
+        Args:
+            role: Rol/profesión del candidato
+            question: Pregunta realizada
+            answer: Respuesta del candidato
+            evaluation: Resultado de la evaluación
+            attempt: Intento actual (1, 2, o 3)
+            
+        Returns:
+            Prompt para generar feedback motivacional
+        """
+        template = self._get_template_for_role(role)
+        
+        attempt_context = {
+            1: "Primer intento. El candidato está empezando. Sé alentador y positivo.",
+            2: "Segundo intento. El candidato está intentando mejorar. Reconoce el esfuerzo.",
+            3: "Tercer intento final. El candidato ha mostrado persistencia. Anima pero prepárate para dar la respuesta correcta.",
+        }.get(attempt, "Intento adicional. Mantén la motivación.")
+        
+        prompt = f"""Eres un mentor experto en {role} que ayuda a un candidato a mejorar.
+
+**CONTEXTO:**
+{attempt_context}
+
+**PREGUNTA:**
+{question}
+
+**RESPUESTA DEL CANDIDATO:**
+{answer}
+
+**EVALUACIÓN:**
+- Score: {evaluation.get('score', 0)}/10
+- Conceptos cubiertos: {', '.join(evaluation.get('concepts_covered', [])[:3]) or 'Ninguno aún'}
+- Conceptos faltantes: {', '.join(evaluation.get('missing_concepts', [])[:3]) or 'Todos'}
+
+**TU TAREA:**
+Genera un mensaje motivacional (2-3 oraciones) que:
+
+1. **Reconozca el esfuerzo**: Valida que el candidato está intentando
+2. **Mantenga la motivación**: Usa un tono positivo y alentador
+3. **Sea específico**: Menciona algo positivo de la respuesta (si hay)
+4. **Anime a continuar**: Motiva a pensar más profundo o desde otro ángulo
+5. **Use emojis apropiados**: 💪 ⭐ 🚀 💡
+
+**IMPORTANTE:**
+- NO des la respuesta completa
+- Sé empático y constructivo
+- Mantén un tono profesional pero amigable
+- Adapta el mensaje al nivel {template.industry_context}
+
+Genera solo el texto del feedback motivacional, sin JSON ni formato adicional.
+"""
+        return prompt
+
+    def get_correct_answer_prompt(
+        self,
+        role: str,
+        question: str,
+        expected_concepts: List[str],
+    ) -> str:
+        """
+        Genera prompt para explicar la respuesta correcta después de 3 intentos fallidos.
+        
+        Args:
+            role: Rol/profesión del candidato
+            question: Pregunta realizada
+            expected_concepts: Conceptos que deberían estar en la respuesta
+            
+        Returns:
+            Prompt para generar respuesta correcta explicada
+        """
+        template = self._get_template_for_role(role)
+        
+        prompt = f"""Eres un experto en {role} explicando la respuesta correcta a una pregunta de entrevista.
+
+**PREGUNTA:**
+{question}
+
+**CONCEPTOS CLAVE QUE DEBE INCLUIR LA RESPUESTA:**
+{', '.join(expected_concepts)}
+
+**TU TAREA:**
+Genera una explicación completa y educativa de la respuesta correcta (3-5 oraciones) que:
+
+1. **Responda directamente la pregunta**: Da la respuesta completa y correcta
+2. **Explique los conceptos clave**: Menciona y explica cada concepto esperado
+3. **Sea educativa**: Ayuda al candidato a entender el "por qué"
+4. **Use terminología profesional**: Usa el vocabulario de {role}
+5. **Sea clara y estructurada**: Organiza la información de manera lógica
+
+**CONTEXTO:**
+- El candidato ya intentó 3 veces sin éxito
+- Necesita entender la respuesta para aprender
+- Mantén un tono educativo y constructivo
+
+Genera solo el texto de la respuesta correcta, sin JSON ni formato adicional.
+"""
+        return prompt
+
+    def get_improvement_tips_prompt(
+        self,
+        role: str,
+        question: str,
+        answer: str,
+        correct_answer: str,
+    ) -> str:
+        """
+        Genera prompt para consejos de mejora después de mostrar la respuesta correcta.
+        
+        Args:
+            role: Rol/profesión del candidato
+            question: Pregunta realizada
+            answer: Respuesta del candidato (incorrecta)
+            correct_answer: Respuesta correcta explicada
+            
+        Returns:
+            Prompt para generar consejos de mejora
+        """
+        template = self._get_template_for_role(role)
+        
+        prompt = f"""Eres un mentor en {role} dando consejos de mejora a un candidato.
+
+**PREGUNTA:**
+{question}
+
+**RESPUESTA DEL CANDIDATO (incorrecta):**
+{answer}
+
+**RESPUESTA CORRECTA:**
+{correct_answer}
+
+**TU TAREA:**
+Genera consejos de mejora (2-3 oraciones) que:
+
+1. **Identifique el gap**: ¿Qué le faltó al candidato en su respuesta?
+2. **Sugiera estudio**: ¿Qué temas debería revisar o profundizar?
+3. **Dé recursos prácticos**: Menciona 1-2 recursos o enfoques de estudio
+4. **Sea accionable**: Consejos específicos que el candidato pueda seguir
+5. **Use emojis apropiados**: 📚 💡 🎯
+
+**IMPORTANTE:**
+- Sé específico y constructivo
+- No seas condescendiente
+- Enfócate en el aprendizaje futuro
+- Mantén un tono positivo y motivador
+
+Genera solo el texto de los consejos, sin JSON ni formato adicional.
+"""
+        return prompt
+
     def _get_template_for_role(self, role: str) -> PromptTemplate:
         """Obtiene el template para un rol, con fallback a genérico"""
-        role_normalized = role.lower().replace(" ", "_").replace("-", "_")
+        # Mapeo de nombres comunes a claves de templates
+        ROLE_MAPPING = {
+            "software developer": "software_engineer",
+            "software engineer": "software_engineer",
+            "developer": "software_engineer",
+            "programmer": "software_engineer",
+            "frontend developer": "frontend_developer",
+            "backend developer": "backend_developer",
+            "full stack developer": "software_engineer",
+            "fullstack developer": "software_engineer",
+            "devops engineer": "devops_engineer",
+            "data scientist": "data_scientist",
+            "data analyst": "data_analyst",
+            "product manager": "product_manager",
+            "project manager": "project_manager",
+            "ux designer": "ux_designer",
+            "ui designer": "ux_designer",
+            "ux/ui designer": "ux_designer",
+            "digital marketer": "digital_marketer",
+            "cybersecurity engineer": "cybersecurity_engineer",
+            "security engineer": "cybersecurity_engineer",
+        }
+        
+        role_lower = role.lower().strip()
+        
+        # Primero intentar mapeo directo
+        if role_lower in ROLE_MAPPING:
+            mapped_key = ROLE_MAPPING[role_lower]
+            if mapped_key in self.templates:
+                return self.templates[mapped_key]
+        
+        # Luego normalizar
+        role_normalized = role_lower.replace(" ", "_").replace("-", "_")
 
         # Intentar match exacto
         if role_normalized in self.templates:

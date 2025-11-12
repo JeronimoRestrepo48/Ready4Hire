@@ -1,0 +1,41 @@
+@page "/"
+@inject NavigationManager Navigation
+@inject Ready4Hire.Services.AuthService AuthService
+@rendermode InteractiveServer
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        try 
+        {
+            if (await AuthService.IsAuthenticatedAsync())
+            {
+                Navigation.NavigateTo("/home", true);
+            }
+            else
+            {
+                Navigation.NavigateTo("/login", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error en redirección: {ex.Message}");
+            Navigation.NavigateTo("/login", true);
+        }
+    }
+}
+
+<!-- Redirigiendo... -->
+<div style="display: flex; align-items: center; justify-content: center; height: 100vh; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white;">
+    <div style="text-align: center;">
+        <div style="width: 40px; height: 40px; border: 3px solid rgba(59, 130, 246, 0.3); border-top: 3px solid #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 1rem;"></div>
+        <p>Cargando...</p>
+    </div>
+</div>
+
+<style>
+@@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>

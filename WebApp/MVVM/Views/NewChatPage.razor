@@ -1,0 +1,1039 @@
+@page "/chat"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@using Ready4Hire.Data
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@inject NavigationManager Navigation
+@inject AuthService AuthService
+@inject InterviewApiService InterviewApi
+@inject IDbContextFactory<AppDbContext> DbFactory
+@rendermode InteractiveServer
+@attribute [StreamRendering(false)]
+
+<PageTitle>Nueva Entrevista - Ready4Hire</PageTitle>
+
+<div class="modern-chat-container-full">
+    <!-- Header del Chat -->
+    <div class="chat-header">
+        <div class="header-left">
+            <div class="agent-avatar">
+                <div class="avatar-icon">🤖</div>
+                <div class="status-indicator"></div>
+            </div>
+            <div class="agent-info">
+                <h3 class="greeting-centered">Hola, @GetUserName()! 👋</h3>
+                <p class="status-text">
+                    @if (started)
+                    {
+                        <span class="status-active">🟢 Entrevista en progreso</span>
+                    }
+                    else
+                    {
+                        <span class="status-idle">⚫ Listo para comenzar</span>
+                    }
+                </p>
+            </div>
+        </div>
+        
+        <div class="header-controls">
+            @if (isExamMode && started)
+            {
+                <div class="timer-display">
+                    <span class="timer-icon">⏱️</span>
+                    <span class="timer-text">@FormatTime(elapsedSeconds)</span>
+                </div>
+            }
+            
+            <div class="progress-indicator">
+                @if (currentPhase == "context")
+                {
+                    <span class="phase-badge context">📝 Contexto (@contextQuestionsAnswered/5)</span>
+                }
+                else if (currentPhase == "technical" || currentPhase == "soft_skills")
+                {
+                    <span class="phase-badge interview">🎯 Entrevista (@questionCount)</span>
+                }
+                else if (currentPhase == "completed")
+                {
+                    <span class="phase-badge completed">✅ Completada</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuración de la Entrevista -->
+    @if (!started)
+    {
+        <div class="interview-config">
+            <div class="config-header">
+                <h2>🚀 Configurar Nueva Entrevista</h2>
+                <p>Personaliza tu experiencia de entrevista seleccionando las opciones que mejor se adapten a tu perfil.</p>
+            </div>
+
+            <!-- Información de Debug para Configuración -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-message-config">
+                    <div class="error-content">
+                        <span class="error-icon">⚠️</span>
+                        <div class="error-text">@errorMessage</div>
+                    </div>
+                    <div class="error-actions">
+                        <button class="btn-retry" @onclick="ClearError">Continuar en Modo Demo</button>
+                    </div>
+                </div>
+            }
+
+            <div class="config-grid">
+                <!-- Selección de Rol -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">💼</span>
+                        <span class="label-text">Rol o Posición</span>
+                    </label>
+                    <select @bind="SelectedRole" class="config-select">
+                        <option value="">Selecciona un rol...</option>
+                        
+                        <!-- TECNOLOGÍA E INFORMÁTICA -->
+                        <optgroup label="💻 Tecnología e Informática">
+                            <option value="Software Developer">👨‍💻 Desarrollador de Software</option>
+                            <option value="Frontend Developer">🎨 Desarrollador Frontend</option>
+                            <option value="Backend Developer">⚙️ Desarrollador Backend</option>
+                            <option value="Full Stack Developer">🔄 Desarrollador Full Stack</option>
+                            <option value="DevOps Engineer">🚀 Ingeniero DevOps</option>
+                            <option value="Data Scientist">📊 Científico de Datos</option>
+                            <option value="Product Manager">📋 Product Manager</option>
+                            <option value="UX/UI Designer">🎨 Diseñador UX/UI</option>
+                            <option value="QA Engineer">🧪 Ingeniero QA</option>
+                            <option value="Mobile Developer">📱 Desarrollador Móvil</option>
+                            <option value="Cloud Architect">☁️ Arquitecto Cloud</option>
+                            <option value="Cybersecurity Analyst">🔒 Analista de Ciberseguridad</option>
+                            <option value="AI/ML Engineer">🤖 Ingeniero IA/ML</option>
+                        </optgroup>
+
+                        <!-- SALUD Y MEDICINA -->
+                        <optgroup label="🏥 Salud y Medicina">
+                            <option value="Doctor">👨‍⚕️ Médico</option>
+                            <option value="Nurse">👩‍⚕️ Enfermero/a</option>
+                            <option value="Dentist">🦷 Dentista</option>
+                            <option value="Pharmacist">💊 Farmacéutico</option>
+                            <option value="Psychologist">🧠 Psicólogo</option>
+                            <option value="Physical Therapist">🏃‍♂️ Fisioterapeuta</option>
+                            <option value="Nutritionist">🥗 Nutricionista</option>
+                            <option value="Veterinarian">🐕 Veterinario</option>
+                        </optgroup>
+
+                        <!-- EDUCACIÓN -->
+                        <optgroup label="📚 Educación">
+                            <option value="Teacher">👨‍🏫 Profesor</option>
+                            <option value="Principal">🏫 Director Escolar</option>
+                            <option value="Tutor">📖 Tutor</option>
+                            <option value="Educational Counselor">🎯 Orientador Educativo</option>
+                            <option value="Librarian">📚 Bibliotecario</option>
+                            <option value="Training Specialist">🎓 Especialista en Capacitación</option>
+                        </optgroup>
+
+                        <!-- NEGOCIOS Y FINANZAS -->
+                        <optgroup label="💼 Negocios y Finanzas">
+                            <option value="Financial Analyst">📈 Analista Financiero</option>
+                            <option value="Accountant">🧮 Contador</option>
+                            <option value="Investment Advisor">💰 Asesor de Inversiones</option>
+                            <option value="Business Analyst">📊 Analista de Negocios</option>
+                            <option value="Operations Manager">⚙️ Gerente de Operaciones</option>
+                            <option value="Project Manager">📋 Gerente de Proyectos</option>
+                            <option value="Consultant">🤝 Consultor</option>
+                            <option value="Entrepreneur">🚀 Emprendedor</option>
+                        </optgroup>
+
+                        <!-- MARKETING Y VENTAS -->
+                        <optgroup label="📢 Marketing y Ventas">
+                            <option value="Marketing Manager">📱 Gerente de Marketing</option>
+                            <option value="Sales Representative">🤝 Representante de Ventas</option>
+                            <option value="Digital Marketing Specialist">💻 Especialista en Marketing Digital</option>
+                            <option value="Content Creator">✍️ Creador de Contenido</option>
+                            <option value="Social Media Manager">📸 Community Manager</option>
+                            <option value="Brand Manager">🎨 Gerente de Marca</option>
+                            <option value="PR Specialist">📰 Especialista en RRPP</option>
+                        </optgroup>
+
+                        <!-- LEGAL Y JURÍDICO -->
+                        <optgroup label="⚖️ Legal y Jurídico">
+                            <option value="Lawyer">👨‍💼 Abogado</option>
+                            <option value="Paralegal">📋 Asistente Legal</option>
+                            <option value="Judge">⚖️ Juez</option>
+                            <option value="Legal Advisor">📜 Asesor Legal</option>
+                            <option value="Notary">🏛️ Notario</option>
+                        </optgroup>
+
+                        <!-- INGENIERÍA Y CONSTRUCCIÓN -->
+                        <optgroup label="🏗️ Ingeniería y Construcción">
+                            <option value="Civil Engineer">🏗️ Ingeniero Civil</option>
+                            <option value="Mechanical Engineer">⚙️ Ingeniero Mecánico</option>
+                            <option value="Electrical Engineer">⚡ Ingeniero Eléctrico</option>
+                            <option value="Architect">🏛️ Arquitecto</option>
+                            <option value="Construction Manager">👷‍♂️ Gerente de Construcción</option>
+                            <option value="Urban Planner">🏙️ Planificador Urbano</option>
+                        </optgroup>
+
+                        <!-- RECURSOS HUMANOS -->
+                        <optgroup label="👥 Recursos Humanos">
+                            <option value="HR Manager">👥 Gerente de RRHH</option>
+                            <option value="Recruiter">🎯 Reclutador</option>
+                            <option value="HR Analyst">📊 Analista de RRHH</option>
+                            <option value="Training Coordinator">📚 Coordinador de Capacitación</option>
+                            <option value="Compensation Specialist">💰 Especialista en Compensaciones</option>
+                        </optgroup>
+
+                        <!-- COMUNICACIÓN Y MEDIOS -->
+                        <optgroup label="📺 Comunicación y Medios">
+                            <option value="Journalist">📰 Periodista</option>
+                            <option value="Editor">✍️ Editor</option>
+                            <option value="Photographer">📸 Fotógrafo</option>
+                            <option value="Video Producer">🎬 Productor de Video</option>
+                            <option value="Radio Host">🎙️ Locutor de Radio</option>
+                            <option value="Translator">🌍 Traductor</option>
+                        </optgroup>
+
+                        <!-- SERVICIOS Y ATENCIÓN AL CLIENTE -->
+                        <optgroup label="🤝 Servicios y Atención">
+                            <option value="Customer Service Representative">📞 Representante de Atención al Cliente</option>
+                            <option value="Hotel Manager">🏨 Gerente de Hotel</option>
+                            <option value="Travel Agent">✈️ Agente de Viajes</option>
+                            <option value="Event Coordinator">🎉 Coordinador de Eventos</option>
+                            <option value="Restaurant Manager">🍽️ Gerente de Restaurante</option>
+                        </optgroup>
+
+                        <!-- CIENCIAS E INVESTIGACIÓN -->
+                        <optgroup label="🔬 Ciencias e Investigación">
+                            <option value="Research Scientist">🔬 Científico Investigador</option>
+                            <option value="Laboratory Technician">🧪 Técnico de Laboratorio</option>
+                            <option value="Environmental Scientist">🌱 Científico Ambiental</option>
+                            <option value="Statistician">📊 Estadístico</option>
+                            <option value="Quality Control Analyst">✅ Analista de Control de Calidad</option>
+                        </optgroup>
+
+                        <!-- ARTE Y CREATIVIDAD -->
+                        <optgroup label="🎨 Arte y Creatividad">
+                            <option value="Graphic Designer">🎨 Diseñador Gráfico</option>
+                            <option value="Interior Designer">🏠 Diseñador de Interiores</option>
+                            <option value="Musician">🎵 Músico</option>
+                            <option value="Artist">🖼️ Artista</option>
+                            <option value="Fashion Designer">👗 Diseñador de Moda</option>
+                        </optgroup>
+
+                        <!-- LOGÍSTICA Y TRANSPORTE -->
+                        <optgroup label="🚚 Logística y Transporte">
+                            <option value="Logistics Coordinator">📦 Coordinador Logístico</option>
+                            <option value="Supply Chain Manager">🔗 Gerente de Cadena de Suministro</option>
+                            <option value="Truck Driver">🚛 Conductor de Camión</option>
+                            <option value="Pilot">✈️ Piloto</option>
+                            <option value="Warehouse Manager">🏬 Gerente de Almacén</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- Tipo de Entrevista -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">🎯</span>
+                        <span class="label-text">Tipo de Entrevista</span>
+                    </label>
+                    <select @bind="SelectedInterviewType" class="config-select">
+                        <option value="technical">🔧 Técnica</option>
+                        <option value="soft_skills">💬 Habilidades Blandas</option>
+                    </select>
+                </div>
+
+                <!-- Nivel de Dificultad -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">📈</span>
+                        <span class="label-text">Nivel de Experiencia</span>
+                    </label>
+                    <select @bind="SelectedDifficulty" class="config-select">
+                        <option value="junior">🌱 Junior (0-2 años)</option>
+                        <option value="mid">🌳 Mid-Level (2-5 años)</option>
+                        <option value="senior">🦅 Senior (5+ años)</option>
+                    </select>
+                </div>
+
+                <!-- Modo de Entrevista -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">⚡</span>
+                        <span class="label-text">Modo</span>
+                    </label>
+                    <div class="modern-toggle-container">
+                        <div class="toggle-labels">
+                            <span class="toggle-label left @(!isExamMode ? "active" : "")">
+                                <span class="label-icon">🎓</span>
+                                <span class="label-main">Práctica</span>
+                                <span class="label-sub">Sin límite de tiempo</span>
+                            </span>
+                            <span class="toggle-label right @(isExamMode ? "active" : "")">
+                                <span class="label-icon">⏱️</span>
+                                <span class="label-main">Examen</span>
+                                <span class="label-sub">Con cronómetro</span>
+                            </span>
+                        </div>
+                        <div class="modern-toggle-switch" @onclick="ToggleExamMode">
+                            <div class="toggle-track @(isExamMode ? "exam" : "practice")">
+                                <div class="toggle-thumb @(isExamMode ? "right" : "left")">
+                                    <span class="thumb-icon">@(isExamMode ? "⏱️" : "🎓")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botón de Inicio -->
+            <div class="config-actions">
+                <button class="btn-start-interview @(IsConfigured ? "" : "disabled")" 
+                        @onclick="StartInterview" 
+                        disabled="@(!IsConfigured)">
+                    <span class="btn-icon">🚀</span>
+                    <span class="btn-text">Iniciar Entrevista</span>
+                </button>
+                
+                @if (!IsConfigured)
+                {
+                    <p class="config-warning">⚠️ Selecciona un rol para continuar</p>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Área de Mensajes -->
+    @if (started)
+    {
+        <div class="chat-messages" @ref="chatMessagesContainer">
+            @foreach (var message in Messages)
+            {
+                <div class="message-wrapper @(message.IsUser ? "user" : "assistant")">
+                    <div class="message-avatar">
+                        @if (message.IsUser)
+                        {
+                            <div class="user-avatar">@GetUserInitials()</div>
+                        }
+                        else
+                        {
+                            <div class="ai-avatar">🤖</div>
+                        }
+                    </div>
+                    
+                    <div class="message-content">
+                        <div class="message-bubble">
+                            <div class="message-text">@((MarkupString)FormatMessage(message.Text))</div>
+                        </div>
+                        <div class="message-timestamp">@DateTime.Now.ToString("HH:mm")</div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Área de Input -->
+        <div class="chat-input-area">
+            <div class="input-container">
+                <textarea @bind="UserInput" 
+                         @onkeypress="HandleKeyPress"
+                         @ref="inputTextArea"
+                         class="chat-input" 
+                         placeholder="Escribe tu respuesta aquí..."
+                         rows="1"></textarea>
+                
+                <div class="input-actions">
+                    <button class="btn-send @(CanSendMessage ? "" : "disabled")" 
+                            @onclick="SendMessage" 
+                            disabled="@(!CanSendMessage)">
+                        <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m22 2-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            @if (currentPhase == "completed")
+            {
+                <div class="completion-actions">
+                    <button class="btn-end-interview" @onclick="EndInterview">
+                        <span class="btn-icon">🎯</span>
+                        <span class="btn-text">Ver Resumen Final</span>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // Variables de estado
+    private List<Message> Messages = new();
+    private string UserInput { get; set; } = "";
+    private string userId = $"user-{Guid.NewGuid().ToString().Substring(0, 8)}";
+    private string interviewId = "";
+    private string currentPhase = "config";
+    private int questionCount = 0;
+    private int contextQuestionsAnswered = 0;
+    private bool started = false;
+    private ElementReference chatMessagesContainer;
+    private ElementReference inputTextArea;
+    private bool isExamMode = false;
+    private int elapsedSeconds = 0;
+    private string? errorMessage = null;
+    
+    // Usuario actual para el saludo personalizado
+    private User? currentUserForGreeting;
+
+    // Configuración de la entrevista
+    private string SelectedRole { get; set; } = "";
+    private string SelectedInterviewType { get; set; } = "technical";
+    private string SelectedDifficulty { get; set; } = "mid";
+
+    // Propiedades calculadas
+    private bool IsConfigured => !string.IsNullOrEmpty(SelectedRole);
+    private bool CanSendMessage => !string.IsNullOrWhiteSpace(UserInput) && started;
+
+    private string FormatTime(int seconds)
+    {
+        var minutes = seconds / 60;
+        var secs = seconds % 60;
+        return $"{minutes:00}:{secs:00}";
+    }
+
+    private string GetUserInitials()
+    {
+        return "U"; // Simplificado por ahora
+    }
+
+    private string FormatMessage(string message)
+    {
+        // Conversión básica de markdown/texto
+        return message.Replace("\n", "<br/>");
+    }
+
+    private async Task HandleKeyPress(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey && CanSendMessage)
+        {
+            await SendMessage();
+        }
+    }
+
+    // Métodos principales similares a ChatPage
+    private async Task StartInterview()
+    {
+        if (!IsConfigured) return;
+
+        Messages.Clear();
+        questionCount = 0;
+        contextQuestionsAnswered = 0;
+        started = true;
+        errorMessage = null;
+
+        try
+        {
+            var startResponse = await InterviewApi.StartInterviewV2Async(
+                userId, 
+                SelectedRole, 
+                SelectedInterviewType,
+                SelectedDifficulty
+            );
+
+            interviewId = startResponse.GetProperty("interview_id").GetString();
+            currentPhase = startResponse.GetProperty("status").GetString();
+
+            Messages.Add(new Message 
+            { 
+                Text = "🎯 ¡Bienvenido a tu entrevista personalizada! Primero, me gustaría conocerte mejor. Responde 5 preguntas de contexto para personalizar tu experiencia.", 
+                IsUser = false 
+            });
+
+            var firstQuestion = startResponse.GetProperty("first_question")
+                .GetProperty("text").GetString();
+            Messages.Add(new Message { Text = firstQuestion, IsUser = false });
+
+            StateHasChanged();
+        }
+        catch (TimeoutException ex)
+        {
+            errorMessage = "⏱️ Tiempo de espera agotado. Verifica que el servidor backend esté ejecutándose.";
+            StartOfflineMode();
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"🌐 Error de conexión: No se puede conectar al servidor. {ex.Message}";
+            StartOfflineMode();
+        }
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("métricas de Prometheus"))
+            {
+                errorMessage = "🔧 El backend está ejecutándose en el puerto incorrecto o hay un problema de configuración de rutas. Activando modo offline.";
+            }
+            else
+            {
+                errorMessage = $"⚠️ {ex.Message}";
+            }
+            StartOfflineMode();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"❌ Error inesperado: {ex.Message}";
+            StartOfflineMode();
+        }
+    }
+
+    private void StartOfflineMode()
+    {
+        Messages.Add(new Message 
+        { 
+            Text = "🔄 Modo offline activado. Simulando entrevista para demostración.", 
+            IsUser = false 
+        });
+        
+        Messages.Add(new Message 
+        { 
+            Text = "📝 ¿Puedes contarme sobre tu experiencia profesional y qué te motiva en tu carrera?", 
+            IsUser = false 
+        });
+        
+        interviewId = "offline_" + Guid.NewGuid().ToString("N")[..8];
+        currentPhase = "context";
+        StateHasChanged();
+    }
+
+    private void ClearError()
+    {
+        errorMessage = null;
+        StateHasChanged();
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(UserInput) || string.IsNullOrEmpty(interviewId))
+            return;
+
+        var answer = UserInput.Trim();
+        Messages.Add(new Message { Text = answer, IsUser = true });
+        UserInput = "";
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            if (interviewId?.StartsWith("offline_") == true)
+            {
+                ProcessOfflineAnswer(answer);
+            }
+            else
+            {
+                var response = await InterviewApi.ProcessAnswerV2Async(interviewId, answer, elapsedSeconds);
+                // Procesar respuesta del servidor...
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+            Messages.Add(new Message 
+            { 
+                Text = $"❌ Error al procesar tu respuesta. Por favor, intenta de nuevo.", 
+                IsUser = false 
+            });
+        }
+
+        StateHasChanged();
+    }
+
+    private void ProcessOfflineAnswer(string answer)
+    {
+        contextQuestionsAnswered++;
+        questionCount++;
+
+        var feedbackResponses = new[]
+        {
+            "💡 Excelente respuesta. Me parece que tienes una perspectiva muy clara.",
+            "👏 Interesante enfoque. Eso demuestra tu capacidad analítica.",
+            "✨ Muy bien explicado. Tu experiencia se nota en la respuesta.",
+            "🎯 Perfecto. Esa actitud es exactamente lo que buscamos.",
+            "🚀 Impresionante. Tu pasión por la tecnología es evidente."
+        };
+
+        var questions = new[]
+        {
+            "🔧 ¿Qué herramientas o tecnologías prefieres usar en tu trabajo y por qué?",
+            "📚 ¿Cómo te mantienes actualizado con las últimas tendencias en tu campo?",
+            "🤝 Cuéntame sobre una vez que tuviste que trabajar en equipo para resolver un problema difícil.",
+            "🎯 ¿Cuáles son tus objetivos profesionales a largo plazo?",
+            "💡 ¿Puedes describir un proyecto del que te sientes especialmente orgulloso?"
+        };
+
+        var randomFeedback = feedbackResponses[Random.Shared.Next(feedbackResponses.Length)];
+        Messages.Add(new Message { Text = randomFeedback, IsUser = false });
+
+        if (contextQuestionsAnswered < 5)
+        {
+            var nextQuestion = questions[Math.Min(contextQuestionsAnswered, questions.Length - 1)];
+            Messages.Add(new Message { Text = nextQuestion, IsUser = false });
+        }
+        else
+        {
+            currentPhase = "completed";
+            Messages.Add(new Message 
+            { 
+                Text = "🎉 ¡Excelente! Has completado todas las preguntas de contexto. " +
+                       "En una entrevista real, ahora pasaríamos a las preguntas técnicas específicas. " +
+                       "¿Te gustaría finalizar esta sesión de demostración?", 
+                IsUser = false 
+            });
+        }
+    }
+
+    private async Task EndInterview()
+    {
+        try
+        {
+            Messages.Add(new Message 
+            { 
+                Text = "🎯 Resumen de entrevista (Modo Demo):\n\n" +
+                       "✅ Participación activa demostrada\n" +
+                       "💡 Respuestas reflexivas y coherentes\n" +
+                       "🚀 Potencial para crecimiento profesional\n\n" +
+                       "🎮 ¡Obtuviste 150 puntos de experiencia!\n" +
+                       "🏆 Insignia desbloqueada: 'Primer Paso'", 
+                IsUser = false 
+            });
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error al finalizar la entrevista: {ex.Message}";
+        }
+        started = false;
+        StateHasChanged();
+    }
+
+    private void ToggleExamMode()
+    {
+        isExamMode = !isExamMode;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Inicializa los datos del componente
+    /// </summary>
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var email = await AuthService.GetCurrentUserEmailAsync();
+            
+            if (!string.IsNullOrEmpty(email))
+            {
+                using var db = await DbFactory.CreateDbContextAsync();
+                
+                currentUserForGreeting = await db.Users
+                    .FirstOrDefaultAsync(u => u.Email == email);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading user data: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Obtiene el nombre del usuario para mostrar en el saludo
+    /// </summary>
+    private string GetUserName()
+    {
+        return currentUserForGreeting?.Name ?? "Usuario";
+    }
+}
+
+<style>
+    /* Incluir los mismos estilos CSS de la página de chat */
+    .modern-chat-container-full {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+        color: #e2e8f0;
+        overflow: hidden;
+    }
+
+    .error-message-config {
+        background: linear-gradient(135deg, #dc2626 10%, #991b1b 90%);
+        border: 1px solid rgba(220, 38, 38, 0.3);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        animation: slideInDown 0.3s ease-out;
+    }
+
+    .error-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .error-icon {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .error-text {
+        flex: 1;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    .error-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .btn-retry {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-retry:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+    }
+
+    @@keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Otros estilos necesarios para la funcionalidad completa */
+    .chat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    .interview-config {
+        padding: 2rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .config-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .config-grid {
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .config-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .config-select {
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        background: rgba(30, 41, 59, 0.8);
+        color: #e2e8f0;
+    }
+
+    .btn-start-interview {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0 auto;
+    }
+
+    .btn-start-interview:hover:not(.disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-start-interview.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .message-wrapper {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+
+    .message-wrapper.user {
+        flex-direction: row-reverse;
+    }
+
+    .message-bubble {
+        background: rgba(30, 41, 59, 0.8);
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        max-width: 80%;
+    }
+
+    .message-wrapper.user .message-bubble {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    }
+
+    .chat-input-area {
+        padding: 1rem 2rem;
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(10px);
+        border-top: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    .input-container {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-end;
+    }
+
+    .chat-input {
+        flex: 1;
+        padding: 0.75rem;
+        border-radius: 12px;
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        background: rgba(30, 41, 59, 0.8);
+        color: #e2e8f0;
+        resize: none;
+        min-height: 44px;
+        max-height: 120px;
+    }
+
+    .btn-send {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        border: none;
+        padding: 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-send:hover:not(.disabled) {
+        transform: scale(1.05);
+    }
+
+    .btn-send.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Modern Toggle Switch */
+    .modern-toggle-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 12px;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        width: fit-content;
+        margin: 0 auto;
+    }
+
+    /* Saludo centrado */
+    .greeting-centered {
+        text-align: center !important;
+        margin: 0 auto;
+        font-weight: 600;
+        color: #60a5fa;
+        font-size: 1.2rem;
+        padding: 0.5rem 0;
+    }
+
+    .toggle-labels {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .toggle-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        opacity: 0.6;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+
+    .toggle-label.active {
+        opacity: 1;
+        color: #60a5fa;
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .toggle-label .label-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .toggle-label .label-main {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.1rem;
+    }
+
+    .toggle-label .label-sub {
+        font-size: 0.75rem;
+        opacity: 0.8;
+        text-align: center;
+    }
+
+    .modern-toggle-switch {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .toggle-track {
+        width: 200px;
+        height: 50px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 25px;
+        position: relative;
+        border: 2px solid rgba(59, 130, 246, 0.3);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        margin: 0 auto;
+    }
+
+    .toggle-track.practice {
+        border-color: #10b981;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+
+    .toggle-track.exam {
+        border-color: #f59e0b;
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+    }
+
+    .toggle-thumb {
+        width: 46px;
+        height: 46px;
+        background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+        border-radius: 50%;
+        position: absolute;
+        top: 2px;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .toggle-thumb.left {
+        left: 2px;
+    }
+
+    .toggle-thumb.right {
+        left: calc(200px - 50px);
+    }
+
+    .thumb-icon {
+        font-size: 1.2rem;
+        transition: all 0.3s ease;
+    }
+
+    .toggle-track.practice .toggle-thumb {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    .toggle-track.exam .toggle-thumb {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+
+    .toggle-track.practice .thumb-icon {
+        color: white;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    .toggle-track.exam .thumb-icon {
+        color: white;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    /* Hover Effects */
+    .modern-toggle-switch:hover .toggle-track {
+        transform: scale(1.02);
+    }
+
+    .modern-toggle-switch:hover .toggle-thumb {
+        transform: scale(1.05);
+    }
+
+    .toggle-label:hover {
+        opacity: 0.8;
+        transform: translateY(-2px);
+    }
+
+    /* Animation cuando cambia */
+    .toggle-track::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+        transform: translateX(-100%);
+        transition: transform 0.6s ease;
+    }
+
+    .modern-toggle-switch:active .toggle-track::before {
+        transform: translateX(100%);
+    }
+</style>

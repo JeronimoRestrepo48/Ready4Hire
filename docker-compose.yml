@@ -265,6 +265,7 @@ services:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -273,6 +274,25 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-30d}'
       - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    depends_on:
+      - alertmanager
+    profiles: ["production", "qa", "staging", "monitoring"]
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: ready4hire_alertmanager_${ENVIRONMENT:-dev}
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
     restart: unless-stopped
     networks:
       - ready4hire_network
@@ -343,6 +363,120 @@ services:
     profiles: ["production", "monitoring"]
 
   # ════════════════════════════════════════════════════════════════════════════
+  # LOG AGGREGATION (Loki + Promtail)
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  loki:
+    image: grafana/loki:latest
+    container_name: ready4hire_loki_${ENVIRONMENT:-dev}
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - ./monitoring/loki:/etc/loki
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    profiles: ["production", "qa", "staging", "monitoring"]
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: ready4hire_promtail_${ENVIRONMENT:-dev}
+    volumes:
+      - ./monitoring/promtail:/etc/promtail
+      - ./Ready4Hire/logs:/var/log/ready4hire:ro
+      - ./WebApp:/var/log/webapp:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail-config.yml
+    restart: unless-stopped
+    networks:
+      - ready4hire_network
+    depends_on:
+      - loki
+    profiles: ["production", "qa", "staging", "monitoring"]
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # FRONTEND WEB APPLICATION
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  webapp:
+    build:
+      context: ./WebApp
+      dockerfile: Dockerfile
+    container_name: ready4hire_webapp_${ENVIRONMENT:-dev}
+    environment:
+      # Application
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: http://+:8080
+      
+      # Database
+      POSTGRES_CONNECTION: Host=postgres;Port=5432;Database=${POSTGRES_DB:-ready4hire_db};Username=${POSTGRES_USER:-ready4hire};Password=${POSTGRES_PASSWORD:-password}
+      
+      # Backend API
+      API_BASE_URL: http://api:8001
+      
+      # Security
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5214}
+    ports:
+      - "${WEBAPP_PORT:-5214}:8080"
+    networks:
+      - ready4hire_network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    profiles: ["production", "qa", "staging", "dev"]
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # AUTOMATED BACKUPS
+  # ════════════════════════════════════════════════════════════════════════════
+  
+  backup_scheduler:
+    image: alpine:latest
+    container_name: ready4hire_backup_${ENVIRONMENT:-dev}
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./backups:/backups
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ready4hire_db}
+      POSTGRES_USER: ${POSTGRES_USER:-ready4hire}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      BACKUP_DIR: /backups
+    command: >
+      sh -c "
+        apk add --no-cache bash postgresql-client redis docker-cli curl tar gzip &&
+        chmod +x /scripts/backup.sh &&
+        echo '0 2 * * * /scripts/backup.sh --auto' > /tmp/crontab &&
+        crontab /tmp/crontab &&
+        crond -f
+      "
+    networks:
+      - ready4hire_network
+    depends_on:
+      - postgres
+      - redis
+      - qdrant
+    restart: unless-stopped
+    profiles: ["production", "staging"]
+
+  # ════════════════════════════════════════════════════════════════════════════
   # NGINX REVERSE PROXY (Production & Staging only)
   # ════════════════════════════════════════════════════════════════════════════
   
@@ -379,6 +513,10 @@ volumes:
   prometheus_data:
     driver: local
   grafana_data:
+    driver: local
+  alertmanager_data:
+    driver: local
+  loki_data:
     driver: local
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -425,6 +563,7 @@ networks:
 # URLS DE ACCESO
 # ══════════════════════════════════════════════════════════════════════════════
 #
+# Frontend WebApp:     http://localhost:5214
 # Backend API:         http://localhost:8001
 # API Docs (Swagger):  http://localhost:8001/docs
 # Flower (Celery):     http://localhost:5555

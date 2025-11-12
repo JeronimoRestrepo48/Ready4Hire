@@ -1,25 +1,23 @@
 /**
  * Auth Navigator
- * Stack de autenticación (Login, Register)
+ * Handles authentication screens
  */
 
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
+import {createStackNavigator} from '@react-navigation/stack';
+import {RootStackParamList} from '../types';
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
 
-// Placeholders - implementar después
-import LoginScreen from '../screens/Auth/LoginScreen';
-import RegisterScreen from '../screens/Auth/RegisterScreen';
+const Stack = createStackNavigator<RootStackParamList>();
 
-const Stack = createStackNavigator();
-
-const AuthNavigator = () => {
+const AuthNavigator: React.FC = () => {
   return (
     <Stack.Navigator
+      initialRouteName="Login"
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: '#0a0e1a' },
-      }}
-    >
+      }}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
     </Stack.Navigator>

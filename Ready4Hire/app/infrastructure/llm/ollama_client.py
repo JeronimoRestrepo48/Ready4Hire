@@ -50,9 +50,9 @@ class OllamaClient:
         base_url: str = "http://localhost:11434",
         default_model: str = "llama3.2:3b",
         fallback_models: Optional[List[str]] = None,
-        timeout: int = 30,  # ⚡ Reducido de 120s a 30s para respuestas más rápidas
-        max_retries: int = 2,  # ⚡ Reducido de 3 a 2 reintentos
-        retry_delay: float = 0.5,  # ⚡ Reducido de 1.0s a 0.5s para reintentos más rápidos
+        timeout: int = 45,  # ⚡ Timeout optimizado para evaluaciones (30s muy corto)
+        max_retries: int = 1,  # ⚡ 1 reintento para evitar múltiples delays
+        retry_delay: float = 1.0,  # ⚡ Delay razonable entre reintentos
         circuit_breaker_enabled: bool = True,  # 🔌 Circuit breaker para resiliencia
         circuit_failure_threshold: int = 5,
         circuit_recovery_timeout: int = 60,
@@ -79,7 +79,7 @@ class OllamaClient:
         self.retry_delay = retry_delay
         self.session = requests.Session()
 
-        # 🔌 Circuit Breaker para resiliencia
+        # 🔌 Circuit Breaker para resiliencia con health check
         self.circuit_breaker_enabled = circuit_breaker_enabled
         if circuit_breaker_enabled:
             self.circuit_breaker = CircuitBreaker(
@@ -87,8 +87,10 @@ class OllamaClient:
                 recovery_timeout=circuit_recovery_timeout,
                 expected_exception=OllamaError,
                 name="ollama_client",
+                success_threshold=2,  # NUEVO: Requerir 2 éxitos antes de cerrar
+                health_check_callback=self._check_health,  # NUEVO: Health check antes de recuperar
             )
-            logger.info("✅ Circuit Breaker habilitado para Ollama")
+            logger.info("✅ Circuit Breaker habilitado para Ollama con health check automático")
         else:
             self.circuit_breaker = None
 
@@ -102,11 +104,35 @@ class OllamaClient:
             "avg_latency": 0.0,
         }
 
-        # Health check inicial
-        self._check_health()
+        # Health check inicial (estricto, lanza excepción si falla)
+        self._check_health_strict()
 
     def _check_health(self) -> bool:
-        """Verifica que Ollama esté disponible"""
+        """
+        Verifica que Ollama esté disponible.
+        Usado por circuit breaker para health checks periódicos.
+        
+        Returns:
+            True si Ollama está disponible, False si no
+        """
+        try:
+            response = self.session.get(f"{self.base_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                models = response.json().get("models", [])
+                logger.debug(f"✅ Ollama health check OK. Modelos: {[m['name'] for m in models]}")
+                return True
+            else:
+                logger.debug(f"⚠️ Ollama health check failed: HTTP {response.status_code}")
+                return False
+        except Exception as e:
+            logger.debug(f"❌ Ollama health check failed: {str(e)}")
+            return False
+    
+    def _check_health_strict(self) -> bool:
+        """
+        Verificación estricta de salud (lanza excepción si falla).
+        Usado en inicialización.
+        """
         try:
             response = self.session.get(f"{self.base_url}/api/tags", timeout=5)
             if response.status_code == 200:
@@ -268,12 +294,21 @@ class OllamaClient:
 
         except requests.Timeout:
             self.metrics["failed_requests"] += 1
+            logger.warning(f"⏱️ Timeout después de {self.timeout}s en {self.base_url}")
             raise OllamaTimeoutError(f"Timeout después de {self.timeout}s")
         except requests.ConnectionError as e:
             self.metrics["failed_requests"] += 1
-            raise OllamaConnectionError(f"Error de conexión: {str(e)}")
+            # NUEVO: Detectar específicamente si Ollama está desconectado
+            error_msg = str(e)
+            if "Connection refused" in error_msg or "Failed to establish" in error_msg:
+                logger.error(f"🔴 Ollama desconectado: {self.base_url} - {error_msg}")
+                # Verificar salud antes de reportar error
+                if not self._check_health():
+                    raise OllamaConnectionError(f"Ollama service is down at {self.base_url}")
+            raise OllamaConnectionError(f"Error de conexión: {error_msg}")
         except Exception as e:
             self.metrics["failed_requests"] += 1
+            logger.error(f"❌ Error inesperado en Ollama: {type(e).__name__}: {str(e)}")
             raise OllamaError(f"Error inesperado: {str(e)}")
 
     def _handle_stream(self, response) -> Generator[str, None, None]:

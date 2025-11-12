@@ -36,13 +36,26 @@ class TokenResponse(BaseModel):
         }
 
 
+class RefreshTokenRequest(BaseModel):
+    """Refresh token request."""
+
+    refresh_token: str = Field(..., description="Refresh token to validate and exchange")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            }
+        }
+
+
 class UserDTO(BaseModel):
     """User information DTO."""
 
     user_id: str
     username: str
     email: Optional[EmailStr] = None
-    created_at: datetime
+    created_at: Optional[datetime] = None
     is_active: bool = True
 
     class Config:

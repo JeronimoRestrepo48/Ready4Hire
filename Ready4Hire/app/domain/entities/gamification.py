@@ -25,6 +25,7 @@ class AchievementType(Enum):
 class GameType(Enum):
     """Tipos de juegos"""
 
+    # Juegos originales
     CODE_CHALLENGE = "code_challenge"
     QUICK_QUIZ = "quick_quiz"
     SCENARIO_SIMULATOR = "scenario_simulator"
@@ -39,6 +40,18 @@ class GameType(Enum):
     DATABASE_QUEST = "database_quest"
     SECURITY_AUDIT = "security_audit"
     PERFORMANCE_OPTIMIZER = "performance_optimizer"
+    
+    # 10 nuevos juegos universales
+    MEMORY_CHALLENGE = "memory_challenge"
+    LOGIC_PUZZLES = "logic_puzzles"
+    TIME_MANAGEMENT = "time_management"
+    COMMUNICATION_SKILLS = "communication_skills"
+    PROBLEM_SOLVING_RACE = "problem_solving_race"
+    DECISION_TREES = "decision_trees"
+    PATTERN_RECOGNITION = "pattern_recognition"
+    CRITICAL_THINKING = "critical_thinking"
+    INNOVATION_LAB = "innovation_lab"
+    STRESS_TEST = "stress_test"
 
 
 @dataclass

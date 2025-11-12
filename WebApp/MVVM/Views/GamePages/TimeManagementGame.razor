@@ -1,0 +1,1381 @@
+@page "/game/time-management"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>⏰ Gestión del Tiempo - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">⏰ @FormatTime(timeRemaining)</span>
+            <span class="stat-item">✅ @completedTasks.Count/@totalTasks tareas</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">📊 @(Math.Round(efficiency * 100))% eficiencia</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">⏰</div>
+            <h1>Gestión del Tiempo</h1>
+            <p>Administra tareas, prioridades y deadlines como un profesional</p>
+            <div class="game-rules">
+                <h3>🎯 Objetivo:</h3>
+                <p>Completa el máximo número de tareas en el tiempo disponible, priorizando según su importancia y urgencia.</p>
+                
+                <h4>📋 Tipos de tareas:</h4>
+                <ul>
+                    <li>🔴 <strong>Alta prioridad:</strong> Urgente e importante</li>
+                    <li>🟡 <strong>Media prioridad:</strong> Importante pero no urgente</li>
+                    <li>🟢 <strong>Baja prioridad:</strong> Urgente pero no importante</li>
+                    <li>⚪ <strong>Opcional:</strong> Ni urgente ni importante</li>
+                </ul>
+
+                <h4>💡 Estrategias:</h4>
+                <ul>
+                    <li>📊 Aplica la matriz de Eisenhower</li>
+                    <li>⚡ Considera el tiempo de ejecución</li>
+                    <li>📅 Respeta los deadlines</li>
+                    <li>🎯 Maximiza el valor agregado</li>
+                </ul>
+            </div>
+            <div class="difficulty-selector">
+                <h4>Selecciona dificultad:</h4>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn @(selectedDifficulty == "junior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("junior")'>
+                        <span>🟢 Principiante</span>
+                        <small>5 tareas, 4 horas</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "mid" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("mid")'>
+                        <span>🟡 Intermedio</span>
+                        <small>8 tareas, 4 horas</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "senior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("senior")'>
+                        <span>🔴 Avanzado</span>
+                        <small>12 tareas, 4 horas</small>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedDifficulty == null)">
+                Comenzar Simulación
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetPerformanceIcon()</div>
+            <h2>¡Simulación Completada!</h2>
+            <div class="management-assessment">
+                <h3>@GetManagementRating()</h3>
+                <p>@GetManagementDescription()</p>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Tareas Completadas</span>
+                    <span class="result-value">@completedTasks.Count/@totalTasks</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Eficiencia</span>
+                    <span class="result-value">@(Math.Round(efficiency * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Valor Total</span>
+                    <span class="result-value">@totalValue pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Deadlines Perdidos</span>
+                    <span class="result-value">@missedDeadlines</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Estilo de Gestión</span>
+                    <span class="result-value">@GetManagementStyle()</span>
+                </div>
+            </div>
+            <div class="priority-analysis">
+                <h4>📊 Análisis de Prioridades:</h4>
+                <div class="priority-breakdown">
+                    <div class="priority-item high">
+                        <span class="priority-color"></span>
+                        <span>Alta: @highPriorityCompleted/@highPriorityTotal</span>
+                    </div>
+                    <div class="priority-item medium">
+                        <span class="priority-color"></span>
+                        <span>Media: @mediumPriorityCompleted/@mediumPriorityTotal</span>
+                    </div>
+                    <div class="priority-item low">
+                        <span class="priority-color"></span>
+                        <span>Baja: @lowPriorityCompleted/@lowPriorityTotal</span>
+                    </div>
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    Jugar de Nuevo
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="time-display">
+                <div class="clock">
+                    <div class="time-text">@FormatGameTime(timeRemaining)</div>
+                    <div class="time-label">Tiempo restante</div>
+                </div>
+                <div class="progress-ring">
+                    <svg class="progress-svg" width="100" height="100">
+                        <circle cx="50" cy="50" r="45" stroke="#333" stroke-width="8" fill="none"/>
+                        <circle cx="50" cy="50" r="45" stroke="#3498db" stroke-width="8" fill="none"
+                                stroke-dasharray="@(2 * Math.PI * 45)"
+                                stroke-dashoffset="@GetProgressOffset()"
+                                style="transition: stroke-dashoffset 0.5s ease;"/>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="workspace">
+                <div class="task-queue">
+                    <h3>📋 Tareas Pendientes</h3>
+                    <div class="tasks-container">
+                        @foreach (var task in pendingTasks.OrderByDescending(t => GetTaskScore(t)))
+                        {
+                            <div class="task-card @GetPriorityClass(task.Priority) @(selectedTask?.Id == task.Id ? "selected" : "")"
+                                 @onclick="() => SelectTask(task)">
+                                <div class="task-header">
+                                    <div class="task-priority">@GetPriorityIcon(task.Priority)</div>
+                                    <div class="task-name">@task.Name</div>
+                                    <div class="task-duration">⏱️ @task.Duration min</div>
+                                </div>
+                                <div class="task-details">
+                                    <div class="task-deadline">📅 Deadline: @task.Deadline min</div>
+                                    <div class="task-value">💎 @task.Value pts</div>
+                                </div>
+                                <div class="task-progress">
+                                    @if (task.InProgress)
+                                    {
+                                        <div class="progress-bar">
+                                            <div class="progress-fill" style="width: @(task.Progress)%"></div>
+                                        </div>
+                                        <div class="progress-text">@(Math.Round(task.Progress))%</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="action-panel">
+                    <div class="current-task">
+                        @if (selectedTask != null)
+                        {
+                            <h4>🎯 Tarea Seleccionada:</h4>
+                            <div class="selected-task-info">
+                                <div class="task-title">@selectedTask.Name</div>
+                                <div class="task-meta">
+                                    <span>⏱️ @selectedTask.Duration min</span>
+                                    <span>📅 Deadline: @selectedTask.Deadline min</span>
+                                    <span>💎 @selectedTask.Value pts</span>
+                                </div>
+                                <div class="task-impact">
+                                    <strong>Impacto:</strong> @GetTaskImpact(selectedTask)
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="no-selection">
+                                <div class="selection-icon">👆</div>
+                                <p>Selecciona una tarea para comenzar</p>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="action-buttons">
+                        @if (selectedTask != null && !selectedTask.InProgress)
+                        {
+                            <button class="btn-start-task" @onclick="StartTask">
+                                ▶️ Iniciar Tarea
+                            </button>
+                        }
+                        @if (selectedTask != null && selectedTask.InProgress)
+                        {
+                            <button class="btn-pause-task" @onclick="PauseTask">
+                                ⏸️ Pausar
+                            </button>
+                            <button class="btn-complete-task" @onclick="CompleteTask" 
+                                    disabled="@(selectedTask.Progress < 100)">
+                                ✅ Completar (@(Math.Round(selectedTask.Progress))%)
+                            </button>
+                        }
+                        <button class="btn-strategy-tip" @onclick="ShowStrategyTip">
+                            💡 Consejo Estratégico
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(strategyTip))
+                    {
+                        <div class="strategy-tip">
+                            <div class="tip-icon">💡</div>
+                            <div class="tip-text">@strategyTip</div>
+                        </div>
+                    }
+                </div>
+
+                <div class="completed-tasks">
+                    <h3>✅ Tareas Completadas (@completedTasks.Count)</h3>
+                    <div class="completed-list">
+                        @foreach (var task in completedTasks.OrderByDescending(t => t.CompletedAt))
+                        {
+                            <div class="completed-task @GetPriorityClass(task.Priority)">
+                                <span class="completed-name">@task.Name</span>
+                                <span class="completed-value">+@task.Value pts</span>
+                                <span class="completed-time">(@(totalGameTime - task.CompletedAt) min)</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    
+    private int timeRemaining = 240; // 4 horas en minutos
+    private int totalGameTime = 240;
+    private int currentScore = 0;
+    private int totalValue = 0;
+    private int totalTasks = 8;
+    private int missedDeadlines = 0;
+
+    private double efficiency = 0;
+    private int highPriorityCompleted = 0;
+    private int highPriorityTotal = 0;
+    private int mediumPriorityCompleted = 0;
+    private int mediumPriorityTotal = 0;
+    private int lowPriorityCompleted = 0;
+    private int lowPriorityTotal = 0;
+
+    private string? selectedDifficulty = null;
+    private string strategyTip = "";
+    
+    private List<TaskItem> pendingTasks = new();
+    private List<TaskItem> completedTasks = new();
+    private TaskItem? selectedTask = null;
+    
+    private System.Threading.Timer? gameTimer;
+    private System.Threading.Timer? taskTimer;
+
+    public class TaskItem
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public int Duration { get; set; }  // En minutos
+        public int Deadline { get; set; }  // En minutos desde inicio
+        public string Priority { get; set; } = ""; // high, medium, low, optional
+        public int Value { get; set; }  // Puntos por completar
+        public bool InProgress { get; set; } = false;
+        public double Progress { get; set; } = 0;
+        public int CompletedAt { get; set; } = 0;
+        public DateTime StartedAt { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void SelectDifficulty(string difficulty)
+    {
+        selectedDifficulty = difficulty;
+        totalTasks = difficulty switch
+        {
+            "junior" => 5,
+            "mid" => 8,
+            "senior" => 12,
+            _ => 8
+        };
+        StateHasChanged();
+    }
+
+    private void StartGame()
+    {
+        if (selectedDifficulty == null) return;
+
+        gameStarted = true;
+        timeRemaining = totalGameTime;
+        currentScore = 0;
+        totalValue = 0;
+        completedTasks.Clear();
+        
+        GenerateTasks();
+        
+        // Iniciar timer del juego
+        gameTimer = new System.Threading.Timer(async _ =>
+        {
+            timeRemaining--;
+            if (timeRemaining <= 0)
+            {
+                await InvokeAsync(() => FinishGame());
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+
+        StateHasChanged();
+    }
+
+    private void GenerateTasks()
+    {
+        var taskTemplates = new[]
+        {
+            new { Name = "Revisar email urgente", Duration = 15, Priority = "high", BaseValue = 100 },
+            new { Name = "Preparar presentación", Duration = 90, Priority = "high", BaseValue = 200 },
+            new { Name = "Reunión con cliente", Duration = 60, Priority = "high", BaseValue = 180 },
+            new { Name = "Actualizar documentación", Duration = 45, Priority = "medium", BaseValue = 120 },
+            new { Name = "Planificar próxima semana", Duration = 30, Priority = "medium", BaseValue = 100 },
+            new { Name = "Responder consultas", Duration = 25, Priority = "low", BaseValue = 80 },
+            new { Name = "Organizar archivos", Duration = 20, Priority = "low", BaseValue = 60 },
+            new { Name = "Leer artículos del sector", Duration = 40, Priority = "optional", BaseValue = 50 },
+            new { Name = "Actualizar perfil profesional", Duration = 35, Priority = "optional", BaseValue = 40 },
+            new { Name = "Hacer backup de datos", Duration = 15, Priority = "medium", BaseValue = 90 },
+            new { Name = "Revisar contratos", Duration = 75, Priority = "high", BaseValue = 220 },
+            new { Name = "Llamar a proveedor", Duration = 20, Priority = "medium", BaseValue = 85 }
+        };
+
+        var random = new Random();
+        var selectedTemplates = taskTemplates.OrderBy(x => Guid.NewGuid()).Take(totalTasks).ToList();
+        
+        pendingTasks.Clear();
+        
+        for (int i = 0; i < selectedTemplates.Count; i++)
+        {
+            var template = selectedTemplates[i];
+            var deadline = random.Next(60, totalGameTime + 30); // Algunos pueden ser imposibles
+            
+            var task = new TaskItem
+            {
+                Id = i + 1,
+                Name = template.Name,
+                Duration = template.Duration,
+                Deadline = deadline,
+                Priority = template.Priority,
+                Value = template.BaseValue + random.Next(-20, 31) // Variación en valor
+            };
+            
+            pendingTasks.Add(task);
+        }
+        
+        // Contar tareas por prioridad
+        highPriorityTotal = pendingTasks.Count(t => t.Priority == "high");
+        mediumPriorityTotal = pendingTasks.Count(t => t.Priority == "medium");
+        lowPriorityTotal = pendingTasks.Count(t => t.Priority == "low");
+    }
+
+    private void SelectTask(TaskItem task)
+    {
+        selectedTask = task;
+        StateHasChanged();
+    }
+
+    private void StartTask()
+    {
+        if (selectedTask == null || selectedTask.InProgress) return;
+
+        selectedTask.InProgress = true;
+        selectedTask.StartedAt = DateTime.Now;
+        selectedTask.Progress = 0;
+
+        // Timer para progreso de la tarea
+        taskTimer = new System.Threading.Timer(async _ =>
+        {
+            if (selectedTask != null && selectedTask.InProgress)
+            {
+                var progressRate = 100.0 / selectedTask.Duration; // % por minuto
+                selectedTask.Progress = Math.Min(100, selectedTask.Progress + progressRate);
+                
+                if (selectedTask.Progress >= 100)
+                {
+                    taskTimer?.Dispose();
+                }
+                
+                await InvokeAsync(StateHasChanged);
+            }
+        }, null, 1000, 1000); // Cada segundo para suavidad
+
+        StateHasChanged();
+    }
+
+    private void PauseTask()
+    {
+        if (selectedTask == null || !selectedTask.InProgress) return;
+
+        selectedTask.InProgress = false;
+        taskTimer?.Dispose();
+        StateHasChanged();
+    }
+
+    private void CompleteTask()
+    {
+        if (selectedTask == null || selectedTask.Progress < 100) return;
+
+        selectedTask.CompletedAt = totalGameTime - timeRemaining;
+        selectedTask.InProgress = false;
+        
+        // Calcular puntos
+        var basePoints = selectedTask.Value;
+        var timeBonus = 0;
+        
+        // Bonus por completar antes del deadline
+        if (selectedTask.CompletedAt < selectedTask.Deadline)
+        {
+            var timeLeft = selectedTask.Deadline - selectedTask.CompletedAt;
+            timeBonus = (int)(timeLeft * 0.5); // 0.5 puntos por minuto antes del deadline
+        }
+        else
+        {
+            // Penalización por deadline perdido
+            missedDeadlines++;
+            basePoints = (int)(basePoints * 0.7); // 30% menos puntos
+        }
+
+        var totalPoints = basePoints + timeBonus;
+        selectedTask.Value = totalPoints;
+        currentScore += totalPoints;
+        totalValue += selectedTask.Value;
+
+        // Actualizar contadores por prioridad
+        switch (selectedTask.Priority)
+        {
+            case "high":
+                highPriorityCompleted++;
+                break;
+            case "medium":
+                mediumPriorityCompleted++;
+                break;
+            case "low":
+                lowPriorityCompleted++;
+                break;
+        }
+
+        completedTasks.Add(selectedTask);
+        pendingTasks.Remove(selectedTask);
+        
+        taskTimer?.Dispose();
+        selectedTask = null;
+
+        // Calcular eficiencia
+        efficiency = (double)completedTasks.Count / totalTasks;
+
+        StateHasChanged();
+    }
+
+    private void ShowStrategyTip()
+    {
+        var tips = new[]
+        {
+            "Prioriza tareas de alto valor con deadlines cercanos",
+            "Las tareas urgentes no siempre son las más importantes",
+            "Agrupa tareas similares para mayor eficiencia",
+            "Considera el tiempo vs. valor de cada tarea",
+            "No te olvides de las tareas de alta prioridad",
+            "El multitasking puede reducir tu productividad",
+            "Planifica bloques de tiempo para tareas complejas",
+            "Delega o pospón tareas de baja prioridad si es necesario"
+        };
+
+        strategyTip = tips[new Random().Next(tips.Length)];
+        StateHasChanged();
+
+        // Limpiar tip después de 5 segundos
+        Task.Delay(5000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            strategyTip = "";
+            StateHasChanged();
+        }));
+    }
+
+    private void FinishGame()
+    {
+        gameTimer?.Dispose();
+        taskTimer?.Dispose();
+        gameFinished = true;
+        
+        // Calcular eficiencia final
+        efficiency = (double)completedTasks.Count / totalTasks;
+        
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedDifficulty = null;
+        selectedTask = null;
+        strategyTip = "";
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        gameTimer?.Dispose();
+        taskTimer?.Dispose();
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetPriorityClass(string priority)
+    {
+        return priority switch
+        {
+            "high" => "priority-high",
+            "medium" => "priority-medium", 
+            "low" => "priority-low",
+            _ => "priority-optional"
+        };
+    }
+
+    private string GetPriorityIcon(string priority)
+    {
+        return priority switch
+        {
+            "high" => "🔴",
+            "medium" => "🟡",
+            "low" => "🟢",
+            _ => "⚪"
+        };
+    }
+
+    private int GetTaskScore(TaskItem task)
+    {
+        // Algoritmo de scoring para ordenar tareas
+        var urgencyScore = Math.Max(0, 100 - (task.Deadline - (totalGameTime - timeRemaining)));
+        var valueScore = task.Value;
+        var priorityMultiplier = task.Priority switch
+        {
+            "high" => 3,
+            "medium" => 2,
+            "low" => 1.5,
+            _ => 1
+        };
+
+        return (int)((urgencyScore + valueScore) * priorityMultiplier);
+    }
+
+    private string GetTaskImpact(TaskItem task)
+    {
+        var timeToDeadline = task.Deadline - (totalGameTime - timeRemaining);
+        var valuePerMinute = (double)task.Value / task.Duration;
+
+        if (timeToDeadline < task.Duration)
+        {
+            return "⚠️ Riesgo alto - Deadline muy cercano";
+        }
+        else if (valuePerMinute > 3)
+        {
+            return "💎 Alto valor - Excelente ROI";
+        }
+        else if (task.Priority == "high")
+        {
+            return "🔥 Alta prioridad - Impacto crítico";
+        }
+        else
+        {
+            return "📊 Impacto moderado";
+        }
+    }
+
+    private string FormatTime(int minutes)
+    {
+        var hours = minutes / 60;
+        var mins = minutes % 60;
+        return $"{hours:D1}h {mins:D2}m";
+    }
+
+    private string FormatGameTime(int minutes)
+    {
+        var hours = minutes / 60;
+        var mins = minutes % 60;
+        return $"{hours:D2}:{mins:D2}";
+    }
+
+    private double GetProgressOffset()
+    {
+        var circumference = 2 * Math.PI * 45;
+        var progress = (double)(totalGameTime - timeRemaining) / totalGameTime;
+        return circumference * (1 - progress);
+    }
+
+    private string GetPerformanceIcon()
+    {
+        return efficiency switch
+        {
+            >= 0.8 => "🏆",
+            >= 0.6 => "⭐",
+            >= 0.4 => "👍",
+            _ => "📈"
+        };
+    }
+
+    private string GetManagementRating()
+    {
+        return efficiency switch
+        {
+            >= 0.8 => "Gestión Excepcional",
+            >= 0.6 => "Buena Gestión",
+            >= 0.4 => "Gestión Promedio",
+            _ => "Necesita Mejorar"
+        };
+    }
+
+    private string GetManagementDescription()
+    {
+        if (efficiency >= 0.8)
+        {
+            return "Excelente manejo del tiempo y prioridades. Demuestras habilidades de gestión de nivel superior.";
+        }
+        else if (efficiency >= 0.6)
+        {
+            return "Buena capacidad de organización. Con práctica puedes optimizar aún más tu gestión del tiempo.";
+        }
+        else if (efficiency >= 0.4)
+        {
+            return "Gestión básica del tiempo. Enfócate en priorizar mejor las tareas de alto impacto.";
+        }
+        else
+        {
+            return "La gestión del tiempo mejora con práctica. Considera técnicas como la matriz de Eisenhower.";
+        }
+    }
+
+    private string GetManagementStyle()
+    {
+        var highPriorityRate = highPriorityTotal > 0 ? (double)highPriorityCompleted / highPriorityTotal : 0;
+        
+        if (highPriorityRate >= 0.8)
+        {
+            return "Orientado a Resultados";
+        }
+        else if (completedTasks.Count > totalTasks * 0.7)
+        {
+            return "Multitarea Eficiente";
+        }
+        else if (missedDeadlines == 0)
+        {
+            return "Cumplidor de Plazos";
+        }
+        else
+        {
+            return "En Desarrollo";
+        }
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Dispose();
+        taskTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.8rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        white-space: nowrap;
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: clock-tick 2s ease-in-out infinite;
+    }
+
+    @@keyframes clock-tick {
+        0%, 100% { transform: rotate(-5deg); }
+        50% { transform: rotate(5deg); }
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ffffff 0%, #3498db 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #e8e8e8;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: left;
+        max-width: 700px;
+    }
+
+    .game-rules h3, .game-rules h4 {
+        color: #3498db;
+        margin-bottom: 0.8rem;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .game-rules li {
+        margin-bottom: 0.4rem;
+        font-size: 0.95rem;
+    }
+
+    .difficulty-selector {
+        margin-bottom: 2rem;
+    }
+
+    .difficulty-selector h4 {
+        color: #3498db;
+        margin-bottom: 1rem;
+    }
+
+    .difficulty-options {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .difficulty-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: white;
+        min-width: 140px;
+    }
+
+    .difficulty-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(52, 152, 219, 0.5);
+    }
+
+    .difficulty-btn.selected {
+        background: rgba(52, 152, 219, 0.2);
+        border-color: #3498db;
+    }
+
+    .difficulty-btn span {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+
+    .difficulty-btn small {
+        color: #b0b0b0;
+        font-size: 0.8rem;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #3498db 0%, #2c3e50 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-start-game:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-start-game:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(52, 152, 219, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        min-height: calc(100vh - 140px);
+    }
+
+    .time-display {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        margin-bottom: 2rem;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 16px;
+        backdrop-filter: blur(10px);
+    }
+
+    .clock {
+        text-align: center;
+    }
+
+    .time-text {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #3498db;
+        font-family: 'Courier New', monospace;
+    }
+
+    .time-label {
+        color: #b0b0b0;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+
+    .progress-ring {
+        position: relative;
+    }
+
+    .progress-svg {
+        transform: rotate(-90deg);
+    }
+
+    .workspace {
+        display: grid;
+        grid-template-columns: 1fr 300px 1fr;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    @@media (max-width: 1200px) {
+        .workspace {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+    }
+
+    .task-queue h3, .completed-tasks h3 {
+        color: #3498db;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tasks-container, .completed-list {
+        max-height: 500px;
+        overflow-y: auto;
+        padding-right: 0.5rem;
+    }
+
+    .task-card {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+
+    .task-card:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateY(-1px);
+    }
+
+    .task-card.selected {
+        border-color: #3498db;
+        background: rgba(52, 152, 219, 0.1);
+    }
+
+    .task-card.priority-high {
+        border-left: 4px solid #e74c3c;
+    }
+
+    .task-card.priority-medium {
+        border-left: 4px solid #f39c12;
+    }
+
+    .task-card.priority-low {
+        border-left: 4px solid #2ecc71;
+    }
+
+    .task-card.priority-optional {
+        border-left: 4px solid #95a5a6;
+    }
+
+    .task-header {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .task-priority {
+        font-size: 1.2rem;
+    }
+
+    .task-name {
+        flex: 1;
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .task-duration {
+        font-size: 0.8rem;
+        color: #b0b0b0;
+    }
+
+    .task-details {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        color: #e8e8e8;
+    }
+
+    .task-progress {
+        margin-top: 0.5rem;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3498db 0%, #2ecc71 100%);
+        transition: width 0.5s ease;
+    }
+
+    .progress-text {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #3498db;
+        margin-top: 0.2rem;
+    }
+
+    .action-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 1.5rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .current-task h4 {
+        color: #3498db;
+        margin-bottom: 1rem;
+    }
+
+    .selected-task-info {
+        background: rgba(52, 152, 219, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .task-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: #ffffff;
+    }
+
+    .task-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.85rem;
+        color: #e8e8e8;
+        margin-bottom: 0.5rem;
+    }
+
+    .task-impact {
+        font-size: 0.9rem;
+        color: #f39c12;
+    }
+
+    .no-selection {
+        text-align: center;
+        padding: 2rem 1rem;
+        color: #b0b0b0;
+    }
+
+    .selection-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+        margin: 1rem 0;
+    }
+
+    .btn-start-task, .btn-pause-task, .btn-complete-task, .btn-strategy-tip {
+        padding: 0.75rem;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s;
+        font-size: 0.9rem;
+    }
+
+    .btn-start-task {
+        background: linear-gradient(45deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+    }
+
+    .btn-pause-task {
+        background: linear-gradient(45deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+
+    .btn-complete-task {
+        background: linear-gradient(45deg, #3498db 0%, #2980b9 100%);
+        color: white;
+    }
+
+    .btn-strategy-tip {
+        background: rgba(155, 89, 182, 0.2);
+        color: #9b59b6;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+    }
+
+    .btn-start-task:hover, .btn-pause-task:hover, .btn-complete-task:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-complete-task:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .strategy-tip {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        background: rgba(155, 89, 182, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+        margin-top: 1rem;
+    }
+
+    .tip-icon {
+        font-size: 1.5rem;
+        color: #9b59b6;
+    }
+
+    .tip-text {
+        color: #9b59b6;
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
+    .completed-task {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(46, 204, 113, 0.1);
+        padding: 0.8rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid #2ecc71;
+    }
+
+    .completed-name {
+        flex: 1;
+        color: #ffffff;
+    }
+
+    .completed-value {
+        color: #2ecc71;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+
+    .completed-time {
+        color: #b0b0b0;
+        font-size: 0.8rem;
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #3498db 0%, #2c3e50 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .management-assessment {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .management-assessment h3 {
+        color: #3498db;
+        margin-bottom: 0.5rem;
+    }
+
+    .management-assessment p {
+        color: #e8e8e8;
+        line-height: 1.6;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    .result-stat {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(52, 152, 219, 0.1);
+        border-color: #3498db;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #3498db;
+    }
+
+    .priority-analysis {
+        margin-bottom: 2rem;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 12px;
+        max-width: 500px;
+    }
+
+    .priority-analysis h4 {
+        color: #3498db;
+        margin-bottom: 1rem;
+    }
+
+    .priority-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .priority-item {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+
+    .priority-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    .priority-item.high .priority-color {
+        background: #e74c3c;
+    }
+
+    .priority-item.medium .priority-color {
+        background: #f39c12;
+    }
+
+    .priority-item.low .priority-color {
+        background: #2ecc71;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #3498db 0%, #2c3e50 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #e8e8e8;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+
+    /* Scrollbar personalizado */
+    .tasks-container::-webkit-scrollbar, .completed-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .tasks-container::-webkit-scrollbar-track, .completed-list::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+
+    .tasks-container::-webkit-scrollbar-thumb, .completed-list::-webkit-scrollbar-thumb {
+        background: rgba(52, 152, 219, 0.5);
+        border-radius: 3px;
+    }
+
+    .tasks-container::-webkit-scrollbar-thumb:hover, .completed-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(52, 152, 219, 0.7);
+    }
+</style>

@@ -1,6 +1,47 @@
 /* ============================================
-   MODERN SIDEBAR STYLES
+   MODERN SIDEBAR STYLES - ELIMINANDO ESPACIOS NEGROS
    ============================================ */
+
+/* Reset global para eliminar espacios negros */
+body, html {
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+}
+
+.page {
+    display: flex;
+    min-height: 100vh;
+    background: transparent !important; /* Sin fondo negro */
+    gap: 0 !important; /* Sin espacios entre sidebar y contenido */
+    margin: 0;
+    padding: 0;
+}
+
+/* Asegurar que el app-container tenga el fondo correcto */
+.app-container {
+    position: relative;
+}
+
+.app-container.page-home,
+.app-container.page-reports,
+.app-container.page-certificates {
+    background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%) !important;
+}
+
+.app-container.page-gamification,
+.app-container.page-profile,
+.app-container.page-settings {
+    background: #0a0a0a !important;
+}
+
+/* Sidebar container sin espacios */
+.sidebar {
+    flex-shrink: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
 
 .modern-sidebar {
     width: 280px;
@@ -15,14 +56,17 @@
     z-index: 1000;
 }
 
-/* Main Content Area - Sin espacio negro */
+/* Main Content Area - Full Width - SIN ESPACIOS NEGROS */
 .main-content {
     margin-left: 280px;
-    height: 100vh;
-    overflow: hidden;
-    background: #0a0a0a;
-    width: calc(100% - 280px);
+    min-height: 100vh;
+    overflow: auto;
+    width: calc(100vw - 280px);
     padding: 0;
+    margin-right: 0;
+    display: flex;
+    flex-direction: column;
+    background: transparent; /* Sin fondo negro */
 }
 
 /* ============================================
@@ -376,3 +420,47 @@
     }
 }
 
+
+/* ============================================
+   FULL WIDTH CONTAINERS FOR ALL PAGES
+   ============================================ */
+
+/* Contenedores base full-width para TODAS las páginas - SIN ESPACIOS NEGROS */
+.home-container-full,
+.gamification-container-full,
+.reports-container-full,
+.settings-page-content,
+.profile-container-full,
+.certificates-container-full,
+.modern-chat-container-full {
+    width: 100%;
+    padding: 1.5rem;
+    min-height: 100vh;
+    overflow-y: auto;
+    color: #fff;
+    margin: 0;  /* Sin márgenes */
+    border: none;  /* Sin bordes */
+}
+
+/* Estilos específicos por página */
+.gamification-container-full {
+    background: #0a0a0a;
+}
+
+.home-container-full {
+    background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+}
+
+.profile-container-full {
+    background: #0a0a0a;
+}
+
+.certificates-container-full {
+    background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+}
+
+.modern-chat-container-full {
+    padding: 0; /* Chat maneja su propio padding */
+    display: flex;
+    flex-direction: column;
+}

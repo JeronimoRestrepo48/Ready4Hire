@@ -6,14 +6,17 @@ Inicializa y proporciona todas las dependencias de la aplicación.
 from typing import Optional
 import os
 
-from app.infrastructure.llm.llm_service import OllamaLLMService
-from app.infrastructure.llm.ollama_client import OllamaClient
+from app.infrastructure.llm.llm_service import OllamaLLMService, LLMService
 from app.infrastructure.ml.multilingual_emotion_detector import MultilingualEmotionDetector
 from app.infrastructure.ml.neural_difficulty_adjuster import NeuralDifficultyAdjuster
 from app.infrastructure.ml.question_embeddings import get_embeddings_service
 from app.infrastructure.ml.gpu_detector import get_gpu_detector
 from app.infrastructure.persistence.memory_interview_repository import MemoryInterviewRepository
 from app.infrastructure.persistence.json_question_repository import JsonQuestionRepository
+
+# Design Patterns
+from app.infrastructure.patterns.facade import InfrastructureFacade
+from app.infrastructure.patterns.observer import get_event_bus
 
 # Nuevos servicios de audio, security y domain
 from app.infrastructure.audio import get_stt_service, get_tts_service
@@ -34,6 +37,47 @@ from app.infrastructure.ml.continuous_learning import ContinuousLearningSystem
 # Gamification Services
 from app.application.services.gamification_service import GamificationService, HintServiceEnhanced
 from app.application.services.game_engine_service import GameEngineService
+
+
+class MockLLMService(LLMService):
+    """
+    LLM de reemplazo utilizado cuando MOCK_OLLAMA=true.
+    Responde con mensajes predecibles para ejecutar pruebas sin depender de servicios externos.
+    """
+
+    class _MockClient:
+        """Cliente simulado con la interfaz mínima usada en los health-checks."""
+
+        def _check_health(self):
+            return True
+
+        def get_metrics(self):
+            return {
+                "status": "mocked",
+                "total_requests": 0,
+                "successful_requests": 0,
+                "failed_requests": 0,
+            }
+
+    def __init__(self):
+        self.model = "mock-llm"
+        self.client = self._MockClient()
+
+    def generate(self, prompt: str, **kwargs) -> str:
+        """Retorna una respuesta fija usando parte del prompt para trazabilidad."""
+        preview = prompt.strip().split("\n")[0][:120] if prompt else ""
+        return f"[mock-response] {preview or 'Respuesta generada por mock'}"
+
+    def chat(self, messages, **kwargs) -> str:
+        """Retorna una respuesta fija para interacciones tipo chat."""
+        if messages:
+            last = messages[-1].get("content", "")
+            return f"[mock-chat] {last[:120]}"
+        return "[mock-chat] respuesta predeterminada"
+
+    def get_metrics(self) -> dict:
+        """Métricas estáticas para el mock."""
+        return self.client.get_metrics()
 
 
 class Container:
@@ -82,9 +126,14 @@ class Container:
         logger.info(f"🤖 Modelo seleccionado: {self.ollama_model}")
         logger.info(f"⏱️ Latencia esperada: {self.perf_config['expected_latency_ms']/1000:.1f}s")
 
-        self.llm_service = OllamaLLMService(
-            base_url=self.ollama_url, model=self.ollama_model, temperature=0.3, max_tokens=256
-        )
+        use_mock_ollama = os.getenv("MOCK_OLLAMA", "false").lower() == "true"
+        if use_mock_ollama:
+            logger.warning("⚠️ MOCK_OLLAMA habilitado: usando MockLLMService en lugar de una conexión real a Ollama")
+            self.llm_service = MockLLMService()
+        else:
+            self.llm_service = OllamaLLMService(
+                base_url=self.ollama_url, model=self.ollama_model, temperature=0.3, max_tokens=256
+            )
 
         # ML Components
         self.emotion_detector = MultilingualEmotionDetector()
@@ -114,6 +163,12 @@ class Container:
 
         # ⚡ Pre-computar embeddings de preguntas para selección instantánea
         self._precompute_question_embeddings()
+        
+        # Design Patterns: Event Bus
+        self.event_bus = get_event_bus()
+        
+        # Design Patterns: Infrastructure Facade
+        self.facade = InfrastructureFacade(self)
 
     def _init_services(self):
         """Inicializa servicios de aplicación"""

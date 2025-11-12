@@ -2,8 +2,8 @@
 
 from .circuit_breaker import (
     CircuitBreaker,
-    CircuitBreakerState,
-    CircuitBreakerOpenException,
+    CircuitState,
+    CircuitOpenError,
     with_circuit_breaker,
     with_retry_and_circuit_breaker,
     get_circuit_breaker,
@@ -11,8 +11,8 @@ from .circuit_breaker import (
 
 __all__ = [
     "CircuitBreaker",
-    "CircuitBreakerState",
-    "CircuitBreakerOpenException",
+    "CircuitState",
+    "CircuitOpenError",
     "with_circuit_breaker",
     "with_retry_and_circuit_breaker",
     "get_circuit_breaker",

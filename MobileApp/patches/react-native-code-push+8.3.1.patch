@@ -1,0 +1,64 @@
+diff --git a/node_modules/react-native-code-push/android/.project b/node_modules/react-native-code-push/android/.project
+new file mode 100644
+index 0000000..2de1a70
+--- /dev/null
++++ b/node_modules/react-native-code-push/android/.project
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<projectDescription>
++	<name>react-native-code-push</name>
++	<comment>Project react-native-code-push created by Buildship.</comment>
++	<projects>
++	</projects>
++	<buildSpec>
++	</buildSpec>
++	<natures>
++	</natures>
++	<filteredResources>
++		<filter>
++			<id>1762140872432</id>
++			<name></name>
++			<type>30</type>
++			<matcher>
++				<id>org.eclipse.core.resources.regexFilterMatcher</id>
++				<arguments>node_modules|\.git|__CREATED_BY_JAVA_LANGUAGE_SERVER__</arguments>
++			</matcher>
++		</filter>
++	</filteredResources>
++</projectDescription>
+diff --git a/node_modules/react-native-code-push/android/app/build.gradle b/node_modules/react-native-code-push/android/app/build.gradle
+index 68ae729..a33fba5 100644
+--- a/node_modules/react-native-code-push/android/app/build.gradle
++++ b/node_modules/react-native-code-push/android/app/build.gradle
+@@ -6,6 +6,7 @@ def DEFAULT_TARGET_SDK_VERSION = 26
+ def DEFAULT_MIN_SDK_VERSION = 16
+ 
+ android {
++    namespace "com.microsoft.codepush.react"
+     compileSdkVersion rootProject.hasProperty('compileSdkVersion') ? rootProject.compileSdkVersion : DEFAULT_COMPILE_SDK_VERSION
+     buildToolsVersion rootProject.hasProperty('buildToolsVersion') ? rootProject.buildToolsVersion : DEFAULT_BUILD_TOOLS_VERSION
+ 
+@@ -14,15 +15,21 @@ android {
+         targetSdkVersion rootProject.hasProperty('targetSdkVersion') ? rootProject.targetSdkVersion : DEFAULT_TARGET_SDK_VERSION
+         versionCode 1
+         versionName "1.0"
++        consumerProguardFiles 'proguard-rules.pro'
+     }
+ 
+     lintOptions {
+         abortOnError false
+     }
+     
+-    defaultConfig {
+-        consumerProguardFiles 'proguard-rules.pro'
++    buildTypes {
++        debug {}
++        release {}
+     }
++    
++    // Configuración para compatibilidad con Gradle 7.6.3 y AGP 7.4.2
++    defaultPublishConfig "release"
++    publishNonDefault false
+ }
+ 
+ dependencies {

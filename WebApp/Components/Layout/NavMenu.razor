@@ -178,9 +178,40 @@
         }
     }
 
-    private void StartNewChat()
+    private async Task StartNewChat()
     {
-        Navigation.NavigateTo("/chat/0", true);
+        try
+        {
+            // Crear un nuevo chat en la base de datos
+            var currentUser = await AuthService.GetCurrentUserAsync();
+            if (currentUser != null)
+            {
+                using var db = await DbFactory.CreateDbContextAsync();
+                var newChat = new Chat
+                {
+                    UserId = currentUser.Id,
+                    Title = $"Entrevista {DateTime.Now:dd/MM/yyyy HH:mm}",
+                    CreatedAt = DateTime.UtcNow,
+                    ChatMode = "technical" // Por defecto
+                };
+                
+                db.Chats.Add(newChat);
+                await db.SaveChangesAsync();
+                
+                Navigation.NavigateTo($"/chat/{newChat.Id}", true);
+            }
+            else
+            {
+                // Si no hay usuario, navegar a la página de chat simple
+                Navigation.NavigateTo("/chat", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating new chat: {ex.Message}");
+            // Fallback a la página de chat simple
+            Navigation.NavigateTo("/chat", true);
+        }
     }
 
     private void NavigateToHome()

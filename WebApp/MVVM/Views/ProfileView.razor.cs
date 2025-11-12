@@ -21,12 +21,23 @@ namespace Ready4Hire.MVVM.Views
         [Inject]
         public NavigationManager Navigation { get; set; } = null!;
 
+        [Inject]
+        public BadgeProgressService BadgeProgressService { get; set; } = null!;
+
         private User? user;
         private List<UserBadge> userBadges = new();
         private List<Badge> availableBadges = new();
         
-        private string activeTab = "info";
         private bool isLoading = true;
+
+        // Pestañas activas
+        private string activeTab = "info";
+
+        private void SwitchTab(string tab)
+        {
+            activeTab = tab;
+            StateHasChanged();
+        }
 
         // Filtros de badges
         private string badgeFilterRarity = "";
@@ -126,6 +137,9 @@ namespace Ready4Hire.MVVM.Views
                         if (user != null)
                         {
                             userBadges = user.Badges;
+                            
+                            // Actualizar progreso de badges
+                            await BadgeProgressService.UpdateAllBadgeProgressAsync(user.Id);
                         }
                     }
                 }

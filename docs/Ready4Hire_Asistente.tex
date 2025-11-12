@@ -1,0 +1,334 @@
+\documentclass[12pt,a4paper]{article}
+
+% --- Packages ---
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes, calc}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{fontawesome5}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\geometry{
+  left=25mm,
+  right=25mm,
+  top=25mm,
+  bottom=25mm
+}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=teal,
+  urlcolor=blue,
+  citecolor=teal,
+  pdfauthor={Equipo Ready4Hire},
+  pdftitle={Ready4Hire - Informe Técnico del Asistente Conversacional}
+}
+
+\renewcommand{\familydefault}{\sfdefault}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{Ready4Hire}
+\fancyhead[R]{Informe Técnico del Asistente}
+\fancyfoot[C]{\thepage}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{\thesubsubsection}{1em}{}
+
+\setlist[itemize]{nosep,left=1.5em}
+\setlist[enumerate]{nosep,left=1.5em,label=\arabic*.}
+
+% --- Custom colors ---
+\definecolor{r4hTeal}{HTML}{007F7F}
+\definecolor{r4hGray}{HTML}{444444}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  {\Large \textbf{Ready4Hire – Informe Técnico del Asistente Conversacional}\\[1ex]}
+  \rule{\textwidth}{0.6pt}\\[2ex]
+  {\large{\textbf{Curso:} Ingeniería de Software – 2025-2}}\\[1ex]
+  {\large{\textbf{Fecha:} 11 de noviembre de 2025}}\\[1ex]
+  {\large{\textbf{Equipo:}} Elizabeth Suescún (SM), Luis M. Marín (PO), Santiago Manco (Líder Técnico),\\
+  Juan E. Villada (Frontend), Jerónimo Restrepo (IA), Emanuel Torres (Backend), Santiago Arboleda (QA)}\\[1ex]
+  {\large{\textbf{Repositorio:}} \url{https://github.com/JeronimoRestrepo48/Ready4Hire}}\\[4ex]
+  \includegraphics[width=0.5\textwidth]{figures/placeholder_portada.png}\\[2ex]
+  {\small \textit{Nota: Sustituir la imagen anterior por la pieza gráfica oficial del proyecto.}}\\[4ex]
+  \vfill
+  {\large \textbf{Resumen}}\\[1ex]
+  \begin{minipage}{0.9\textwidth}
+    \small
+    El presente informe técnico documenta el diseño conceptual del asistente conversacional Ready4Hire, 
+    incluyendo su propósito, público objetivo, flujos de interacción, arquitectura tecnológica y principales herramientas 
+    utilizadas. El documento incorpora espacios destinados a evidencias y capturas de pruebas que respaldan la funcionalidad 
+    alcanzada durante la fase final del curso.
+  \end{minipage}
+  \vfill
+\end{titlepage}
+
+\tableofcontents
+\listoffigures
+\newpage
+
+\section{Descripción general del asistente}
+\subsection{Propósito}
+Ready4Hire es un mentor virtual que simula entrevistas técnicas y comportamentales para aspirantes a cargos de tecnología. 
+El asistente orienta al candidato en tres etapas:
+\begin{enumerate}
+  \item \textbf{Preparación previa:} contextualiza al usuario según rol y nivel, y entrega preguntas diagnósticas.
+  \item \textbf{Ejecución guiada:} mantiene una conversación multimodal (texto/voz) respaldada por modelos de lenguaje grandes (LLM).
+  \item \textbf{Retroalimentación accionable:} ofrece puntajes automáticos, análisis emocional y rutas de mejora personalizadas.
+\end{enumerate}
+
+La combinación de evaluación inteligente y diseño centrado en el usuario permite cerrar la brecha entre teoría y práctica para 
+estudiantes y profesionales junior.
+
+\subsection{Público objetivo}
+\begin{itemize}
+  \item Estudiantes de ingeniería de sistemas que buscan practicar entrevistas técnicas reales.
+  \item Graduados recientes y bootcampers que requieren feedback inmediato y estructurado.
+  \item Centros de talento universitarios interesados en generar reportes y métricas de desempeño.
+  \item Reclutadores aliados que desean medir de forma objetiva competencias técnicas y blandas.
+\end{itemize}
+
+\section{Ejemplos de interacción}
+\subsection{Escenario 1 – Selección de entrevista}
+\begin{quote}\small
+\textbf{Usuario:} Quiero practicar para un rol de Backend mid-level.\\
+\textbf{Asistente:} Perfecto. Adaptaré las preguntas a microservicios, resiliencia y CI/CD. ¿Listo para iniciar?\\
+\textbf{Usuario:} Sí.\\
+\textbf{Asistente:} Primera pregunta: Describe cómo diseñarías un servicio de autenticación con tokens rotativos.
+\end{quote}
+
+\subsection{Escenario 2 – Retroalimentación y coaching}
+\begin{quote}\small
+\textbf{Usuario:} Esta es mi respuesta...\\
+\textbf{Asistente:} Destacaste segregación de responsabilidades, pero faltó mencionar mecanismos de \\ rate limiting. 
+Te sugiero revisar patrones Circuit Breaker y registrar métricas de auditoría.\\
+\textbf{Asistente:} Puntuación global 7.8/10. Emoción detectada: neutral. Próxima pregunta: ¿cómo automatizarías este despliegue?
+\end{quote}
+
+\section{Arquitectura del asistente}
+\subsection{Visión general}
+La solución integra un frontend Blazor Server, un backend FastAPI diseñado con Domain-Driven Design (DDD), servicios de IA 
+especializados y una capa de datos híbrida (PostgreSQL, Redis, Qdrant). La Figura~\ref{fig:arquitectura} resume los componentes.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+    node distance=1.5cm,
+    every node/.style={font=\small},
+    box/.style={draw=r4hTeal, rounded corners, thick, align=center, minimum width=3.6cm, minimum height=1.05cm, fill=r4hTeal!6},
+    service/.style={draw=r4hGray, rounded corners, thick, align=center, minimum width=3.1cm, minimum height=1.05cm, fill=white},
+    datastore/.style={draw=black, thick, cylinder, shape border rotate=90, aspect=0.22, minimum height=1.4cm, minimum width=1.0cm, fill=gray!10},
+    arrow/.style={-{Latex[length=3mm]}, thick}
+  ]
+    % Línea principal
+    \node[box] (user) {\faUser\ Usuario final\\Canales Web / móvil};
+    \node[box, below=of user] (blazor) {WebApp Blazor Server\\\textit{UI + MVVM + SignalR}};
+    \node[box, below=of blazor] (api) {API FastAPI\\\textit{DDD + CQRS + Validaciones}};
+    \node[box, below=of api] (core) {Aplicación de Dominio\\Casos de uso, Agregados};
+    \node[box, below=of core] (integration) {Integración y Observabilidad\\Circuit Breaker, Telemetría};
+
+    % Servicios laterales (más cerca)
+    \node[service, left=2.6cm of api] (services) {Servicios IA\\\small LLM (Ollama), Whisper STT, Recomendador};
+    \node[service, right=2.6cm of api] (workers) {Procesos asíncronos\\\small Celery + Redis broker};
+    \node[service, right=2.6cm of core] (security) {Capa de seguridad\\\small JWT, auditoría, sanitización};
+
+    % Datos inferior
+    \node[datastore, below left=0.1cm and 1.8cm of integration] (postgres) {PostgreSQL\\Persistencia relacional};
+    \node[datastore, below=0.1cm of integration] (redis) {Redis\\Caché y rate limiting};
+    \node[datastore, below right=0.1cm and 1.8cm of integration] (qdrant) {Qdrant\\Embeddings de preguntas};
+
+    % Flechas verticales
+    \draw[arrow] (user) -- node[right]{UI responsiva, SSO} (blazor);
+    \draw[arrow] (blazor) -- node[right]{SignalR / HTTPS} (api);
+    \draw[arrow] (api) -- node[right]{DTOs Pydantic} (core);
+    \draw[arrow] (core) -- node[right]{Eventos de dominio} (integration);
+    \draw[arrow] (integration) -- (redis);
+
+    % Flechas laterales
+    \draw[arrow] (api.west) -- node[above]{REST / gRPC} (services.east);
+    \draw[arrow] (api.east) -- node[above]{Queues} (workers.west);
+    \draw[arrow] (core.east) -- node[above]{Policies, IAM} (security.west);
+    \draw[arrow, dashed] (services.south east) |- (integration.north);
+    \draw[arrow, dashed] (workers.south west) |- (integration.north);
+    \draw[arrow, dashed] (security.south) |- (integration.north);
+
+    % Datos
+    \draw[arrow] (integration) -- (postgres);
+    \draw[arrow] (integration) -- (qdrant);
+    \draw[arrow, dashed] (services.south) |- (qdrant.north);
+  \end{tikzpicture}
+  \caption{Arquitectura lógica del asistente Ready4Hire (flujo principal vertical dentro del margen).}
+  \label{fig:arquitectura}
+\end{figure}
+
+\subsection{Componentes técnicos destacados}
+\subsubsection*{WebApp Blazor Server}
+El frontend opera bajo el patrón MVVM utilizando componentes Razor y SignalR para sincronización en tiempo real. Se orquesta el estado global con contenedores de dependencia propios, soporta modo PWA (service worker + cache storage) y delega autenticación al backend vía JWT.
+
+\subsubsection*{API FastAPI y capa de dominio}
+El backend adopta Clean Architecture: routers ligeros, servicios de aplicación (casos de uso) y entidades de dominio rigen las reglas de negocio. Los DTOs Pydantic incluyen validaciones estrictas, control de versiones y esquemas OpenAPI generados automáticamente.
+
+\subsubsection*{Servicios de IA y pipelines de evaluación}
+Los prompts se gestionan a través de LangChain, con Ollama como motor local para respuestas evaluativas y resumen de feedback. Whisper procesa audio multilenguaje en modo batch; un motor de recomendación interno ajusta la dificultad usando embeddings (Sentence Transformers) almacenados en Qdrant.
+
+\subsubsection*{Procesamiento asíncrono y resiliencia}
+Celery coordina evaluaciones pesadas y generación de certificados; Redis actúa como broker y como caché de resultados. Se implementan patrones Circuit Breaker y Retry con tenacidad configurable para llamadas a LLM.
+
+\subsubsection*{Observabilidad y cumplimiento}
+OpenTelemetry exporta trazas hacia Prometheus y Grafana; los logs estructurados siguen formato JSON y se enriquecen con IDs de conversación. Los módulos de seguridad aplican hardening: sanitización de entrada, guardas de prompt injection, auditoría de decisiones y políticas de rate limiting contextual.
+
+\subsection{Flujo conversacional detallado}
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+    node distance=1.5cm and 2cm,
+    process/.style={rectangle, rounded corners, draw=r4hGray, thick, minimum width=3.4cm, minimum height=1cm, align=center, fill=white},
+    decision/.style={diamond, aspect=2, draw=r4hGray, thick, minimum width=2.8cm, align=center, fill=white},
+    arrow/.style={-{Latex[length=3mm]}, thick},
+    font=\small
+  ]
+    \node[process] (start) {Inicio sesión usuario};
+    \node[process, below=of start] (select) {Selección de rol y dificultad};
+    \node[process, below=of select] (context) {Preguntas de contexto};
+    \node[process, below=of context] (llm) {Generación pregunta con LLM};
+    \node[process, below=of llm] (answer) {Respuesta del candidato (texto/voz)};
+    \node[process, below=of answer] (evaluation) {Evaluación automática (Score + emoción)};
+    \node[decision, below=of evaluation] (continue) {¿Quedan preguntas?};
+    \node[process, below left=1.8cm and 2cm of continue] (feedback) {Entrega feedback y consejos};
+    \node[process, below right=1.8cm and 2cm of continue] (report) {Generación informe y badges};
+    \node[process, below=of feedback] (nextq) {Siguiente pregunta adaptativa};
+    \node[process, below=of report] (end) {Cierre de sesión y exportación};
+
+    \draw[arrow] (start) -- (select);
+    \draw[arrow] (select) -- (context);
+    \draw[arrow] (context) -- (llm);
+    \draw[arrow] (llm) -- (answer);
+    \draw[arrow] (answer) -- (evaluation);
+    \draw[arrow] (evaluation) -- (continue);
+    \draw[arrow] (continue) -- node[left]{Sí} (feedback);
+    \draw[arrow] (feedback) -- (nextq);
+    \draw[arrow] (nextq) |- (llm);
+    \draw[arrow] (continue) -- node[right]{No} (report);
+    \draw[arrow] (report) -- (end);
+  \end{tikzpicture}
+  \caption{Flujo conversacional de punta a punta.}
+  \label{fig:flujo}
+\end{figure}
+
+\subsection{Tecnologías y herramientas}
+\begin{table}[H]
+  \centering
+  \caption{Resumen de tecnologías clave del asistente.}
+  \label{tab:tecnologias}
+  \begin{tabularx}{\textwidth}{@{}lXl@{}}
+    \toprule
+    \textbf{Capa} & \textbf{Tecnología / Servicio} & \textbf{Propósito principal} \\
+    \midrule
+    Frontend & Blazor Server (.NET 9), Chart.js, Service Worker PWA & UI, dashboards y modo offline \\
+    Backend & FastAPI (Python 3.11), Clean Architecture, SOLID & Casos de uso, control de dominio \\
+    IA & Ollama (Llama 3.2), LangChain, Whisper & Evaluación semántica, STT \\
+    Datos & PostgreSQL, Redis, Qdrant & Persistencia relacional, caché, vector search \\
+    Observabilidad & Prometheus, Grafana, OpenTelemetry & Monitoreo, métricas, trazas \\
+    Automatización & Celery, Docker Compose, Playwright & Tareas asíncronas, despliegue local, pruebas E2E \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Evidencias de pruebas y capturas}
+\subsection{Pruebas funcionales}
+\begin{figure}[H]
+  \centering
+  \fbox{\rule{0pt}{6cm}\rule{0.9\textwidth}{0pt}}
+  \caption{Captura de la simulación en Blazor mostrando feedback en tiempo real.}
+  \label{fig:captura_blazor}
+\end{figure}
+
+\subsection{Pruebas automatizadas}
+\begin{figure}[H]
+  \centering
+  \fbox{\rule{0pt}{6cm}\rule{0.9\textwidth}{0pt}}
+  \caption{Resultados de pruebas Playwright / pytest (insertar captura).}
+  \label{fig:captura_tests}
+\end{figure}
+
+\subsection{Dashboards de observabilidad}
+\begin{figure}[H]
+  \centering
+  \fbox{\rule{0pt}{6cm}\rule{0.9\textwidth}{0pt}}
+  \caption{Dashboard Grafana con métricas de latencia y score promedio.}
+  \label{fig:captura_grafana}
+\end{figure}
+
+\section{Referencias}
+\begin{itemize}
+  \item LangChain. (2024). \textit{LangChain Documentation}. Recuperado de \url{https://www.langchain.com/}
+  \item Hugging Face. (2024). \textit{Transformers Library}. Recuperado de \url{https://huggingface.co/docs/transformers}
+  \item OpenAI. (2024). \textit{Whisper Speech-to-Text}. Recuperado de \url{https://github.com/openai/whisper}
+  \item Microsoft. (2024). \textit{Blazor Documentation}. Recuperado de \url{https://learn.microsoft.com/aspnet/core/blazor/}
+  \item Qdrant. (2025). \textit{Vector Database Documentation}. Recuperado de \url{https://qdrant.tech/documentation/}
+\end{itemize}
+
+\section*{Anexos}
+\addcontentsline{toc}{section}{Anexos}
+\subsection*{Anexo A – Checklist de despliegue}
+\begin{longtable}{@{}p{4.5cm}p{9cm}@{}}
+  \toprule
+  \textbf{Paso} & \textbf{Detalle técnico} \\ \midrule
+  Preparar entorno & Crear archivo \texttt{.env} con claves (JWT, Redis, Qdrant, API Keys). Verificar versiones: Python 3.11+, Node 20+, .NET 9. \\ \midrule
+  Servicios base & Ejecutar \texttt{docker-compose up -d redis qdrant prometheus grafana}. Revisar salud con \texttt{docker ps}. \\ \midrule
+  Backend API & Activar entorno virtual: \texttt{source venv/bin/activate}. Correr migraciones (si aplica) y lanzar \texttt{uvicorn app.main\_v2\_improved:app --host 0.0.0.0 --port 8001}. \\ \midrule
+  WebApp Blazor & Desde \texttt{WebApp/}, compilar con \texttt{dotnet build}. Lanzar \texttt{dotnet run --urls=https://localhost:5214}. \\ \midrule
+  Observabilidad & Cargar dashboards en Grafana (importar JSON). Confirmar trazas en \texttt{http://localhost:3000}. \\ \midrule
+  Smoke tests & Ejecutar \texttt{pytest tests/smoke} y \texttt{npx playwright test --grep "smoke"}. Registrar resultados en la bitácora. \\ \bottomrule
+\end{longtable}
+
+\subsection*{Anexo B – Plantilla de registro de experimentos A/B}
+\begin{longtable}{@{}p{4cm}p{9.5cm}@{}}
+  \toprule
+  \textbf{Campo} & \textbf{Descripción / ejemplo} \\ \midrule
+  Nombre del experimento & E.g., "Selector de preguntas adaptativo v2". \\ \midrule
+  Objetivo & Hipótesis y métrica primaria (p.ej., aumentar score promedio en 10"). \\ \midrule
+  Métricas asociadas & Precisión LLM, completitud entrevistas, tiempo promedio de respuesta. \\ \midrule
+  Variantes y tráfico & Variante A (baseline), Variante B (nuevo algoritmo). Distribución sugerida 50/50. \\ \midrule
+  Setup técnico & Feature flag utilizado, ruta de despliegue, dependencias externas. \\ \midrule
+  Resultados preliminares & Tabla con fechas, volumen de usuarios, métricas relevantes. \\ \midrule
+  Interpretación & Conclusiones, sesgos detectados, decisiones de negocio. \\ \midrule
+  Acción & Adoptar/descartar/iterar, responsable y fecha objetivo. \\ \bottomrule
+\end{longtable}
+
+\subsection*{Anexo C – Bitácora de incidentes y monitoreo}
+\begin{longtable}{@{}p{2.5cm}p{3cm}p{7cm}@{}}
+  \toprule
+  \textbf{Fecha} & \textbf{Severidad} & \textbf{Descripción y resolución} \\ \midrule
+  \rule{0pt}{2.6ex} & & (Registrar incidentes de infraestructura, interrupciones LLM, fallos de despliegue). \\ \bottomrule
+\end{longtable}
+\noindent\emph{Nota:} Actualizar este anexo semanalmente con datos reales extraídos de Prometheus/Grafana.
+
+\subsection*{Anexo D – Evidencia de pruebas automatizadas}
+\begin{itemize}
+  \item Ruta de reporte Playwright: \texttt{e2e-tests/playwright-report/index.html}
+  \item Ruta de cobertura pytest: \texttt{Ready4Hire/htmlcov/index.html}
+  \item Checklist de ejecución CI/CD: \texttt{.github/workflows/tests.yml}
+  \item Insertar capturas o métricas resumidas (p.ej., tabla con \\textit{commit}, fecha, resultado, cobertura).
+\end{itemize}
+
+\end{document}
+

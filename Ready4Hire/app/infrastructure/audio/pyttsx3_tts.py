@@ -112,7 +112,7 @@ class Pyttsx3TTS:
             logger.error(f"❌ Error en síntesis TTS: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error al sintetizar audio: {str(e)}")
 
-    def synthesize_to_bytes(self, text: str, language: str = "es", rate: int = 150, volume: float = 1.0) -> bytes:
+    def synthesize_to_bytes(self, text: str, language: str = "es", rate: int = 150, volume: float = 1.0, output_format: str = "mp3") -> bytes:
         """
         Sintetiza texto y retorna bytes del audio.
 
@@ -121,11 +121,12 @@ class Pyttsx3TTS:
             language: Idioma
             rate: Velocidad
             volume: Volumen
+            output_format: Formato de salida ('mp3' o 'wav')
 
         Returns:
             Bytes del audio generado
         """
-        audio_path = self.synthesize(text, language, rate, volume)
+        audio_path = self.synthesize(text, language, rate, volume, output_format)
 
         try:
             with open(audio_path, "rb") as f:

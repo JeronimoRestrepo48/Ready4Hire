@@ -319,6 +319,205 @@ RAZONAMIENTO: [explicación]
         return {"type": "skill_builder", "skill": skill, "exercises": exercises, "adaptive": True}
 
     # ========================================================================
+    # 10 NUEVOS JUEGOS UNIVERSALES 
+    # ========================================================================
+
+    def create_memory_challenge(self, profession: str, difficulty: str) -> Dict:
+        """Crea desafío de memoria con secuencias"""
+        sequence_length = {"junior": 4, "mid": 6, "senior": 8}.get(difficulty, 5)
+        
+        return {
+            "type": "memory_challenge",
+            "sequences": [
+                {"id": 1, "items": [f"item_{i}" for i in range(sequence_length)], "display_time": 3000},
+                {"id": 2, "items": [f"concept_{i}" for i in range(sequence_length)], "display_time": 2500},
+                {"id": 3, "items": [f"pattern_{i}" for i in range(sequence_length + 1)], "display_time": 2000}
+            ],
+            "difficulty": difficulty,
+            "profession": profession
+        }
+
+    def create_logic_puzzles(self, profession: str, difficulty: str) -> Dict:
+        """Crea rompecabezas lógicos adaptativos"""
+        puzzle_count = {"junior": 3, "mid": 4, "senior": 5}.get(difficulty, 4)
+        
+        return {
+            "type": "logic_puzzles", 
+            "puzzles": [
+                {
+                    "id": i,
+                    "description": f"Rompecabezas lógico {i+1}",
+                    "type": random.choice(["sequence", "pattern", "deduction"]),
+                    "difficulty": difficulty
+                } for i in range(puzzle_count)
+            ],
+            "profession": profession
+        }
+
+    def create_time_management(self, profession: str, difficulty: str) -> Dict:
+        """Crea simulador de gestión del tiempo"""
+        task_count = {"junior": 5, "mid": 8, "senior": 12}.get(difficulty, 8)
+        
+        return {
+            "type": "time_management",
+            "tasks": [
+                {
+                    "id": i,
+                    "name": f"Tarea {i+1}",
+                    "priority": random.choice(["high", "medium", "low"]),
+                    "duration": random.randint(15, 120),
+                    "deadline": random.randint(60, 480)
+                } for i in range(task_count)
+            ],
+            "total_time": 240,  # 4 horas
+            "profession": profession
+        }
+
+    def create_communication_skills(self, profession: str, difficulty: str) -> Dict:
+        """Crea ejercicios de comunicación"""
+        scenario_count = {"junior": 3, "mid": 4, "senior": 5}.get(difficulty, 4)
+        
+        return {
+            "type": "communication_skills",
+            "scenarios": [
+                {
+                    "id": i,
+                    "situation": f"Situación de comunicación {i+1}",
+                    "context": "Contexto profesional",
+                    "response_options": [
+                        "Respuesta directa",
+                        "Respuesta diplomática", 
+                        "Solicitar más información",
+                        "Escalar el tema"
+                    ],
+                    "best_practices": ["Escucha activa", "Empatía", "Claridad"]
+                } for i in range(scenario_count)
+            ],
+            "profession": profession
+        }
+
+    def create_problem_solving_race(self, profession: str, difficulty: str) -> Dict:
+        """Crea carrera de resolución de problemas"""
+        problem_count = {"junior": 5, "mid": 7, "senior": 10}.get(difficulty, 7)
+        
+        return {
+            "type": "problem_solving_race",
+            "problems": [
+                {
+                    "id": i,
+                    "description": f"Problema {i+1}",
+                    "complexity": random.choice(["simple", "medium", "complex"]),
+                    "time_limit": random.randint(30, 120),
+                    "points": random.randint(50, 200)
+                } for i in range(problem_count)
+            ],
+            "total_time": 600,  # 10 minutos
+            "profession": profession
+        }
+
+    def create_decision_trees(self, profession: str, difficulty: str) -> Dict:
+        """Crea árbol de decisiones complejas"""
+        decision_depth = {"junior": 3, "mid": 4, "senior": 5}.get(difficulty, 4)
+        
+        return {
+            "type": "decision_trees",
+            "root_scenario": "Situación inicial que requiere decisiones",
+            "tree_depth": decision_depth,
+            "nodes": [
+                {
+                    "id": i,
+                    "question": f"¿Qué harías en el paso {i+1}?",
+                    "options": [f"Opción {j+1}" for j in range(3)],
+                    "consequences": [f"Consecuencia {j+1}" for j in range(3)]
+                } for i in range(decision_depth)
+            ],
+            "profession": profession
+        }
+
+    def create_pattern_recognition(self, profession: str, difficulty: str) -> Dict:
+        """Crea ejercicios de reconocimiento de patrones"""
+        pattern_count = {"junior": 4, "mid": 6, "senior": 8}.get(difficulty, 6)
+        
+        return {
+            "type": "pattern_recognition",
+            "patterns": [
+                {
+                    "id": i,
+                    "sequence": [random.randint(1, 100) for _ in range(8)],
+                    "pattern_type": random.choice(["arithmetic", "geometric", "custom"]),
+                    "missing_elements": random.randint(1, 2)
+                } for i in range(pattern_count)
+            ],
+            "profession": profession
+        }
+
+    def create_critical_thinking(self, profession: str, difficulty: str) -> Dict:
+        """Crea ejercicios de pensamiento crítico"""
+        case_count = {"junior": 2, "mid": 3, "senior": 4}.get(difficulty, 3)
+        
+        return {
+            "type": "critical_thinking",
+            "cases": [
+                {
+                    "id": i,
+                    "statement": f"Afirmación o argumento {i+1}",
+                    "evidence": [f"Evidencia {j+1}" for j in range(4)],
+                    "biases": ["Confirmation bias", "Anchoring", "Availability heuristic"],
+                    "questions": [
+                        "¿Qué evidencia apoya esta afirmación?",
+                        "¿Qué evidencia la contradice?",
+                        "¿Qué sesgos podrían estar presentes?"
+                    ]
+                } for i in range(case_count)
+            ],
+            "profession": profession
+        }
+
+    def create_innovation_lab(self, profession: str, difficulty: str) -> Dict:
+        """Crea laboratorio de innovación y creatividad"""
+        challenge_count = {"junior": 2, "mid": 3, "senior": 4}.get(difficulty, 3)
+        
+        return {
+            "type": "innovation_lab",
+            "challenges": [
+                {
+                    "id": i,
+                    "problem": f"Desafío de innovación {i+1}",
+                    "constraints": [f"Limitación {j+1}" for j in range(3)],
+                    "brainstorm_time": 300,  # 5 minutos
+                    "evaluation_criteria": [
+                        "Originalidad",
+                        "Viabilidad", 
+                        "Impacto",
+                        "Simplicidad"
+                    ]
+                } for i in range(challenge_count)
+            ],
+            "profession": profession
+        }
+
+    def create_stress_test(self, profession: str, difficulty: str) -> Dict:
+        """Crea prueba de manejo de estrés"""
+        stress_level = {"junior": 1, "mid": 2, "senior": 3}.get(difficulty, 2)
+        
+        return {
+            "type": "stress_test",
+            "stress_level": stress_level,
+            "tasks": [
+                {
+                    "id": i,
+                    "name": f"Tarea bajo presión {i+1}",
+                    "time_pressure": True,
+                    "interruptions": random.randint(1, 3),
+                    "complexity": stress_level
+                } for i in range(5)
+            ],
+            "total_time": 480,  # 8 minutos
+            "pressure_indicators": ["Timer visible", "Sonidos de presión", "Tareas múltiples"],
+            "profession": profession
+        }
+
+    # ========================================================================
     # SESSION MANAGEMENT
     # ========================================================================
 

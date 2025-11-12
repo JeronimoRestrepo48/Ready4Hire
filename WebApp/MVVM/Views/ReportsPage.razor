@@ -8,7 +8,7 @@
 
 <PageTitle>Reportes - Ready4Hire</PageTitle>
 
-<div class="reports-container">
+<div class="reports-container-full">
     <!-- Header -->
     <div class="reports-header">
         <div class="header-content">
@@ -260,8 +260,20 @@
 </div>
 
 <style>
+.reports-container-full {
+    padding: 1.5rem;
+    width: 100%;
+    background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    color: #fff;
+    position: relative;
+}
+
 .reports-container {
-    padding: 2rem;
+    padding: 1.5rem;
     max-width: 1400px;
     margin: 0 auto;
     background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
@@ -271,20 +283,24 @@
     overflow-x: hidden;
 }
 
+.reports-container-full::-webkit-scrollbar,
 .reports-container::-webkit-scrollbar {
     width: 10px;
 }
 
+.reports-container-full::-webkit-scrollbar-track,
 .reports-container::-webkit-scrollbar-track {
     background: transparent;
 }
 
+.reports-container-full::-webkit-scrollbar-thumb,
 .reports-container::-webkit-scrollbar-thumb {
     background: #333;
     border-radius: 5px;
     border: 2px solid #0a0a0a;
 }
 
+.reports-container-full::-webkit-scrollbar-thumb:hover,
 .reports-container::-webkit-scrollbar-thumb:hover {
     background: #444;
 }
@@ -429,7 +445,7 @@
 .chart-card {
     background: rgba(30, 41, 59, 0.6);
     border-radius: 12px;
-    padding: 2rem;
+    padding: 1.5rem;
     border: 1px solid rgba(99, 102, 241, 0.2);
 }
 

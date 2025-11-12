@@ -1,0 +1,792 @@
+@page "/game/code-challenge"
+@inject Ready4Hire.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>🧩 Desafío de Código - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">⏱️ @timerDisplay</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">📝 @currentStep/@totalSteps</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">🧩</div>
+            <h1>Desafío de Código</h1>
+            <p>Resuelve problemas de programación paso a paso</p>
+            <div class="game-rules">
+                <h3>📋 Reglas:</h3>
+                <ul>
+                    <li>⏰ 30 minutos para completar</li>
+                    <li>🎯 @totalSteps problemas de dificultad creciente</li>
+                    <li>⭐ Puntuación basada en eficiencia</li>
+                    <li>💡 Usa hints si necesitas ayuda (-10 pts)</li>
+                </ul>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame">
+                Comenzar Desafío
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@(currentScore >= 800 ? "🏆" : currentScore >= 600 ? "🥈" : "🥉")</div>
+            <h2>¡Desafío Completado!</h2>
+            <div class="results-stats">
+                <div class="result-stat">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Problemas Resueltos</span>
+                    <span class="result-value">@problemsSolved/@totalSteps</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Tiempo Total</span>
+                    <span class="result-value">@timerDisplay</span>
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    Jugar de Nuevo
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="challenge-panel">
+                <div class="challenge-header">
+                    <h3>Problema @currentStep: @currentChallenge.Title</h3>
+                    <div class="challenge-difficulty">
+                        @for (int i = 0; i < currentChallenge.Difficulty; i++)
+                        {
+                            <span class="star filled">★</span>
+                        }
+                        @for (int i = currentChallenge.Difficulty; i < 5; i++)
+                        {
+                            <span class="star">☆</span>
+                        }
+                    </div>
+                </div>
+                
+                <div class="challenge-description">
+                    @((MarkupString)currentChallenge.Description.Replace("\n", "<br />"))
+                </div>
+                
+                @if (!string.IsNullOrEmpty(currentChallenge.Example))
+                {
+                    <div class="challenge-example">
+                        <h4>Ejemplo:</h4>
+                        <pre><code>@currentChallenge.Example</code></pre>
+                    </div>
+                }
+                
+                <div class="code-editor">
+                    <div class="editor-header">
+                        <span>💻 Tu Solución (Python)</span>
+                        @if (currentChallenge.HintsUsed < currentChallenge.MaxHints)
+                        {
+                            <button class="btn-hint" @onclick="ShowHint">
+                                💡 Pista (@(currentChallenge.MaxHints - currentChallenge.HintsUsed) disponibles)
+                            </button>
+                        }
+                    </div>
+                    <textarea class="code-area" @bind="userCode" placeholder="# Escribe tu solución aquí...&#10;def solution():&#10;    pass"></textarea>
+                </div>
+                
+                @if (!string.IsNullOrEmpty(currentHint))
+                {
+                    <div class="hint-box">
+                        <strong>💡 Pista:</strong> @currentHint
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(feedback))
+                {
+                    <div class="feedback-box @(isCorrect ? "correct" : "incorrect")">
+                        @((MarkupString)feedback.Replace("\n", "<br />"))
+                    </div>
+                }
+                
+                <div class="challenge-actions">
+                    <button class="btn-test" @onclick="TestSolution" disabled="@isProcessing">
+                        @(isProcessing ? "Evaluando..." : "🧪 Probar Solución")
+                    </button>
+                    @if (isCorrect)
+                    {
+                        <button class="btn-next" @onclick="NextChallenge">
+                            Siguiente Problema ➡️
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private class CodeChallenge
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Example { get; set; } = "";
+        public int Difficulty { get; set; }
+        public int HintsUsed { get; set; }
+        public int MaxHints { get; set; } = 2;
+        public List<string> Hints { get; set; } = new();
+    }
+
+    private List<CodeChallenge> challenges = new();
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool isProcessing = false;
+    private bool isCorrect = false;
+    private int currentStep = 1;
+    private int totalSteps = 5;
+    private int currentScore = 0;
+    private int problemsSolved = 0;
+    private string userCode = "";
+    private string feedback = "";
+    private string currentHint = "";
+    private string timerDisplay = "30:00";
+    private int elapsedSeconds = 0;
+    private System.Timers.Timer? gameTimer;
+    private CodeChallenge currentChallenge = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+        
+        GenerateChallenges();
+    }
+
+    private void GenerateChallenges()
+    {
+        challenges = new List<CodeChallenge>
+        {
+            new CodeChallenge
+            {
+                Title = "Suma de números pares",
+                Description = "Escribe una función que reciba una lista de números y retorne la suma de todos los números pares.",
+                Example = "Input: [1, 2, 3, 4, 5, 6]\nOutput: 12 (2 + 4 + 6)",
+                Difficulty = 1,
+                Hints = new List<string> 
+                { 
+                    "Usa el operador módulo (%) para verificar si un número es par",
+                    "Recorre la lista y suma solo los elementos que cumplan la condición"
+                }
+            },
+            new CodeChallenge
+            {
+                Title = "Palíndromo",
+                Description = "Determina si una cadena de texto es un palíndromo (se lee igual al derecho y al revés).",
+                Example = "Input: 'radar'\nOutput: True\n\nInput: 'hello'\nOutput: False",
+                Difficulty = 2,
+                Hints = new List<string> 
+                { 
+                    "Convierte la cadena a minúsculas y elimina espacios",
+                    "Compara la cadena con su reverso usando slicing [::-1]"
+                }
+            },
+            new CodeChallenge
+            {
+                Title = "Fibonacci recursivo",
+                Description = "Implementa la secuencia de Fibonacci usando recursión. Retorna el n-ésimo número.",
+                Example = "Input: 6\nOutput: 8 (secuencia: 0,1,1,2,3,5,8...)",
+                Difficulty = 3,
+                Hints = new List<string> 
+                { 
+                    "Los casos base son n=0 retorna 0, n=1 retorna 1",
+                    "Para otros casos: fibonacci(n) = fibonacci(n-1) + fibonacci(n-2)"
+                }
+            },
+            new CodeChallenge
+            {
+                Title = "Ordenamiento burbuja",
+                Description = "Implementa el algoritmo de ordenamiento burbuja para ordenar una lista de números.",
+                Example = "Input: [64, 34, 25, 12, 22, 11, 90]\nOutput: [11, 12, 22, 25, 34, 64, 90]",
+                Difficulty = 4,
+                Hints = new List<string> 
+                { 
+                    "Compara elementos adyacentes e intercámbialos si están desordenados",
+                    "Usa bucles anidados para repetir el proceso"
+                }
+            },
+            new CodeChallenge
+            {
+                Title = "Árbol binario - altura",
+                Description = "Calcula la altura máxima de un árbol binario. Un nodo tiene altura 1, un árbol vacío tiene altura 0.",
+                Example = "Para un árbol con raíz y dos hojas, la altura es 2.",
+                Difficulty = 5,
+                Hints = new List<string> 
+                { 
+                    "Un árbol vacío (None) tiene altura 0",
+                    "La altura de un nodo es 1 + max(altura_izquierda, altura_derecha)"
+                }
+            }
+        };
+    }
+
+    private void StartGame()
+    {
+        gameStarted = true;
+        currentStep = 1;
+        currentScore = 0;
+        problemsSolved = 0;
+        currentChallenge = challenges[0];
+        StartTimer();
+        StateHasChanged();
+    }
+
+    private void StartTimer()
+    {
+        elapsedSeconds = 0;
+        gameTimer = new System.Timers.Timer(1000);
+        gameTimer.Elapsed += (sender, e) => 
+        {
+            elapsedSeconds++;
+            var minutes = (30 * 60 - elapsedSeconds) / 60;
+            var seconds = (30 * 60 - elapsedSeconds) % 60;
+            timerDisplay = $"{minutes:D2}:{seconds:D2}";
+            
+            if (elapsedSeconds >= 30 * 60)
+            {
+                InvokeAsync(TimeUp);
+            }
+            
+            InvokeAsync(StateHasChanged);
+        };
+        gameTimer.Start();
+    }
+
+    private void TimeUp()
+    {
+        gameTimer?.Stop();
+        gameFinished = true;
+        StateHasChanged();
+    }
+
+    private async Task TestSolution()
+    {
+        if (string.IsNullOrWhiteSpace(userCode))
+        {
+            feedback = "❌ Por favor, escribe algún código antes de probar.";
+            isCorrect = false;
+            StateHasChanged();
+            return;
+        }
+
+        isProcessing = true;
+        StateHasChanged();
+
+        await Task.Delay(2000); // Simular procesamiento
+
+        // Simulación de evaluación (en producción sería llamada a API)
+        var hasFunction = userCode.Contains("def ");
+        var hasLogic = userCode.Length > 50;
+        
+        if (hasFunction && hasLogic)
+        {
+            isCorrect = true;
+            var basePoints = 200 - (currentChallenge.HintsUsed * 10);
+            var timeBonus = Math.Max(0, (10 - currentStep) * 10);
+            var stepPoints = basePoints + timeBonus;
+            
+            currentScore += stepPoints;
+            problemsSolved++;
+            
+            feedback = $"✅ ¡Excelente! Solución correcta. +{stepPoints} puntos";
+        }
+        else
+        {
+            isCorrect = false;
+            feedback = "❌ La solución no es correcta. Revisa la lógica e inténtalo de nuevo.";
+        }
+
+        isProcessing = false;
+        StateHasChanged();
+    }
+
+    private void ShowHint()
+    {
+        if (currentChallenge.HintsUsed < currentChallenge.MaxHints)
+        {
+            currentHint = currentChallenge.Hints[currentChallenge.HintsUsed];
+            currentChallenge.HintsUsed++;
+            StateHasChanged();
+        }
+    }
+
+    private void NextChallenge()
+    {
+        if (currentStep >= totalSteps)
+        {
+            EndGame();
+            return;
+        }
+        
+        currentStep++;
+        currentChallenge = challenges[currentStep - 1];
+        userCode = "";
+        feedback = "";
+        currentHint = "";
+        isCorrect = false;
+        StateHasChanged();
+    }
+
+    private void EndGame()
+    {
+        gameTimer?.Stop();
+        gameFinished = true;
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        isCorrect = false;
+        userCode = "";
+        feedback = "";
+        currentHint = "";
+        
+        foreach (var challenge in challenges)
+        {
+            challenge.HintsUsed = 0;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        gameTimer?.Stop();
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Stop();
+        gameTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #b0b0b0;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: left;
+        max-width: 500px;
+    }
+
+    .game-rules h3 {
+        margin-bottom: 1rem;
+        color: #667eea;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .game-rules li {
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-start-game:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .challenge-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .challenge-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .challenge-header h3 {
+        font-size: 1.3rem;
+        margin: 0;
+        color: #667eea;
+    }
+
+    .challenge-difficulty {
+        display: flex;
+        gap: 0.2rem;
+    }
+
+    .star {
+        color: #ffd700;
+        font-size: 1.2rem;
+    }
+
+    .star.filled {
+        color: #ffd700;
+    }
+
+    .challenge-description {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .challenge-example {
+        background: rgba(0, 100, 0, 0.1);
+        border-left: 4px solid #4ade80;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .challenge-example h4 {
+        margin: 0 0 0.5rem 0;
+        color: #4ade80;
+    }
+
+    .challenge-example pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+
+    .code-editor {
+        margin-bottom: 1.5rem;
+    }
+
+    .editor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+        padding: 0.5rem 0;
+    }
+
+    .btn-hint {
+        background: rgba(255, 193, 7, 0.2);
+        color: #ffc107;
+        border: 1px solid rgba(255, 193, 7, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .btn-hint:hover {
+        background: rgba(255, 193, 7, 0.3);
+    }
+
+    .code-area {
+        width: 100%;
+        min-height: 200px;
+        background: #0f1419;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        resize: vertical;
+    }
+
+    .code-area::placeholder {
+        color: #6b7280;
+    }
+
+    .hint-box {
+        background: rgba(255, 193, 7, 0.1);
+        border-left: 4px solid #ffc107;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0 8px 8px 0;
+        color: #ffc107;
+    }
+
+    .feedback-box {
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        font-weight: 500;
+    }
+
+    .feedback-box.correct {
+        background: rgba(34, 197, 94, 0.1);
+        border-left: 4px solid #22c55e;
+        color: #22c55e;
+    }
+
+    .feedback-box.incorrect {
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 4px solid #ef4444;
+        color: #ef4444;
+    }
+
+    .challenge-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .btn-test {
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-test:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-test:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-next {
+        background: linear-gradient(45deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-next:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 2rem;
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 600px;
+    }
+
+    .result-stat {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #667eea;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #b0b0b0;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

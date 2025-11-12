@@ -1,0 +1,1495 @@
+@page "/game/stress-test"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>⚡ Prueba de Estrés - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">⚡ Nivel @currentLevel</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">💓 Resistencia: @stressResistance%</span>
+            <span class="stat-item">⏰ @FormatTime(timeElapsed)</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">⚡</div>
+            <h1>Prueba de Estrés</h1>
+            <p>Demuestra tu capacidad para mantener el rendimiento bajo presión extrema</p>
+            <div class="game-rules">
+                <h3>🎯 Desafíos bajo presión:</h3>
+                <ul>
+                    <li>⚡ <strong>Multitarea extrema:</strong> Gestiona múltiples tareas simultáneas</li>
+                    <li>⏰ <strong>Presión de tiempo:</strong> Toma decisiones con tiempo limitado</li>
+                    <li>🚨 <strong>Interrupciones constantes:</strong> Mantén focus con distracciones</li>
+                    <li>📊 <strong>Sobrecarga de información:</strong> Procesa datos complejos rápidamente</li>
+                    <li>🎭 <strong>Manejo emocional:</strong> Controla la respuesta al estrés</li>
+                </ul>
+
+                <div class="stress-warning">
+                    <h4>⚠️ Advertencia importante:</h4>
+                    <p>Este juego simula situaciones de alta presión. Si experimentas estrés real durante la prueba, puedes pausar o salir en cualquier momento.</p>
+                    <p>Recuerda: Es solo una simulación para medir tu resiliencia profesional.</p>
+                </div>
+
+                <div class="performance-metrics">
+                    <h4>📊 Métricas evaluadas:</h4>
+                    <p>• <strong>Velocidad de respuesta</strong> bajo presión</p>
+                    <p>• <strong>Precisión mantenida</strong> en condiciones adversas</p>
+                    <p>• <strong>Adaptabilidad</strong> a cambios súbitos</p>
+                    <p>• <strong>Gestión de prioridades</strong> en caos</p>
+                </div>
+            </div>
+            <div class="difficulty-selector">
+                <h4>Intensidad del estrés:</h4>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn @(selectedDifficulty == "junior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("junior")'>
+                        <span>🟢 Moderado</span>
+                        <small>Presión suave, 3 niveles</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "mid" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("mid")'>
+                        <span>🟡 Intenso</span>
+                        <small>Alta presión, 5 niveles</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "senior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("senior")'>
+                        <span>🔴 Extremo</span>
+                        <small>Presión máxima, 7 niveles</small>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedDifficulty == null)">
+                ⚡ Comenzar Prueba
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetStressIcon()</div>
+            <h2>¡Prueba Completada!</h2>
+            <div class="stress-assessment">
+                <h3>@GetStressRating()</h3>
+                <p>@GetStressDescription()</p>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Nivel Alcanzado</span>
+                    <span class="result-value">@maxLevelReached/@totalLevels</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Resistencia al Estrés</span>
+                    <span class="result-value">@stressResistance%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Tareas Completadas</span>
+                    <span class="result-value">@totalTasksCompleted</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Precisión Promedio</span>
+                    <span class="result-value">@(Math.Round(averageAccuracy * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Perfil de Estrés</span>
+                    <span class="result-value">@GetStressProfile()</span>
+                </div>
+            </div>
+            <div class="stress-breakdown">
+                <h4>📊 Análisis de rendimiento bajo estrés:</h4>
+                <div class="performance-chart">
+                    @for (int i = 0; i < levelPerformances.Count; i++)
+                    {
+                        <div class="level-performance">
+                            <div class="level-info">
+                                <span class="level-number">Nivel @(i + 1)</span>
+                                <span class="level-score">@levelPerformances[i]%</span>
+                            </div>
+                            <div class="performance-bar">
+                                <div class="performance-fill" style="width: @levelPerformances[i]%"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    🔄 Nueva Prueba
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    🎮 Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="stress-environment">
+                <div class="level-indicator">
+                    <div class="level-header">
+                        <h2>Nivel @currentLevel - @GetLevelDescription()</h2>
+                        <div class="stress-meter">
+                            <div class="stress-label">Estrés:</div>
+                            <div class="stress-bar">
+                                <div class="stress-fill" style="width: @GetStressPercentage()%"></div>
+                            </div>
+                            <div class="stress-value">@GetStressPercentage()%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="active-tasks">
+                    <div class="tasks-header">
+                        <h3>🎯 Tareas Activas (@activeTasks.Count)</h3>
+                        <div class="pressure-indicators">
+                            <div class="pressure-item @(timeRemaining < 10 ? "critical" : "")">
+                                ⏰ @timeRemaining s
+                            </div>
+                            <div class="pressure-item">
+                                🎯 @tasksCompleted tareas
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tasks-grid">
+                        @foreach (var task in activeTasks)
+                        {
+                            <div class="stress-task @GetTaskPriorityClass(task.Priority) @(task.IsCompleted ? "completed" : "")"
+                                 @onclick="() => CompleteTask(task)">
+                                <div class="task-header">
+                                    <div class="task-icon">@GetTaskIcon(task.Type)</div>
+                                    <div class="task-title">@task.Title</div>
+                                    <div class="task-timer">@task.TimeLeft s</div>
+                                </div>
+                                <div class="task-content">@task.Description</div>
+                                <div class="task-footer">
+                                    <div class="task-priority">@GetPriorityLabel(task.Priority)</div>
+                                    <div class="task-points">+@task.Points pts</div>
+                                </div>
+                                @if (task.RequiresInput)
+                                {
+                                    <div class="task-input">
+                                        <input type="text" @bind="task.UserInput" 
+                                               placeholder="@task.InputPrompt" 
+                                               @onclick:stopPropagation="true" />
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (activeTasks.Count == 0)
+                    {
+                        <div class="no-tasks">
+                            <div class="loading-next">
+                                <div class="spinner"></div>
+                                <p>Preparando próximo nivel de estrés...</p>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @if (currentDistractions.Any())
+                {
+                    <div class="distractions-panel">
+                        <h4>🚨 Interrupciones:</h4>
+                        <div class="distractions-list">
+                            @foreach (var distraction in currentDistractions)
+                            {
+                                <div class="distraction-item @distraction.Type">
+                                    <div class="distraction-icon">@GetDistractionIcon(distraction.Type)</div>
+                                    <div class="distraction-text">@distraction.Message</div>
+                                    <button class="btn-dismiss" @onclick="() => DismissDistraction(distraction)">
+                                        ✕
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <div class="stress-controls">
+                    @if (canPause)
+                    {
+                        <button class="btn-pause" @onclick="PauseGame">
+                            ⏸️ Pausar
+                        </button>
+                    }
+                    <button class="btn-skip-level" @onclick="SkipLevel" disabled="@(tasksCompleted < requiredTasks)">
+                        ⏭️ Siguiente Nivel (@tasksCompleted/@requiredTasks)
+                    </button>
+                    <div class="performance-indicator">
+                        Rendimiento: @(Math.Round(currentPerformance * 100))%
+                    </div>
+                </div>
+
+                @if (levelFeedback != "")
+                {
+                    <div class="level-feedback @feedbackType">
+                        <div class="feedback-icon">
+                            @if (feedbackType == "success")
+                            {
+                                <span>🎉</span>
+                            }
+                            else if (feedbackType == "warning")
+                            {
+                                <span>⚠️</span>
+                            }
+                            else
+                            {
+                                <span>💥</span>
+                            }
+                        </div>
+                        <div class="feedback-text">@levelFeedback</div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool canPause = true;
+
+    private int currentLevel = 1;
+    private int totalLevels = 5;
+    private int maxLevelReached = 0;
+    private int currentScore = 0;
+    private int timeRemaining = 60;
+    private int timeElapsed = 0;
+    private int tasksCompleted = 0;
+    private int totalTasksCompleted = 0;
+    private int requiredTasks = 3;
+    private int stressResistance = 100;
+
+    private double currentPerformance = 1.0;
+    private double averageAccuracy = 0;
+    private List<double> levelPerformances = new();
+
+    private string? selectedDifficulty = null;
+    private string levelFeedback = "";
+    private string feedbackType = "";
+
+    private List<StressTask> activeTasks = new();
+    private List<Distraction> currentDistractions = new();
+    private System.Threading.Timer? gameTimer;
+    private DateTime levelStartTime;
+
+    public class StressTask
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = "";
+        public int Priority { get; set; } = 1; // 1-3
+        public int Points { get; set; } = 10;
+        public int TimeLeft { get; set; } = 30;
+        public bool IsCompleted { get; set; } = false;
+        public bool RequiresInput { get; set; } = false;
+        public string InputPrompt { get; set; } = "";
+        public string UserInput { get; set; } = "";
+        public string CorrectAnswer { get; set; } = "";
+    }
+
+    public class Distraction
+    {
+        public int Id { get; set; }
+        public string Message { get; set; } = "";
+        public string Type { get; set; } = "";
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void SelectDifficulty(string difficulty)
+    {
+        selectedDifficulty = difficulty;
+        totalLevels = difficulty switch
+        {
+            "junior" => 3,
+            "mid" => 5,
+            "senior" => 7,
+            _ => 5
+        };
+        StateHasChanged();
+    }
+
+    private void StartGame()
+    {
+        if (selectedDifficulty == null) return;
+
+        gameStarted = true;
+        currentLevel = 1;
+        currentScore = 0;
+        timeElapsed = 0;
+        stressResistance = 100;
+        levelPerformances.Clear();
+        
+        StartLevel();
+        StateHasChanged();
+    }
+
+    private void StartLevel()
+    {
+        levelStartTime = DateTime.Now;
+        tasksCompleted = 0;
+        timeRemaining = 60 - (currentLevel * 5); // Menos tiempo en niveles más altos
+        requiredTasks = Math.Min(currentLevel + 2, 8);
+        activeTasks.Clear();
+        currentDistractions.Clear();
+        levelFeedback = "";
+
+        maxLevelReached = Math.Max(maxLevelReached, currentLevel);
+
+        // Generar tareas iniciales
+        for (int i = 0; i < Math.Min(3, requiredTasks); i++)
+        {
+            GenerateTask();
+        }
+
+        // Iniciar timer del nivel
+        gameTimer = new System.Threading.Timer(async _ =>
+        {
+            timeRemaining--;
+            timeElapsed++;
+            
+            // Actualizar tareas
+            foreach (var task in activeTasks.Where(t => !t.IsCompleted))
+            {
+                task.TimeLeft--;
+                if (task.TimeLeft <= 0)
+                {
+                    // Tarea expirada
+                    task.IsCompleted = true;
+                    stressResistance = Math.Max(0, stressResistance - 5);
+                    currentPerformance = Math.Max(0.1, currentPerformance - 0.1);
+                }
+            }
+
+            // Generar nuevas tareas
+            if (activeTasks.Count(t => !t.IsCompleted) < 2 && tasksCompleted < requiredTasks)
+            {
+                GenerateTask();
+            }
+
+            // Generar distracciones
+            if (new Random().Next(100) < GetDistractionChance())
+            {
+                GenerateDistraction();
+            }
+
+            // Verificar condiciones de fin de nivel
+            if (timeRemaining <= 0 || tasksCompleted >= requiredTasks)
+            {
+                await InvokeAsync(() => CompleteLevel());
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void GenerateTask()
+    {
+        var taskTemplates = new[]
+        {
+            new { Title = "Email urgente", Desc = "Responder email del CEO", Type = "email", Input = true, Prompt = "Respuesta:", Answer = "ok" },
+            new { Title = "Cálculo rápido", Desc = "Calcular 15 × 24", Type = "math", Input = true, Prompt = "Resultado:", Answer = "360" },
+            new { Title = "Decisión crítica", Desc = "Aprobar presupuesto", Type = "decision", Input = false, Prompt = "", Answer = "" },
+            new { Title = "Revisión código", Desc = "Encontrar error en línea 45", Type = "code", Input = false, Prompt = "", Answer = "" },
+            new { Title = "Llamada cliente", Desc = "Atender queja urgente", Type = "phone", Input = false, Prompt = "", Answer = "" }
+        };
+
+        var template = taskTemplates[new Random().Next(taskTemplates.Length)];
+        var random = new Random();
+
+        var task = new StressTask
+        {
+            Id = activeTasks.Count + 1,
+            Title = template.Title,
+            Description = template.Desc,
+            Type = template.Type,
+            Priority = random.Next(1, 4),
+            Points = (4 - random.Next(1, 4)) * 10 + currentLevel * 5,
+            TimeLeft = random.Next(15, 45),
+            RequiresInput = template.Input,
+            InputPrompt = template.Prompt,
+            CorrectAnswer = template.Answer
+        };
+
+        activeTasks.Add(task);
+    }
+
+    private void GenerateDistraction()
+    {
+        var distractionMessages = new[]
+        {
+            "📱 Notificación de WhatsApp",
+            "📧 Nuevo email en bandeja de entrada",
+            "👥 Reunión en 5 minutos",
+            "🔔 Llamada telefónica",
+            "💬 Mensaje de Slack",
+            "📊 Reporte listo para revisión",
+            "⚠️ Sistema requiere actualización",
+            "🎵 Música alta en oficina vecina"
+        };
+
+        var types = new[] { "notification", "urgent", "social", "system" };
+        var message = distractionMessages[new Random().Next(distractionMessages.Length)];
+        var type = types[new Random().Next(types.Length)];
+
+        var distraction = new Distraction
+        {
+            Id = currentDistractions.Count + 1,
+            Message = message,
+            Type = type
+        };
+
+        currentDistractions.Add(distraction);
+
+        // Auto-remover después de un tiempo
+        Task.Delay(8000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            currentDistractions.RemoveAll(d => d.Id == distraction.Id);
+            StateHasChanged();
+        }));
+    }
+
+    private void CompleteTask(StressTask task)
+    {
+        if (task.IsCompleted) return;
+
+        bool isCorrect = true;
+        if (task.RequiresInput)
+        {
+            isCorrect = task.UserInput?.Trim().ToLower() == task.CorrectAnswer.ToLower();
+        }
+
+        if (isCorrect)
+        {
+            task.IsCompleted = true;
+            tasksCompleted++;
+            totalTasksCompleted++;
+            
+            var timeBonus = Math.Max(0, task.TimeLeft * 2);
+            var priorityBonus = task.Priority * 5;
+            var totalPoints = task.Points + timeBonus + priorityBonus;
+            
+            currentScore += totalPoints;
+            currentPerformance = Math.Min(1.0, currentPerformance + 0.05);
+
+            // Feedback positivo
+            ShowLevelFeedback($"¡Tarea completada! +{totalPoints} pts", "success");
+        }
+        else
+        {
+            stressResistance = Math.Max(0, stressResistance - 3);
+            currentPerformance = Math.Max(0.1, currentPerformance - 0.05);
+            ShowLevelFeedback("Respuesta incorrecta. Intenta de nuevo.", "warning");
+        }
+
+        StateHasChanged();
+    }
+
+    private void DismissDistraction(Distraction distraction)
+    {
+        currentDistractions.Remove(distraction);
+        currentScore += 5; // Pequeño bonus por manejar distracciones
+        StateHasChanged();
+    }
+
+    private void CompleteLevel()
+    {
+        gameTimer?.Dispose();
+
+        var levelTime = (DateTime.Now - levelStartTime).TotalSeconds;
+        var efficiency = tasksCompleted / (double)requiredTasks;
+        var levelScore = (int)(efficiency * 100);
+        
+        levelPerformances.Add(levelScore);
+        averageAccuracy = levelPerformances.Average() / 100.0;
+
+        if (efficiency >= 0.6) // 60% de tareas completadas
+        {
+            ShowLevelFeedback($"¡Nivel {currentLevel} completado! Eficiencia: {Math.Round(efficiency * 100)}%", "success");
+            
+            if (currentLevel < totalLevels)
+            {
+                // Preparar siguiente nivel
+                Task.Delay(2000).ContinueWith(_ => InvokeAsync(() =>
+                {
+                    currentLevel++;
+                    StartLevel();
+                }));
+            }
+            else
+            {
+                // Juego completado
+                Task.Delay(2000).ContinueWith(_ => InvokeAsync(() =>
+                {
+                    FinishGame();
+                }));
+            }
+        }
+        else
+        {
+            // Falló el nivel
+            ShowLevelFeedback($"Nivel fallido. Eficiencia: {Math.Round(efficiency * 100)}% (requerido: 60%)", "error");
+            stressResistance = Math.Max(0, stressResistance - 20);
+            
+            if (stressResistance <= 0)
+            {
+                Task.Delay(2000).ContinueWith(_ => InvokeAsync(() =>
+                {
+                    FinishGame();
+                }));
+            }
+            else
+            {
+                // Reintentar nivel
+                Task.Delay(3000).ContinueWith(_ => InvokeAsync(() =>
+                {
+                    StartLevel();
+                }));
+            }
+        }
+    }
+
+    private void SkipLevel()
+    {
+        if (tasksCompleted >= requiredTasks)
+        {
+            CompleteLevel();
+        }
+    }
+
+    private void PauseGame()
+    {
+        gameTimer?.Dispose();
+        canPause = false;
+        
+        // Mostrar mensaje de pausa
+        ShowLevelFeedback("Juego pausado. Haz clic en cualquier lugar para continuar.", "warning");
+        
+        StateHasChanged();
+    }
+
+    private void ShowLevelFeedback(string message, string type)
+    {
+        levelFeedback = message;
+        feedbackType = type;
+        
+        // Auto-limpiar feedback después de 3 segundos
+        Task.Delay(3000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            if (levelFeedback == message) // Solo limpiar si es el mismo mensaje
+            {
+                levelFeedback = "";
+                feedbackType = "";
+                StateHasChanged();
+            }
+        }));
+    }
+
+    private void FinishGame()
+    {
+        gameTimer?.Dispose();
+        gameFinished = true;
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedDifficulty = null;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        gameTimer?.Dispose();
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    // Helper methods
+    private string GetLevelDescription()
+    {
+        return currentLevel switch
+        {
+            1 => "Calentamiento",
+            2 => "Presión Creciente",
+            3 => "Multitarea Intensa",
+            4 => "Caos Controlado",
+            5 => "Estrés Máximo",
+            6 => "Supervivencia",
+            7 => "Inhumano",
+            _ => "Extremo"
+        };
+    }
+
+    private int GetStressPercentage()
+    {
+        return Math.Min(100, currentLevel * 15 + (totalLevels - stressResistance / 10));
+    }
+
+    private int GetDistractionChance()
+    {
+        return Math.Min(50, currentLevel * 8 + 10); // 10% base + 8% por nivel
+    }
+
+    private string GetTaskPriorityClass(int priority)
+    {
+        return priority switch
+        {
+            3 => "priority-high",
+            2 => "priority-medium",
+            _ => "priority-low"
+        };
+    }
+
+    private string GetTaskIcon(string type)
+    {
+        return type switch
+        {
+            "email" => "📧",
+            "math" => "🔢",
+            "decision" => "⚖️",
+            "code" => "💻",
+            "phone" => "📞",
+            _ => "📋"
+        };
+    }
+
+    private string GetPriorityLabel(int priority)
+    {
+        return priority switch
+        {
+            3 => "URGENTE",
+            2 => "ALTA",
+            _ => "NORMAL"
+        };
+    }
+
+    private string GetDistractionIcon(string type)
+    {
+        return type switch
+        {
+            "notification" => "🔔",
+            "urgent" => "🚨",
+            "social" => "👥",
+            "system" => "⚙️",
+            _ => "📱"
+        };
+    }
+
+    private string GetStressIcon()
+    {
+        return stressResistance switch
+        {
+            >= 80 => "💪",
+            >= 60 => "⚡",
+            >= 40 => "🔥",
+            _ => "💥"
+        };
+    }
+
+    private string GetStressRating()
+    {
+        return stressResistance switch
+        {
+            >= 80 => "Resistente al Estrés Extremo",
+            >= 60 => "Manejo Excelente del Estrés",
+            >= 40 => "Gestión Promedio del Estrés",
+            _ => "Sensible al Estrés"
+        };
+    }
+
+    private string GetStressDescription()
+    {
+        return stressResistance switch
+        {
+            >= 80 => "Extraordinario. Mantienes un rendimiento excepcional incluso bajo presión extrema. Tu resistencia al estrés es de nivel elite.",
+            >= 60 => "Muy bueno. Demuestras habilidades sólidas para mantener la productividad bajo presión. Tu gestión del estrés es superior al promedio.",
+            >= 40 => "Aceptable. Manejas situaciones de estrés moderado, pero podrías beneficiarte de técnicas adicionales de manejo del estrés.",
+            _ => "Área de mejora. El estrés afecta significativamente tu rendimiento. Considera técnicas de relajación y gestión del tiempo."
+        };
+    }
+
+    private string GetStressProfile()
+    {
+        if (averageAccuracy > 0.8) return "Resiliente";
+        if (averageAccuracy > 0.6) return "Adaptable";
+        if (averageAccuracy > 0.4) return "Funcional";
+        return "Vulnerable";
+    }
+
+    private string FormatTime(int seconds)
+    {
+        var minutes = seconds / 60;
+        var secs = seconds % 60;
+        return $"{minutes:D2}:{secs:D2}";
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #c0392b 0%, #8e44ad 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        position: relative;
+    }
+
+    /* Efectos de estrés visual */
+    .game-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: radial-gradient(circle at 50% 50%, transparent 0%, rgba(192, 57, 43, 0.1) 100%);
+        pointer-events: none;
+        animation: stress-pulse 3s ease-in-out infinite;
+    }
+
+    @@keyframes stress-pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.7; }
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+        gap: 1rem;
+        position: relative;
+        z-index: 10;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.4rem 1rem;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        white-space: nowrap;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        animation: stat-glow 2s ease-in-out infinite;
+    }
+
+    @@keyframes stat-glow {
+        0%, 100% { box-shadow: 0 0 5px rgba(255, 255, 255, 0.1); }
+        50% { box-shadow: 0 0 15px rgba(255, 255, 255, 0.3); }
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+        position: relative;
+        z-index: 5;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: stress-shake 0.5s ease-in-out infinite;
+    }
+
+    @@keyframes stress-shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-2px); }
+        75% { transform: translateX(2px); }
+    }
+
+    .game-intro h1 {
+        font-size: 2.8rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ffffff 0%, #f39c12 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+    }
+
+    .stress-warning {
+        background: rgba(231, 76, 60, 0.15);
+        border: 2px solid #e74c3c;
+        padding: 1.2rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        animation: warning-blink 2s ease-in-out infinite;
+    }
+
+    @@keyframes warning-blink {
+        0%, 100% { border-color: #e74c3c; }
+        50% { border-color: #f39c12; }
+    }
+
+    .stress-warning h4 {
+        color: #e74c3c;
+        margin-bottom: 0.5rem;
+    }
+
+    .performance-metrics {
+        background: rgba(52, 152, 219, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        margin-top: 1rem;
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        min-height: calc(100vh - 140px);
+        position: relative;
+        z-index: 5;
+    }
+
+    .stress-environment {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 16px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        animation: environment-pulse 1s ease-in-out infinite;
+    }
+
+    @@keyframes environment-pulse {
+        0%, 100% { border-color: rgba(255, 255, 255, 0.1); }
+        50% { border-color: rgba(231, 76, 60, 0.3); }
+    }
+
+    .level-indicator {
+        margin-bottom: 2rem;
+    }
+
+    .level-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .level-header h2 {
+        color: #f39c12;
+        margin: 0;
+        font-size: 1.8rem;
+    }
+
+    .stress-meter {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        background: rgba(0, 0, 0, 0.2);
+        padding: 0.8rem;
+        border-radius: 20px;
+    }
+
+    .stress-label {
+        font-weight: 600;
+        color: #e74c3c;
+    }
+
+    .stress-bar {
+        width: 150px;
+        height: 10px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        overflow: hidden;
+    }
+
+    .stress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #2ecc71 0%, #f39c12 50%, #e74c3c 100%);
+        transition: width 0.5s ease;
+        animation: stress-bar-glow 1s ease-in-out infinite;
+    }
+
+    @@keyframes stress-bar-glow {
+        0%, 100% { box-shadow: 0 0 5px rgba(231, 76, 60, 0.5); }
+        50% { box-shadow: 0 0 15px rgba(231, 76, 60, 0.8); }
+    }
+
+    .stress-value {
+        font-weight: 700;
+        color: #e74c3c;
+        font-size: 0.9rem;
+    }
+
+    .active-tasks {
+        margin-bottom: 2rem;
+    }
+
+    .tasks-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .tasks-header h3 {
+        color: #f39c12;
+        margin: 0;
+    }
+
+    .pressure-indicators {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .pressure-item {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.4rem 0.8rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .pressure-item.critical {
+        background: rgba(231, 76, 60, 0.3);
+        color: #e74c3c;
+        animation: critical-blink 0.5s ease-in-out infinite;
+    }
+
+    @@keyframes critical-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .tasks-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+        min-height: 200px;
+    }
+
+    .stress-task {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        animation: task-urgent 2s ease-in-out infinite;
+    }
+
+    @@keyframes task-urgent {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+
+    .stress-task.priority-high {
+        border-color: #e74c3c;
+        background: rgba(231, 76, 60, 0.1);
+    }
+
+    .stress-task.priority-medium {
+        border-color: #f39c12;
+        background: rgba(243, 156, 18, 0.1);
+    }
+
+    .stress-task.priority-low {
+        border-color: #2ecc71;
+        background: rgba(46, 204, 113, 0.1);
+    }
+
+    .stress-task.completed {
+        opacity: 0.6;
+        background: rgba(46, 204, 113, 0.2);
+        border-color: #2ecc71;
+        animation: none;
+    }
+
+    .stress-task:hover:not(.completed) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .task-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.8rem;
+    }
+
+    .task-icon {
+        font-size: 1.2rem;
+    }
+
+    .task-title {
+        font-weight: 600;
+        color: #ffffff;
+        flex: 1;
+        margin: 0 0.5rem;
+    }
+
+    .task-timer {
+        background: rgba(231, 76, 60, 0.3);
+        color: #e74c3c;
+        padding: 0.2rem 0.5rem;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        font-family: 'Courier New', monospace;
+    }
+
+    .task-content {
+        color: #e8e8e8;
+        margin-bottom: 0.8rem;
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
+    .task-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .task-priority {
+        font-size: 0.8rem;
+        font-weight: 700;
+        padding: 0.2rem 0.6rem;
+        border-radius: 10px;
+    }
+
+    .task-points {
+        color: #2ecc71;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .task-input {
+        margin-top: 0.8rem;
+    }
+
+    .task-input input {
+        width: 100%;
+        padding: 0.5rem;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 6px;
+        color: white;
+        font-size: 0.9rem;
+    }
+
+    .task-input input:focus {
+        outline: none;
+        border-color: #f39c12;
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .no-tasks {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 200px;
+    }
+
+    .loading-next {
+        text-align: center;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-left-color: #f39c12;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .distractions-panel {
+        background: rgba(231, 76, 60, 0.1);
+        border: 2px solid #e74c3c;
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 1rem 0;
+        animation: distraction-alert 1s ease-in-out infinite;
+    }
+
+    @@keyframes distraction-alert {
+        0%, 100% { border-color: #e74c3c; }
+        50% { border-color: #f39c12; }
+    }
+
+    .distractions-panel h4 {
+        color: #e74c3c;
+        margin: 0 0 0.8rem 0;
+    }
+
+    .distractions-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .distraction-item {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 0.6rem;
+        border-radius: 6px;
+        animation: distraction-bounce 0.5s ease-in-out;
+    }
+
+    @@keyframes distraction-bounce {
+        0% { transform: translateX(-10px); opacity: 0; }
+        100% { transform: translateX(0); opacity: 1; }
+    }
+
+    .distraction-icon {
+        font-size: 1.1rem;
+    }
+
+    .distraction-text {
+        flex: 1;
+        font-size: 0.9rem;
+    }
+
+    .btn-dismiss {
+        background: rgba(231, 76, 60, 0.3);
+        color: #e74c3c;
+        border: none;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .stress-controls {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+    }
+
+    .btn-pause, .btn-skip-level {
+        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 0.9rem;
+    }
+
+    .btn-pause {
+        background: rgba(243, 156, 18, 0.3);
+        color: #f39c12;
+        border: 1px solid #f39c12;
+    }
+
+    .btn-skip-level {
+        background: rgba(46, 204, 113, 0.3);
+        color: #2ecc71;
+        border: 1px solid #2ecc71;
+    }
+
+    .btn-skip-level:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .performance-indicator {
+        background: rgba(52, 152, 219, 0.2);
+        color: #3498db;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .level-feedback {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        padding: 2rem;
+        border-radius: 12px;
+        text-align: center;
+        z-index: 1000;
+        border: 2px solid;
+        animation: feedback-appear 0.3s ease-out;
+    }
+
+    @@keyframes feedback-appear {
+        0% { opacity: 0; transform: translate(-50%, -50%) scale(0.8); }
+        100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    }
+
+    .level-feedback.success {
+        border-color: #2ecc71;
+        background: rgba(46, 204, 113, 0.2);
+    }
+
+    .level-feedback.warning {
+        border-color: #f39c12;
+        background: rgba(243, 156, 18, 0.2);
+    }
+
+    .level-feedback.error {
+        border-color: #e74c3c;
+        background: rgba(231, 76, 60, 0.2);
+    }
+
+    .feedback-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .feedback-text {
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+        position: relative;
+        z-index: 5;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.8rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #f39c12 0%, #e74c3c 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-weight: 700;
+    }
+
+    .stress-assessment {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .stress-assessment h3 {
+        color: #f39c12;
+        margin-bottom: 0.5rem;
+        font-size: 1.5rem;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    .result-stat {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(243, 156, 18, 0.1);
+        border-color: #f39c12;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #f39c12;
+    }
+
+    .stress-breakdown {
+        margin-bottom: 2rem;
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .stress-breakdown h4 {
+        color: #f39c12;
+        margin-bottom: 1rem;
+    }
+
+    .performance-chart {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .level-performance {
+        margin-bottom: 1rem;
+    }
+
+    .level-info {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.3rem;
+    }
+
+    .level-number {
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .level-score {
+        font-weight: 600;
+        color: #f39c12;
+    }
+
+    .performance-bar {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .performance-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #e74c3c 0%, #f39c12 50%, #2ecc71 100%);
+        transition: width 0.8s ease;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.8rem 1.8rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #f39c12 0%, #e74c3c 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #e8e8e8;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

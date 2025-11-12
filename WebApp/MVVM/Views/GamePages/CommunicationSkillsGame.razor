@@ -1,0 +1,1501 @@
+@page "/game/communication-skills"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>💬 Habilidades de Comunicación - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">💬 Escenario @currentScenario/@totalScenarios</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">📊 Nivel: @GetCommunicationLevel()</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">💬</div>
+            <h1>Habilidades de Comunicación</h1>
+            <p>Practica comunicación efectiva en situaciones profesionales reales</p>
+            <div class="game-rules">
+                <h3>🎯 Competencias evaluadas:</h3>
+                <ul>
+                    <li>👂 <strong>Escucha Activa:</strong> Demostrar comprensión genuina</li>
+                    <li>🤝 <strong>Empatía:</strong> Conectar emocionalmente</li>
+                    <li>💡 <strong>Claridad:</strong> Comunicar ideas de forma precisa</li>
+                    <li>🎭 <strong>Adaptabilidad:</strong> Ajustar el estilo según el contexto</li>
+                    <li>🔄 <strong>Retroalimentación:</strong> Dar y recibir feedback constructivo</li>
+                </ul>
+
+                <h4>📚 Tipos de escenarios:</h4>
+                <ul>
+                    <li>🤝 Reuniones de equipo</li>
+                    <li>📞 Llamadas con clientes</li>
+                    <li>⚠️ Manejo de conflictos</li>
+                    <li>📈 Presentaciones</li>
+                    <li>💼 Negociaciones</li>
+                    <li>👨‍💼 Evaluaciones de desempeño</li>
+                </ul>
+
+                <div class="communication-tips">
+                    <h4>💡 Principios clave:</h4>
+                    <p>• La comunicación es 55% lenguaje corporal, 38% tono, 7% palabras</p>
+                    <p>• Escucha para entender, no para responder</p>
+                    <p>• Adapta tu mensaje a tu audiencia</p>
+                    <p>• La claridad previene malentendidos</p>
+                </div>
+            </div>
+            <div class="difficulty-selector">
+                <h4>Selecciona nivel:</h4>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn @(selectedDifficulty == "junior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("junior")'>
+                        <span>🟢 Básico</span>
+                        <small>3 escenarios, situaciones simples</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "mid" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("mid")'>
+                        <span>🟡 Intermedio</span>
+                        <small>4 escenarios, mayor complejidad</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "senior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("senior")'>
+                        <span>🔴 Avanzado</span>
+                        <small>5 escenarios, situaciones críticas</small>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedDifficulty == null)">
+                Comenzar Práctica
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetPerformanceIcon()</div>
+            <h2>¡Práctica Completada!</h2>
+            <div class="communication-assessment">
+                <h3>@GetCommunicationRating()</h3>
+                <p>@GetCommunicationDescription()</p>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Escenarios Completados</span>
+                    <span class="result-value">@scenariosCompleted/@totalScenarios</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Nivel de Comunicación</span>
+                    <span class="result-value">@GetCommunicationLevel()</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Efectividad Promedio</span>
+                    <span class="result-value">@(Math.Round(averageEffectiveness * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Estilo Dominante</span>
+                    <span class="result-value">@GetDominantStyle()</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Área de Mejora</span>
+                    <span class="result-value">@GetImprovementArea()</span>
+                </div>
+            </div>
+            <div class="skills-breakdown">
+                <h4>📊 Desglose de Habilidades:</h4>
+                <div class="skills-chart">
+                    <div class="skill-bar">
+                        <div class="skill-label">👂 Escucha Activa</div>
+                        <div class="skill-progress">
+                            <div class="skill-fill" style="width: @(listeningScore * 100)%"></div>
+                        </div>
+                        <div class="skill-score">@(Math.Round(listeningScore * 100))%</div>
+                    </div>
+                    <div class="skill-bar">
+                        <div class="skill-label">🤝 Empatía</div>
+                        <div class="skill-progress">
+                            <div class="skill-fill" style="width: @(empathyScore * 100)%"></div>
+                        </div>
+                        <div class="skill-score">@(Math.Round(empathyScore * 100))%</div>
+                    </div>
+                    <div class="skill-bar">
+                        <div class="skill-label">💡 Claridad</div>
+                        <div class="skill-progress">
+                            <div class="skill-fill" style="width: @(clarityScore * 100)%"></div>
+                        </div>
+                        <div class="skill-score">@(Math.Round(clarityScore * 100))%</div>
+                    </div>
+                    <div class="skill-bar">
+                        <div class="skill-label">🎭 Adaptabilidad</div>
+                        <div class="skill-progress">
+                            <div class="skill-fill" style="width: @(adaptabilityScore * 100)%"></div>
+                        </div>
+                        <div class="skill-score">@(Math.Round(adaptabilityScore * 100))%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    Practicar de Nuevo
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="scenario-container">
+                <div class="scenario-header">
+                    <h2>@currentScenarioData.Title</h2>
+                    <div class="scenario-type-badge">@GetScenarioIcon() @currentScenarioData.Type</div>
+                </div>
+
+                <div class="scenario-context">
+                    <div class="context-card">
+                        <h4>📋 Contexto:</h4>
+                        <p>@currentScenarioData.Context</p>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(currentScenarioData.SpeakerInfo))
+                    {
+                        <div class="speaker-card">
+                            <h4>👤 Información del interlocutor:</h4>
+                            <p>@currentScenarioData.SpeakerInfo</p>
+                        </div>
+                    }
+
+                    <div class="situation-card">
+                        <h4>💬 Situación:</h4>
+                        <p>@currentScenarioData.Situation</p>
+                    </div>
+                </div>
+
+                @if (!showingResult)
+                {
+                    <div class="response-selection">
+                        <h3>¿Cómo responderías?</h3>
+                        <div class="response-options">
+                            @for (int i = 0; i < currentScenarioData.ResponseOptions.Count; i++)
+                            {
+                                var index = i;
+                                var option = currentScenarioData.ResponseOptions[index];
+                                <button class="response-btn @(selectedResponse == index ? "selected" : "")"
+                                        @onclick="() => SelectResponse(index)"
+                                        disabled="@showingResult">
+                                    <div class="response-style">@GetResponseStyleIcon(option.Style)</div>
+                                    <div class="response-text">@option.Text</div>
+                                    <div class="response-approach">@option.Style</div>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="result-feedback">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                @if (currentEffectiveness >= 0.8)
+                                {
+                                    <span>🌟</span>
+                                }
+                                else if (currentEffectiveness >= 0.6)
+                                {
+                                    <span>👍</span>
+                                }
+                                else if (currentEffectiveness >= 0.4)
+                                {
+                                    <span>👌</span>
+                                }
+                                else
+                                {
+                                    <span>📈</span>
+                                }
+                            </div>
+                            <div class="result-title">
+                                <h3>@GetResultTitle()</h3>
+                                <div class="effectiveness-score">Efectividad: @(Math.Round(currentEffectiveness * 100))%</div>
+                            </div>
+                        </div>
+
+                        <div class="response-analysis">
+                            <div class="analysis-section">
+                                <h4>💬 Tu respuesta:</h4>
+                                <div class="selected-response">
+                                    <span class="response-style-tag">@selectedResponseData.Style</span>
+                                    <p>@selectedResponseData.Text</p>
+                                </div>
+                            </div>
+
+                            <div class="analysis-section">
+                                <h4>📊 Análisis:</h4>
+                                <p>@selectedResponseData.Analysis</p>
+                            </div>
+
+                            <div class="analysis-section">
+                                <h4>🎯 Impacto:</h4>
+                                <p>@selectedResponseData.Impact</p>
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(selectedResponseData.BetterAlternative))
+                            {
+                                <div class="analysis-section improvement">
+                                    <h4>💡 Alternativa mejorada:</h4>
+                                    <p>@selectedResponseData.BetterAlternative</p>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="skills-impact">
+                            <h4>📈 Impacto en habilidades:</h4>
+                            <div class="skills-grid">
+                                <div class="skill-impact @GetSkillImpactClass(selectedResponseData.ListeningImpact)">
+                                    <span class="skill-icon">👂</span>
+                                    <span class="skill-name">Escucha</span>
+                                    <span class="skill-change">@GetImpactText(selectedResponseData.ListeningImpact)</span>
+                                </div>
+                                <div class="skill-impact @GetSkillImpactClass(selectedResponseData.EmpathyImpact)">
+                                    <span class="skill-icon">🤝</span>
+                                    <span class="skill-name">Empatía</span>
+                                    <span class="skill-change">@GetImpactText(selectedResponseData.EmpathyImpact)</span>
+                                </div>
+                                <div class="skill-impact @GetSkillImpactClass(selectedResponseData.ClarityImpact)">
+                                    <span class="skill-icon">💡</span>
+                                    <span class="skill-name">Claridad</span>
+                                    <span class="skill-change">@GetImpactText(selectedResponseData.ClarityImpact)</span>
+                                </div>
+                                <div class="skill-impact @GetSkillImpactClass(selectedResponseData.AdaptabilityImpact)">
+                                    <span class="skill-icon">🎭</span>
+                                    <span class="skill-name">Adaptación</span>
+                                    <span class="skill-change">@GetImpactText(selectedResponseData.AdaptabilityImpact)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="scenario-actions">
+                    @if (!showingResult)
+                    {
+                        <button class="btn-submit-response" @onclick="SubmitResponse" disabled="@(selectedResponse == -1)">
+                            Confirmar Respuesta
+                        </button>
+                        <button class="btn-communication-tip" @onclick="ShowCommunicationTip">
+                            💡 Consejo de Comunicación
+                        </button>
+                    }
+                    else
+                    {
+                        @if (currentScenario < totalScenarios)
+                        {
+                            <button class="btn-next-scenario" @onclick="NextScenario">
+                                Siguiente Escenario ➡️
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn-finish" @onclick="FinishGame">
+                                Ver Resultados Finales 🏆
+                            </button>
+                        }
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(communicationTip))
+                {
+                    <div class="communication-tip">
+                        <div class="tip-icon">💡</div>
+                        <div class="tip-text">@communicationTip</div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool showingResult = false;
+
+    private int currentScenario = 1;
+    private int totalScenarios = 4;
+    private int currentScore = 0;
+    private int scenariosCompleted = 0;
+    private int selectedResponse = -1;
+
+    private double currentEffectiveness = 0;
+    private double averageEffectiveness = 0;
+    private double listeningScore = 0;
+    private double empathyScore = 0;
+    private double clarityScore = 0;
+    private double adaptabilityScore = 0;
+
+    private string? selectedDifficulty = null;
+    private string communicationTip = "";
+
+    private ScenarioData currentScenarioData = new();
+    private ResponseOption selectedResponseData = new();
+    private List<double> effectivenessHistory = new();
+
+    public class ScenarioData
+    {
+        public string Title { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Context { get; set; } = "";
+        public string SpeakerInfo { get; set; } = "";
+        public string Situation { get; set; } = "";
+        public List<ResponseOption> ResponseOptions { get; set; } = new();
+    }
+
+    public class ResponseOption
+    {
+        public string Text { get; set; } = "";
+        public string Style { get; set; } = "";
+        public double Effectiveness { get; set; } = 0;
+        public string Analysis { get; set; } = "";
+        public string Impact { get; set; } = "";
+        public string BetterAlternative { get; set; } = "";
+        public int ListeningImpact { get; set; } = 0;  // -2 a +2
+        public int EmpathyImpact { get; set; } = 0;
+        public int ClarityImpact { get; set; } = 0;
+        public int AdaptabilityImpact { get; set; } = 0;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void SelectDifficulty(string difficulty)
+    {
+        selectedDifficulty = difficulty;
+        totalScenarios = difficulty switch
+        {
+            "junior" => 3,
+            "mid" => 4,
+            "senior" => 5,
+            _ => 4
+        };
+        StateHasChanged();
+    }
+
+    private void StartGame()
+    {
+        if (selectedDifficulty == null) return;
+
+        gameStarted = true;
+        currentScenario = 1;
+        currentScore = 0;
+        scenariosCompleted = 0;
+        effectivenessHistory.Clear();
+        
+        // Inicializar puntuaciones de habilidades
+        listeningScore = 0.5;
+        empathyScore = 0.5;
+        clarityScore = 0.5;
+        adaptabilityScore = 0.5;
+
+        GenerateScenario();
+        StateHasChanged();
+    }
+
+    private void GenerateScenario()
+    {
+        selectedResponse = -1;
+        showingResult = false;
+        communicationTip = "";
+
+        var scenarios = GetScenariosByDifficulty(selectedDifficulty ?? "mid");
+        var selectedScenario = scenarios[new Random().Next(scenarios.Length)];
+        
+        currentScenarioData = selectedScenario;
+    }
+
+    private ScenarioData[] GetScenariosByDifficulty(string difficulty)
+    {
+        var basicScenarios = new[]
+        {
+            new ScenarioData
+            {
+                Title = "Reunión de Equipo Semanal",
+                Type = "Reunión de equipo",
+                Context = "Es lunes por la mañana y tienes la reunión semanal de tu equipo de trabajo.",
+                SpeakerInfo = "Tu colega María parece estresada y ha llegado tarde a la reunión.",
+                Situation = "María dice: 'Disculpen la tardanza, pero tengo demasiado trabajo y no sé cómo voy a cumplir con los deadlines de esta semana.'",
+                ResponseOptions = new List<ResponseOption>
+                {
+                    new ResponseOption
+                    {
+                        Text = "No te preocupes María, todos tenemos días difíciles. ¿En qué podemos ayudarte?",
+                        Style = "Empático y colaborativo",
+                        Effectiveness = 0.9,
+                        Analysis = "Demuestras empatía y ofreces apoyo concreto, creando un ambiente de colaboración.",
+                        Impact = "María se siente comprendida y el equipo se une para buscar soluciones.",
+                        ListeningImpact = 2,
+                        EmpathyImpact = 2,
+                        ClarityImpact = 1,
+                        AdaptabilityImpact = 1
+                    },
+                    new ResponseOption
+                    {
+                        Text = "María, necesitas organizarte mejor. Todos tenemos mucho trabajo.",
+                        Style = "Directo y crítico",
+                        Effectiveness = 0.3,
+                        Analysis = "Tu respuesta minimiza sus sentimientos y no ofrece ayuda constructiva.",
+                        Impact = "María se siente juzgada y menos inclinada a pedir ayuda en el futuro.",
+                        BetterAlternative = "Reconoce su situación y ofrece apoyo: '¿Qué tareas son más urgentes? Veamos cómo redistribuir la carga.'",
+                        ListeningImpact = -1,
+                        EmpathyImpact = -2,
+                        ClarityImpact = 1,
+                        AdaptabilityImpact = -1
+                    },
+                    new ResponseOption
+                    {
+                        Text = "¿Podrías especificar exactamente qué tareas te están causando problemas?",
+                        Style = "Analítico y estructurado",
+                        Effectiveness = 0.7,
+                        Analysis = "Buscas información específica para entender mejor el problema, lo cual es útil.",
+                        Impact = "Ayudas a María a clarificar sus desafíos, aunque podrías ser más empático inicialmente.",
+                        ListeningImpact = 1,
+                        EmpathyImpact = 0,
+                        ClarityImpact = 2,
+                        AdaptabilityImpact = 1
+                    },
+                    new ResponseOption
+                    {
+                        Text = "Entiendo tu situación. ¿Qué tal si revisamos juntos tus prioridades después de la reunión?",
+                        Style = "Comprensivo y proactivo",
+                        Effectiveness = 0.85,
+                        Analysis = "Combinas empatía con una acción concreta, ofreciendo ayuda sin interrumpir la reunión.",
+                        Impact = "María se siente apoyada y tienes un plan claro para ayudarla.",
+                        ListeningImpact = 2,
+                        EmpathyImpact = 1,
+                        ClarityImpact = 2,
+                        AdaptabilityImpact = 2
+                    }
+                }
+            }
+        };
+
+        var intermediateScenarios = new[]
+        {
+            new ScenarioData
+            {
+                Title = "Cliente Insatisfecho",
+                Type = "Atención al cliente",
+                Context = "Eres responsable de atención al cliente y recibes una llamada de un cliente muy molesto.",
+                SpeakerInfo = "El cliente Juan está frustrado porque el producto que compró no funciona como esperaba.",
+                Situation = "Juan dice: 'Este producto es una basura! He perdido tres horas tratando de hacerlo funcionar. Quiero mi dinero de vuelta AHORA!'",
+                ResponseOptions = new List<ResponseOption>
+                {
+                    new ResponseOption
+                    {
+                        Text = "Entiendo completamente su frustración, Juan. Nadie debería pasar por eso. Vamos a solucionarlo juntos.",
+                        Style = "Empático y solucionador",
+                        Effectiveness = 0.9,
+                        Analysis = "Validas sus emociones y te posicionas como su aliado para resolver el problema.",
+                        Impact = "Juan se calma y se muestra más receptivo a trabajar contigo en una solución.",
+                        ListeningImpact = 2,
+                        EmpathyImpact = 2,
+                        ClarityImpact = 1,
+                        AdaptabilityImpact = 2
+                    },
+                    new ResponseOption
+                    {
+                        Text = "Señor, le pido que mantenga la calma. Gritarme no va a resolver su problema.",
+                        Style = "Defensivo",
+                        Effectiveness = 0.2,
+                        Analysis = "Te enfocas en su tono en lugar del problema, lo que puede escalarlo más.",
+                        Impact = "Juan se siente atacado y la situación se vuelve más tensa.",
+                        BetterAlternative = "Reconoce su frustración primero: 'Veo que está muy frustrado, y es comprensible. Déjeme ayudarle.'",
+                        ListeningImpact = -1,
+                        EmpathyImpact = -2,
+                        ClarityImpact = 0,
+                        AdaptabilityImpact = -1
+                    },
+                    new ResponseOption
+                    {
+                        Text = "Lamento que esté teniendo problemas. Según nuestra política, necesito algunos datos para procesar el reembolso.",
+                        Style = "Procedural",
+                        Effectiveness = 0.6,
+                        Analysis = "Te enfocas en el proceso pero no abordas sus emociones, lo cual puede frustrarlo más.",
+                        Impact = "Juan podría percibir que no te importa su situación, solo seguir reglas.",
+                        ListeningImpact = 0,
+                        EmpathyImpact = -1,
+                        ClarityImpact = 2,
+                        AdaptabilityImpact = 0
+                    },
+                    new ResponseOption
+                    {
+                        Text = "Juan, puedo escuchar lo frustrado que está. Primero, déjeme disculparme por esta experiencia. ¿Podría contarme exactamente qué pasó?",
+                        Style = "Empático y investigativo",
+                        Effectiveness = 0.85,
+                        Analysis = "Reconoces sus emociones, te disculpas y buscas entender el problema específico.",
+                        Impact = "Juan se siente escuchado y valorado, más dispuesto a explicar los detalles.",
+                        ListeningImpact = 2,
+                        EmpathyImpact = 1,
+                        ClarityImpact = 1,
+                        AdaptabilityImpact = 1
+                    }
+                }
+            }
+        };
+
+        return difficulty switch
+        {
+            "junior" => basicScenarios,
+            "mid" => intermediateScenarios,
+            "senior" => intermediateScenarios, // Podrías agregar más escenarios avanzados
+            _ => basicScenarios
+        };
+    }
+
+    private void SelectResponse(int index)
+    {
+        selectedResponse = index;
+        StateHasChanged();
+    }
+
+    private void SubmitResponse()
+    {
+        if (selectedResponse == -1) return;
+
+        selectedResponseData = currentScenarioData.ResponseOptions[selectedResponse];
+        currentEffectiveness = selectedResponseData.Effectiveness;
+        effectivenessHistory.Add(currentEffectiveness);
+
+        // Actualizar puntuaciones de habilidades
+        listeningScore = Math.Max(0, Math.Min(1, listeningScore + selectedResponseData.ListeningImpact * 0.1));
+        empathyScore = Math.Max(0, Math.Min(1, empathyScore + selectedResponseData.EmpathyImpact * 0.1));
+        clarityScore = Math.Max(0, Math.Min(1, clarityScore + selectedResponseData.ClarityImpact * 0.1));
+        adaptabilityScore = Math.Max(0, Math.Min(1, adaptabilityScore + selectedResponseData.AdaptabilityImpact * 0.1));
+
+        // Calcular puntos
+        var basePoints = (int)(currentEffectiveness * 200);
+        currentScore += basePoints;
+
+        if (currentEffectiveness >= 0.8)
+        {
+            scenariosCompleted++;
+        }
+
+        showingResult = true;
+        StateHasChanged();
+    }
+
+    private void ShowCommunicationTip()
+    {
+        var tips = new[]
+        {
+            "Usa el reflejo activo: 'Si entiendo bien, te sientes...'",
+            "El lenguaje corporal comunica más que las palabras",
+            "Haz preguntas abiertas para fomentar el diálogo",
+            "Parafrasea lo que escuchas para confirmar comprensión",
+            "Adapta tu estilo comunicativo a la personalidad del otro",
+            "El silencio también es comunicación - úsalo estratégicamente",
+            "Separa el problema de la persona en conversaciones difíciles",
+            "Usa 'yo' en lugar de 'tú' para evitar defensividad"
+        };
+
+        communicationTip = tips[new Random().Next(tips.Length)];
+        StateHasChanged();
+
+        // Limpiar tip después de 8 segundos
+        Task.Delay(8000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            communicationTip = "";
+            StateHasChanged();
+        }));
+    }
+
+    private void NextScenario()
+    {
+        currentScenario++;
+        GenerateScenario();
+        StateHasChanged();
+    }
+
+    private void FinishGame()
+    {
+        gameFinished = true;
+        averageEffectiveness = effectivenessHistory.Any() ? effectivenessHistory.Average() : 0;
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedDifficulty = null;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetScenarioIcon()
+    {
+        return currentScenarioData.Type switch
+        {
+            "Reunión de equipo" => "👥",
+            "Atención al cliente" => "📞",
+            "Resolución de conflictos" => "⚖️",
+            "Presentación" => "📊",
+            "Negociación" => "🤝",
+            "Evaluación" => "📋",
+            _ => "💬"
+        };
+    }
+
+    private string GetResponseStyleIcon(string style)
+    {
+        return style.ToLower() switch
+        {
+            string s when s.Contains("empático") => "🤗",
+            string s when s.Contains("directo") => "⚡",
+            string s when s.Contains("analítico") => "🧠",
+            string s when s.Contains("colaborativo") => "🤝",
+            string s when s.Contains("comprensivo") => "💝",
+            string s when s.Contains("defensivo") => "🛡️",
+            string s when s.Contains("procedural") => "📋",
+            string s when s.Contains("investigativo") => "🔍",
+            _ => "💬"
+        };
+    }
+
+    private string GetResultTitle()
+    {
+        return currentEffectiveness switch
+        {
+            >= 0.9 => "¡Comunicación Excepcional!",
+            >= 0.8 => "¡Muy Buena Comunicación!",
+            >= 0.6 => "Comunicación Efectiva",
+            >= 0.4 => "Comunicación Aceptable",
+            _ => "Oportunidad de Mejora"
+        };
+    }
+
+    private string GetSkillImpactClass(int impact)
+    {
+        return impact switch
+        {
+            >= 2 => "positive-high",
+            1 => "positive-low",
+            0 => "neutral",
+            -1 => "negative-low",
+            _ => "negative-high"
+        };
+    }
+
+    private string GetImpactText(int impact)
+    {
+        return impact switch
+        {
+            2 => "++",
+            1 => "+",
+            0 => "=",
+            -1 => "-",
+            _ => "--"
+        };
+    }
+
+    private string GetPerformanceIcon()
+    {
+        return averageEffectiveness switch
+        {
+            >= 0.8 => "🌟",
+            >= 0.6 => "👍",
+            >= 0.4 => "📈",
+            _ => "💪"
+        };
+    }
+
+    private string GetCommunicationRating()
+    {
+        return averageEffectiveness switch
+        {
+            >= 0.8 => "Comunicador Excepcional",
+            >= 0.6 => "Buen Comunicador",
+            >= 0.4 => "Comunicador en Desarrollo",
+            _ => "Necesita Práctica"
+        };
+    }
+
+    private string GetCommunicationDescription()
+    {
+        return averageEffectiveness switch
+        {
+            >= 0.8 => "Demuestras habilidades de comunicación excepcionales. Sabes cómo conectar con otros y manejar situaciones complejas.",
+            >= 0.6 => "Tienes buenas bases de comunicación. Con práctica adicional puedes alcanzar un nivel excepcional.",
+            >= 0.4 => "Estás desarrollando tus habilidades comunicativas. Enfócate en la escucha activa y la empatía.",
+            _ => "La comunicación efectiva se desarrolla con práctica. Considera técnicas de escucha activa y manejo emocional."
+        };
+    }
+
+    private string GetCommunicationLevel()
+    {
+        var avgScore = (listeningScore + empathyScore + clarityScore + adaptabilityScore) / 4;
+        return avgScore switch
+        {
+            >= 0.8 => "Avanzado",
+            >= 0.6 => "Intermedio",
+            >= 0.4 => "Básico",
+            _ => "Inicial"
+        };
+    }
+
+    private string GetDominantStyle()
+    {
+        if (empathyScore > 0.7) return "Empático";
+        if (clarityScore > 0.7) return "Directo";
+        if (listeningScore > 0.7) return "Analítico";
+        if (adaptabilityScore > 0.7) return "Adaptativo";
+        return "Equilibrado";
+    }
+
+    private string GetImprovementArea()
+    {
+        var scores = new Dictionary<string, double>
+        {
+            { "Escucha Activa", listeningScore },
+            { "Empatía", empathyScore },
+            { "Claridad", clarityScore },
+            { "Adaptabilidad", adaptabilityScore }
+        };
+
+        return scores.OrderBy(x => x.Value).First().Key;
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.8rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        white-space: nowrap;
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: communication-pulse 2s ease-in-out infinite;
+    }
+
+    @@keyframes communication-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ffffff 0%, #9b59b6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #e8e8e8;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: left;
+        max-width: 800px;
+    }
+
+    .game-rules h3, .game-rules h4 {
+        color: #9b59b6;
+        margin-bottom: 0.8rem;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .game-rules li {
+        margin-bottom: 0.4rem;
+        font-size: 0.95rem;
+    }
+
+    .communication-tips {
+        background: rgba(155, 89, 182, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+        margin-top: 1rem;
+    }
+
+    .communication-tips h4 {
+        color: #9b59b6;
+        margin-bottom: 0.5rem;
+    }
+
+    .communication-tips p {
+        margin: 0.2rem 0;
+        font-size: 0.9rem;
+        color: #e8e8e8;
+    }
+
+    .difficulty-selector {
+        margin-bottom: 2rem;
+    }
+
+    .difficulty-selector h4 {
+        color: #9b59b6;
+        margin-bottom: 1rem;
+    }
+
+    .difficulty-options {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .difficulty-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: white;
+        min-width: 160px;
+    }
+
+    .difficulty-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(155, 89, 182, 0.5);
+    }
+
+    .difficulty-btn.selected {
+        background: rgba(155, 89, 182, 0.2);
+        border-color: #9b59b6;
+    }
+
+    .difficulty-btn span {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+
+    .difficulty-btn small {
+        color: #b0b0b0;
+        font-size: 0.8rem;
+        text-align: center;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #9b59b6 0%, #8e44ad 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(155, 89, 182, 0.3);
+    }
+
+    .btn-start-game:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-start-game:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(155, 89, 182, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+        min-height: calc(100vh - 140px);
+    }
+
+    .scenario-container {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .scenario-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .scenario-header h2 {
+        color: #9b59b6;
+        margin: 0;
+    }
+
+    .scenario-type-badge {
+        background: rgba(155, 89, 182, 0.2);
+        color: #9b59b6;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .scenario-context {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .context-card, .speaker-card, .situation-card {
+        background: rgba(255, 255, 255, 0.03);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .context-card h4, .speaker-card h4, .situation-card h4 {
+        color: #9b59b6;
+        margin-bottom: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .context-card p, .speaker-card p, .situation-card p {
+        color: #e8e8e8;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .response-selection {
+        margin-bottom: 2rem;
+    }
+
+    .response-selection h3 {
+        color: #9b59b6;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
+    .response-options {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .response-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+        color: white;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .response-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(155, 89, 182, 0.5);
+        transform: translateY(-1px);
+    }
+
+    .response-btn.selected {
+        background: rgba(155, 89, 182, 0.2);
+        border-color: #9b59b6;
+    }
+
+    .response-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .response-style {
+        font-size: 1.5rem;
+    }
+
+    .response-text {
+        font-size: 1rem;
+        line-height: 1.4;
+    }
+
+    .response-approach {
+        font-size: 0.8rem;
+        color: #9b59b6;
+        font-weight: 600;
+        text-align: right;
+    }
+
+    .result-feedback {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-icon {
+        font-size: 2.5rem;
+    }
+
+    .result-title h3 {
+        color: #9b59b6;
+        margin: 0 0 0.5rem 0;
+    }
+
+    .effectiveness-score {
+        color: #e8e8e8;
+        font-size: 0.9rem;
+    }
+
+    .response-analysis {
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .analysis-section h4 {
+        color: #9b59b6;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .analysis-section p {
+        color: #e8e8e8;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .analysis-section.improvement {
+        background: rgba(46, 204, 113, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(46, 204, 113, 0.3);
+    }
+
+    .selected-response {
+        background: rgba(155, 89, 182, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+    }
+
+    .response-style-tag {
+        background: rgba(155, 89, 182, 0.3);
+        color: #9b59b6;
+        padding: 0.2rem 0.8rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        display: inline-block;
+        margin-bottom: 0.5rem;
+    }
+
+    .skills-impact {
+        margin-bottom: 2rem;
+    }
+
+    .skills-impact h4 {
+        color: #9b59b6;
+        margin-bottom: 1rem;
+    }
+
+    .skills-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+
+    .skill-impact {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 2px solid transparent;
+    }
+
+    .skill-impact.positive-high {
+        background: rgba(46, 204, 113, 0.2);
+        border-color: #2ecc71;
+    }
+
+    .skill-impact.positive-low {
+        background: rgba(46, 204, 113, 0.1);
+        border-color: rgba(46, 204, 113, 0.5);
+    }
+
+    .skill-impact.neutral {
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .skill-impact.negative-low {
+        background: rgba(231, 76, 60, 0.1);
+        border-color: rgba(231, 76, 60, 0.5);
+    }
+
+    .skill-impact.negative-high {
+        background: rgba(231, 76, 60, 0.2);
+        border-color: #e74c3c;
+    }
+
+    .skill-icon {
+        font-size: 1.2rem;
+    }
+
+    .skill-name {
+        flex: 1;
+        font-weight: 500;
+    }
+
+    .skill-change {
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+
+    .scenario-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+    }
+
+    .btn-submit-response, .btn-communication-tip, .btn-next-scenario, .btn-finish {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-submit-response {
+        background: linear-gradient(45deg, #9b59b6 0%, #8e44ad 100%);
+        color: white;
+    }
+
+    .btn-communication-tip {
+        background: rgba(243, 156, 18, 0.2);
+        color: #f39c12;
+        border: 1px solid rgba(243, 156, 18, 0.3);
+    }
+
+    .btn-next-scenario {
+        background: linear-gradient(45deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+    }
+
+    .btn-finish {
+        background: linear-gradient(45deg, #e67e22 0%, #d35400 100%);
+        color: white;
+    }
+
+    .btn-submit-response:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-submit-response:hover:not(:disabled), .btn-next-scenario:hover, .btn-finish:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .communication-tip {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: rgba(243, 156, 18, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(243, 156, 18, 0.3);
+        margin-top: 1rem;
+    }
+
+    .tip-icon {
+        font-size: 1.5rem;
+        color: #f39c12;
+    }
+
+    .tip-text {
+        color: #f39c12;
+        font-size: 0.95rem;
+        line-height: 1.4;
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #9b59b6 0%, #8e44ad 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .communication-assessment {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .communication-assessment h3 {
+        color: #9b59b6;
+        margin-bottom: 0.5rem;
+    }
+
+    .communication-assessment p {
+        color: #e8e8e8;
+        line-height: 1.6;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    .result-stat {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(155, 89, 182, 0.1);
+        border-color: #9b59b6;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #9b59b6;
+    }
+
+    .skills-breakdown {
+        margin-bottom: 2rem;
+        max-width: 600px;
+        width: 100%;
+    }
+
+    .skills-breakdown h4 {
+        color: #9b59b6;
+        margin-bottom: 1rem;
+    }
+
+    .skills-chart {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .skill-bar {
+        display: grid;
+        grid-template-columns: 120px 1fr 60px;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .skill-label {
+        font-size: 0.9rem;
+        color: #e8e8e8;
+    }
+
+    .skill-progress {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .skill-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #9b59b6 0%, #8e44ad 100%);
+        transition: width 0.8s ease;
+    }
+
+    .skill-score {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #9b59b6;
+        text-align: right;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #9b59b6 0%, #8e44ad 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #e8e8e8;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

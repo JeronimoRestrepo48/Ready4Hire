@@ -5,6 +5,12 @@ window.initializePerformanceTrendChart = function(data) {
     const ctx = document.getElementById('performanceTrendChart');
     if (!ctx) return;
     
+    // Validar que data sea un array válido
+    if (!data || !Array.isArray(data)) {
+        console.warn('initializePerformanceTrendChart: data debe ser un array');
+        data = [];
+    }
+    
     // Destruir chart existente si hay
     if (window.performanceTrendChartInstance) {
         window.performanceTrendChartInstance.destroy();
@@ -14,10 +20,10 @@ window.initializePerformanceTrendChart = function(data) {
     window.performanceTrendChartInstance = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: data.map(d => d.date),
+            labels: data.map(d => d.date || ''),
             datasets: [{
                 label: 'Score',
-                data: data.map(d => d.score),
+                data: data.map(d => d.score || 0),
                 borderColor: '#6366f1',
                 backgroundColor: 'rgba(99, 102, 241, 0.1)',
                 fill: true,

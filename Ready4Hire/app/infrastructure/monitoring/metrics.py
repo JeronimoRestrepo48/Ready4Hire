@@ -58,10 +58,14 @@ class PrometheusMetrics:
                 "llm_requests_total": 0,
                 "llm_errors_total": 0,
                 "evaluations_total": 0,
+                "evaluation_fallbacks_total": 0,
+                "evaluation_retries_total": 0,
                 "cache_hits_total": 0,
                 "cache_misses_total": 0,
                 "circuit_breaker_opens_total": 0,
                 "prompt_injections_blocked_total": 0,
+                "hints_generated_total": 0,
+                "attempts_total": 0,
             }
         )
 
@@ -72,6 +76,9 @@ class PrometheusMetrics:
                 "circuit_breaker_state": 0,  # 0=closed, 1=half_open, 2=open
                 "cache_hit_rate": 0.0,
                 "llm_avg_latency_ms": 0.0,
+                "avg_evaluation_score": 0.0,  # NUEVO
+                "avg_attempts_per_question": 0.0,  # NUEVO
+                "fallback_rate": 0.0,  # NUEVO
             }
         )
 
@@ -133,8 +140,18 @@ class PrometheusMetrics:
             if values:
                 self.gauges["llm_avg_latency_ms"] = sum(values) / len(values)
 
-    def record_evaluation(self, success: bool, latency_ms: float, cached: bool = False):
-        """Registra una evaluación."""
+    def record_evaluation(self, success: bool, latency_ms: float, cached: bool = False, score: Optional[float] = None):
+        """
+        Registra una evaluación.
+        
+        NUEVO: Soporte para score y métricas mejoradas.
+        
+        Args:
+            success: Si la evaluación fue exitosa
+            latency_ms: Latencia en milisegundos
+            cached: Si vino del caché
+            score: Score de la evaluación (opcional)
+        """
         if not self.enabled:
             return
 
@@ -145,15 +162,32 @@ class PrometheusMetrics:
         else:
             self.inc_counter("cache_misses_total")
 
-        self.observe_histogram("evaluation_duration_ms", latency_ms)
+        if not success:
+            self.inc_counter("evaluation_fallbacks_total")
 
-        # Actualizar cache hit rate
+        self.observe_histogram("evaluation_duration_ms", latency_ms)
+        
+        # NUEVO: Registrar score si está disponible
+        if score is not None:
+            self.observe_histogram("evaluation_scores", score)
+            # Actualizar promedio de scores
+            with self._lock:
+                scores = self.histograms.get("evaluation_scores", [])
+                if scores:
+                    self.gauges["avg_evaluation_score"] = sum(scores) / len(scores)
+
+        # Actualizar cache hit rate y fallback rate
         with self._lock:
             hits = self.counters.get("cache_hits_total", 0)
             misses = self.counters.get("cache_misses_total", 0)
             total = hits + misses
             if total > 0:
                 self.gauges["cache_hit_rate"] = (hits / total) * 100
+            
+            fallbacks = self.counters.get("evaluation_fallbacks_total", 0)
+            evaluations = self.counters.get("evaluations_total", 0)
+            if evaluations > 0:
+                self.gauges["fallback_rate"] = (fallbacks / evaluations) * 100
 
     def record_circuit_breaker_open(self, name: str):
         """Registra apertura de circuit breaker."""

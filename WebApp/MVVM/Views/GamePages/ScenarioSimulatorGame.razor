@@ -1,0 +1,873 @@
+@page "/game/scenario-simulator"
+@inject Ready4Hire.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>🎭 Simulador de Escenarios - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">🎭 Escenario @currentScenario/@totalScenarios</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">✅ @goodDecisions decisiones acertadas</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">🎭</div>
+            <h1>Simulador de Escenarios</h1>
+            <p>Enfrenta situaciones laborales reales y toma las mejores decisiones</p>
+            <div class="game-rules">
+                <h3>📋 ¿Cómo funciona?</h3>
+                <ul>
+                    <li>🎯 @totalScenarios escenarios laborales realistas</li>
+                    <li>🤔 Cada decisión afecta el resultado final</li>
+                    <li>⭐ Puntuación basada en calidad de decisiones</li>
+                    <li>🧠 Desarrolla habilidades de liderazgo y resolución</li>
+                </ul>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame">
+                Comenzar Simulación
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetPerformanceIcon()</div>
+            <h2>¡Simulación Completada!</h2>
+            <div class="performance-summary">
+                <h3>@GetPerformanceTitle()</h3>
+                <p>@GetPerformanceDescription()</p>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Decisiones Acertadas</span>
+                    <span class="result-value">@goodDecisions/@totalDecisionsMade</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Calificación</span>
+                    <span class="result-value">@GetGrade()</span>
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    Jugar de Nuevo
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="scenario-panel">
+                <div class="scenario-header">
+                    <h3>📋 @currentScenarioData.Title</h3>
+                    <div class="scenario-context">
+                        <span class="context-tag">@currentScenarioData.Context</span>
+                        <span class="difficulty-tag difficulty-@currentScenarioData.Difficulty.ToLower()">
+                            @currentScenarioData.Difficulty
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="scenario-description">
+                    @((MarkupString)currentScenarioData.Description.Replace("\n", "<br />"))
+                </div>
+                
+                @if (!string.IsNullOrEmpty(currentScenarioData.Context))
+                {
+                    <div class="scenario-context-info">
+                        <h4>🏢 Contexto:</h4>
+                        <p>@currentScenarioData.ContextInfo</p>
+                    </div>
+                }
+                
+                <div class="decisions-section">
+                    <h4>🤔 ¿Qué decides hacer?</h4>
+                    <div class="decision-options">
+                        @for (int i = 0; i < currentScenarioData.Options.Count; i++)
+                        {
+                            var optionIndex = i; // Captura para lambda
+                            <div class="decision-option @(selectedOption == optionIndex ? "selected" : "")" 
+                                 @onclick="() => SelectOption(optionIndex)">
+                                <div class="option-letter">@((char)('A' + i))</div>
+                                <div class="option-text">@currentScenarioData.Options[i]</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+                
+                @if (showFeedback)
+                {
+                    <div class="feedback-section">
+                        <div class="decision-result @(isGoodDecision ? "good" : "poor")">
+                            <div class="result-header">
+                                @if (isGoodDecision)
+                                {
+                                    <span class="result-icon">✅</span>
+                                    <span>¡Excelente decisión! +@lastDecisionPoints pts</span>
+                                }
+                                else
+                                {
+                                    <span class="result-icon">⚠️</span>
+                                    <span>Decisión cuestionable. +@lastDecisionPoints pts</span>
+                                }
+                            </div>
+                            <div class="result-explanation">
+                                @currentScenarioData.Feedback[selectedOption]
+                            </div>
+                        </div>
+                        
+                        @if (currentScenario < totalScenarios)
+                        {
+                            <button class="btn-next-scenario" @onclick="NextScenario">
+                                Siguiente Escenario ➡️
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn-finish" @onclick="FinishGame">
+                                Ver Resultados Finales 🏆
+                            </button>
+                        }
+                    </div>
+                }
+                else if (selectedOption >= 0)
+                {
+                    <div class="confirm-section">
+                        <p>Has seleccionado la opción <strong>@((char)('A' + selectedOption))</strong>:</p>
+                        <p><em>"@currentScenarioData.Options[selectedOption]"</em></p>
+                        <button class="btn-confirm" @onclick="ConfirmDecision">
+                            Confirmar Decisión ✓
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private class ScenarioData
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Context { get; set; } = "";
+        public string ContextInfo { get; set; } = "";
+        public string Difficulty { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public List<string> Feedback { get; set; } = new();
+        public List<int> CorrectOptions { get; set; } = new();
+    }
+
+    private List<ScenarioData> scenarios = new();
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool showFeedback = false;
+    private bool isGoodDecision = false;
+    private int currentScenario = 1;
+    private int totalScenarios = 4;
+    private int currentScore = 0;
+    private int goodDecisions = 0;
+    private int totalDecisionsMade = 0;
+    private int selectedOption = -1;
+    private int lastDecisionPoints = 0;
+    private ScenarioData currentScenarioData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+        
+        GenerateScenarios();
+    }
+
+    private void GenerateScenarios()
+    {
+        scenarios = new List<ScenarioData>
+        {
+            new ScenarioData
+            {
+                Title = "Conflicto entre miembros del equipo",
+                Description = "Dos desarrolladores senior en tu equipo están teniendo una discusión acalorada sobre la arquitectura del proyecto. Ambos tienen puntos válidos, pero la tensión está afectando al resto del equipo. Como líder técnico, necesitas intervenir.",
+                Context = "Liderazgo Técnico",
+                ContextInfo = "Equipo de 6 desarrolladores, proyecto con deadline en 2 semanas",
+                Difficulty = "Medium",
+                Options = new List<string> 
+                {
+                    "Organizar una reunión privada con cada uno por separado para entender sus puntos de vista",
+                    "Convocar al equipo completo para una sesión de tormenta de ideas sobre la arquitectura",
+                    "Tomar una decisión ejecutiva basada en tu experiencia y comunicarla al equipo",
+                    "Escalar el conflicto al gerente de proyecto para que tome la decisión"
+                },
+                Feedback = new List<string>
+                {
+                    "Excelente enfoque. Hablar por separado te permite entender ambas perspectivas sin presión y encontrar puntos de compromiso.",
+                    "Buena idea, pero podría intensificar el conflicto en público. Es mejor resolver las diferencias primero en privado.",
+                    "Puede resolver rápido, pero no aborda las raíces del conflicto y puede generar resentimiento.",
+                    "Evita responsabilidad de liderazgo. Como líder técnico, deberías manejar estos conflictos."
+                },
+                CorrectOptions = new List<int> { 0 }
+            },
+            new ScenarioData
+            {
+                Title = "Cliente solicita cambios de último minuto",
+                Description = "El cliente principal acaba de solicitar cambios significativos en la funcionalidad, faltando solo 3 días para la entrega. Los cambios requerirían al menos 1 semana de trabajo adicional. El cliente insiste en mantener la fecha original.",
+                Context = "Gestión de Proyectos",
+                ContextInfo = "Proyecto crítico, contrato de $50K, relación comercial importante",
+                Difficulty = "Hard",
+                Options = new List<string>
+                {
+                    "Aceptar los cambios y trabajar horas extras para cumplir con la fecha",
+                    "Negociar una extensión de fecha explicando el impacto técnico de los cambios",
+                    "Proponer una entrega por fases: versión actual ahora, cambios en la siguiente iteración",
+                    "Rechazar los cambios y entregar según lo acordado originalmente"
+                },
+                Feedback = new List<string>
+                {
+                    "Riesgoso para la calidad y moral del equipo. Las horas extras extremas pueden introducir bugs.",
+                    "Profesional y transparente. Educar al cliente sobre impactos técnicos es fundamental.",
+                    "¡Excelente solución! Satisface necesidades inmediatas del cliente y gestiona expectativas.",
+                    "Muy rígido. No considera necesidades del cliente ni busca alternativas."
+                },
+                CorrectOptions = new List<int> { 1, 2 }
+            },
+            new ScenarioData
+            {
+                Title = "Bug crítico en producción",
+                Description = "Se ha detectado un bug que está causando pérdidas de datos en producción. Afecta al 15% de los usuarios. El equipo está dividido: algunos quieren un hotfix rápido, otros prefieren una solución más robusta que tome más tiempo.",
+                Context = "Crisis en Producción",
+                ContextInfo = "Sistema con 10,000 usuarios activos, pérdidas financieras de $1000/hora",
+                Difficulty = "Hard",
+                Options = new List<string>
+                {
+                    "Implementar inmediatamente un hotfix temporal mientras se desarrolla la solución definitiva",
+                    "Tomar el sistema offline hasta tener una solución completa y robusta",
+                    "Continuar operando mientras se investiga, priorizando no interrumpir el servicio",
+                    "Implementar la solución robusta directamente, aunque tome más tiempo"
+                },
+                Feedback = new List<string>
+                {
+                    "¡Perfecto! Equilibra la urgencia con la calidad. Parar las pérdidas inmediatas es prioridad.",
+                    "Muy conservador pero efectivo. Protege datos pero impacta disponibilidad del servicio.",
+                    "Arriesgado e irresponsable. Las pérdidas de datos pueden tener consecuencias legales y de confianza.",
+                    "Idealista pero impracticable. Cada minuto de retraso significa más pérdidas."
+                },
+                CorrectOptions = new List<int> { 0 }
+            },
+            new ScenarioData
+            {
+                Title = "Propuesta de nueva tecnología",
+                Description = "Un desarrollador junior propone migrar a una tecnología nueva que promete mejorar significativamente el rendimiento. Sin embargo, requiere tiempo de aprendizaje para el equipo y reescribir parte del código existente. El junior está muy entusiasmado pero el equipo senior es escéptico.",
+                Context = "Innovación Tecnológica",
+                ContextInfo = "Equipo mixto (2 seniors, 3 juniors), proyecto estable en mantenimiento",
+                Difficulty = "Medium",
+                Options = new List<string>
+                {
+                    "Rechazar la propuesta para mantener estabilidad y evitar riesgos innecesarios",
+                    "Aprobar un spike de investigación limitado para evaluar la tecnología",
+                    "Implementar la migración completa inmediatamente para estar al día tecnológicamente",
+                    "Permitir que solo el junior trabaje en un prototipo en su tiempo libre"
+                },
+                Feedback = new List<string>
+                {
+                    "Conservador pero seguro. Sin embargo, puede desmotivar al junior y frenar la innovación.",
+                    "¡Excelente equilibrio! Valoras la propuesta, reduces riesgos y educas al equipo.",
+                    "Muy arriesgado sin evaluación previa. Podría causar problemas serios de estabilidad.",
+                    "Subestima la propuesta y no aprovecha oportunidad de crecimiento del equipo."
+                },
+                CorrectOptions = new List<int> { 1 }
+            }
+        };
+    }
+
+    private void StartGame()
+    {
+        gameStarted = true;
+        currentScenario = 1;
+        currentScore = 0;
+        goodDecisions = 0;
+        totalDecisionsMade = 0;
+        currentScenarioData = scenarios[0];
+        StateHasChanged();
+    }
+
+    private void SelectOption(int option)
+    {
+        selectedOption = option;
+        StateHasChanged();
+    }
+
+    private void ConfirmDecision()
+    {
+        if (selectedOption < 0) return;
+
+        totalDecisionsMade++;
+        isGoodDecision = currentScenarioData.CorrectOptions.Contains(selectedOption);
+        
+        if (isGoodDecision)
+        {
+            goodDecisions++;
+            lastDecisionPoints = 100;
+        }
+        else
+        {
+            lastDecisionPoints = 25; // Puntos de consolación
+        }
+        
+        currentScore += lastDecisionPoints;
+        showFeedback = true;
+        StateHasChanged();
+    }
+
+    private void NextScenario()
+    {
+        currentScenario++;
+        currentScenarioData = scenarios[currentScenario - 1];
+        selectedOption = -1;
+        showFeedback = false;
+        StateHasChanged();
+    }
+
+    private void FinishGame()
+    {
+        gameFinished = true;
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        showFeedback = false;
+        selectedOption = -1;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetPerformanceIcon()
+    {
+        var percentage = (double)goodDecisions / totalDecisionsMade;
+        return percentage switch
+        {
+            >= 0.8 => "🏆",
+            >= 0.6 => "🥈",
+            >= 0.4 => "🥉",
+            _ => "📈"
+        };
+    }
+
+    private string GetPerformanceTitle()
+    {
+        var percentage = (double)goodDecisions / totalDecisionsMade;
+        return percentage switch
+        {
+            >= 0.8 => "¡Liderazgo Excepcional!",
+            >= 0.6 => "Buen Liderazgo",
+            >= 0.4 => "Liderazgo en Desarrollo",
+            _ => "Necesita Mejorar"
+        };
+    }
+
+    private string GetPerformanceDescription()
+    {
+        var percentage = (double)goodDecisions / totalDecisionsMade;
+        return percentage switch
+        {
+            >= 0.8 => "Demuestras excelentes habilidades de liderazgo y toma de decisiones. Tu enfoque equilibrado y consideración de múltiples factores te destacan como líder.",
+            >= 0.6 => "Tienes buenas bases de liderazgo. Con más experiencia y práctica, puedes convertirte en un líder excepcional.",
+            >= 0.4 => "Muestras potencial de liderazgo pero necesitas desarrollar más tu criterio para situaciones complejas.",
+            _ => "Te recomendamos estudiar más casos de liderazgo y practicar la toma de decisiones en situaciones de presión."
+        };
+    }
+
+    private string GetGrade()
+    {
+        var percentage = (double)goodDecisions / totalDecisionsMade;
+        return percentage switch
+        {
+            >= 0.9 => "A+",
+            >= 0.8 => "A",
+            >= 0.7 => "B+",
+            >= 0.6 => "B",
+            >= 0.5 => "C+",
+            >= 0.4 => "C",
+            _ => "D"
+        };
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a24 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #b0b0b0;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: left;
+        max-width: 500px;
+    }
+
+    .game-rules h3 {
+        margin-bottom: 1rem;
+        color: #ff6b6b;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .game-rules li {
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a24 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+    }
+
+    .btn-start-game:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .scenario-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .scenario-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .scenario-header h3 {
+        font-size: 1.3rem;
+        margin: 0;
+        color: #ff6b6b;
+        flex: 1;
+    }
+
+    .scenario-context {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .context-tag {
+        background: rgba(255, 107, 107, 0.2);
+        color: #ff6b6b;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .difficulty-tag {
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .difficulty-medium {
+        background: rgba(255, 193, 7, 0.2);
+        color: #ffc107;
+    }
+
+    .difficulty-hard {
+        background: rgba(220, 53, 69, 0.2);
+        color: #dc3545;
+    }
+
+    .scenario-description {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        line-height: 1.7;
+        font-size: 1.05rem;
+    }
+
+    .scenario-context-info {
+        background: rgba(255, 107, 107, 0.1);
+        border-left: 4px solid #ff6b6b;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .scenario-context-info h4 {
+        margin: 0 0 0.5rem 0;
+        color: #ff6b6b;
+        font-size: 1rem;
+    }
+
+    .scenario-context-info p {
+        margin: 0;
+        color: #e0e0e0;
+    }
+
+    .decisions-section h4 {
+        color: #ff6b6b;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .decision-options {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .decision-option {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .decision-option:hover {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 107, 107, 0.3);
+    }
+
+    .decision-option.selected {
+        background: rgba(255, 107, 107, 0.1);
+        border-color: #ff6b6b;
+    }
+
+    .option-letter {
+        background: #ff6b6b;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .option-text {
+        flex: 1;
+        line-height: 1.5;
+    }
+
+    .confirm-section {
+        background: rgba(255, 107, 107, 0.1);
+        padding: 1.5rem;
+        border-radius: 8px;
+        text-align: center;
+        margin-top: 1.5rem;
+    }
+
+    .btn-confirm {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a24 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-top: 1rem;
+    }
+
+    .btn-confirm:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    }
+
+    .feedback-section {
+        margin-top: 2rem;
+    }
+
+    .decision-result {
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .decision-result.good {
+        background: rgba(34, 197, 94, 0.1);
+        border-left: 4px solid #22c55e;
+    }
+
+    .decision-result.poor {
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 4px solid #ef4444;
+    }
+
+    .result-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .result-icon {
+        font-size: 1.2rem;
+    }
+
+    .result-explanation {
+        line-height: 1.6;
+        color: #e0e0e0;
+    }
+
+    .btn-next-scenario, .btn-finish {
+        background: linear-gradient(45deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-next-scenario:hover, .btn-finish:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a24 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .performance-summary {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .performance-summary h3 {
+        font-size: 1.5rem;
+        color: #ff6b6b;
+        margin-bottom: 0.5rem;
+    }
+
+    .performance-summary p {
+        color: #b0b0b0;
+        line-height: 1.6;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 600px;
+    }
+
+    .result-stat {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #ff6b6b;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a24 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #b0b0b0;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

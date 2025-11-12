@@ -95,7 +95,7 @@ nano .env  # or vim, code, etc.
 ```env
 # Application Settings
 API_HOST=0.0.0.0
-API_PORT=8000
+API_PORT=8001
 API_RELOAD=True
 DEBUG=True
 
@@ -211,27 +211,23 @@ mkdir -p /tmp/ready4hire_audio
 
 ```bash
 # Option A: Using Uvicorn directly
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
-# Option B: Using the provided script
-chmod +x scripts/run.sh
-./scripts/run.sh
-
-# Option C: Using Python module
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# Option B: Using Python module
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 #### Step 12: Verify Installation
 
 ```bash
 # Check if API is running
-curl http://localhost:8000/docs
+curl http://localhost:8001/docs
 
 # Check via HTTPS (with self-signed cert warning)
-curl -k https://localhost/docs
+curl -k https://localhost:8001/docs
 
 # Test start_interview endpoint
-curl -X POST "http://localhost:8000/start_interview" \
+curl -X POST "http://localhost:8001/start_interview" \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "test_user",
@@ -386,7 +382,7 @@ User=ready4hire
 Group=ready4hire
 WorkingDirectory=/opt/ready4hire
 Environment="PATH=/opt/ready4hire/venv/bin"
-ExecStart=/opt/ready4hire/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+ExecStart=/opt/ready4hire/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 4
 Restart=always
 RestartSec=10
 
@@ -501,7 +497,7 @@ Instrumentator().instrument(app).expose(app)
 curl -I https://yourdomain.com
 
 # Test start interview
-curl -X POST "https://yourdomain.com/start_interview" \
+curl -X POST "https://yourdomain.com/api/v2/interviews/start" \
   -H "Content-Type: application/json" \
   -d '{"user_id":"test","role":"DevOps Engineer","type":"technical"}'
 
@@ -620,7 +616,7 @@ sudo nginx -t
 free -h
 
 # Limit workers
-# In app startup: --workers 2
+# In app startup: --workers 2 --port 8001
 
 # Disable GPU if not needed
 # In .env: USE_GPU=False

@@ -13,12 +13,26 @@ from opentelemetry import trace, metrics
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.exporter.prometheus import PrometheusMetricReader
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+try:
+    from opentelemetry.exporter.prometheus import PrometheusMetricReader
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    TELEMETRY_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Telemetry modules not available: {e}")
+    PrometheusMetricReader = None
+    OTLPSpanExporter = None
+    TELEMETRY_AVAILABLE = False
+try:
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.redis import RedisInstrumentor
+    from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+except ImportError as e:
+    print(f"⚠️ Additional telemetry modules not available: {e}")
+    BatchSpanProcessor = None
+    FastAPIInstrumentor = None
+    RedisInstrumentor = None
+    SQLAlchemyInstrumentor = None
 from prometheus_client import start_http_server
 
 logger = logging.getLogger(__name__)
@@ -65,17 +79,24 @@ class TelemetryService:
         provider = TracerProvider(resource=self.resource)
         
         # OTLP Exporter (para enviar a Grafana Tempo, Jaeger, etc)
-        otlp_exporter = OTLPSpanExporter(
-            endpoint="http://localhost:4317",
-            insecure=True
-        )
-        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        if OTLPSpanExporter and BatchSpanProcessor:
+            otlp_exporter = OTLPSpanExporter(
+                endpoint="http://localhost:4317",
+                insecure=True
+            )
+            provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        else:
+            logger.warning("⚠️ OTLP exporter not available")
         
         trace.set_tracer_provider(provider)
         logger.info("✅ Tracing configured")
     
     def _init_metrics(self) -> None:
         """Inicializa OpenTelemetry Metrics con Prometheus"""
+        if not PrometheusMetricReader:
+            logger.warning("⚠️ Prometheus metrics not available")
+            return
+        
         # Prometheus exporter
         reader = PrometheusMetricReader()
         provider = MeterProvider(resource=self.resource, metric_readers=[reader])
@@ -209,18 +230,27 @@ class TelemetryService:
     
     def instrument_fastapi(self, app) -> None:
         """Instrumenta una aplicación FastAPI"""
-        FastAPIInstrumentor.instrument_app(app)
-        logger.info("✅ FastAPI instrumented")
+        if FastAPIInstrumentor:
+            FastAPIInstrumentor.instrument_app(app)
+            logger.info("✅ FastAPI instrumented")
+        else:
+            logger.warning("⚠️ FastAPI instrumentation not available")
     
     def instrument_redis(self) -> None:
         """Instrumenta Redis"""
-        RedisInstrumentor().instrument()
-        logger.info("✅ Redis instrumented")
+        if RedisInstrumentor:
+            RedisInstrumentor().instrument()
+            logger.info("✅ Redis instrumented")
+        else:
+            logger.warning("⚠️ Redis instrumentation not available")
     
     def instrument_sqlalchemy(self, engine) -> None:
         """Instrumenta SQLAlchemy"""
-        SQLAlchemyInstrumentor().instrument(engine=engine)
-        logger.info("✅ SQLAlchemy instrumented")
+        if SQLAlchemyInstrumentor:
+            SQLAlchemyInstrumentor().instrument(engine=engine)
+            logger.info("✅ SQLAlchemy instrumented")
+        else:
+            logger.warning("⚠️ SQLAlchemy instrumentation not available")
     
     @asynccontextmanager
     async def trace_operation(self, operation_name: str, attributes: Optional[Dict[str, Any]] = None):

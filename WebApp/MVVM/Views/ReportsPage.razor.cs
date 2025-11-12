@@ -46,11 +46,11 @@ namespace Ready4Hire.MVVM.Views
                 StateHasChanged();
                 
                 // TODO: Implementar llamada real a API
-                // Por ahora, datos de ejemplo
-                reports = GenerateMockReports();
+                // Datos vacíos por ahora - sin datos demo
+                reports = new List<InterviewReport>();
                 
-                availableRoles = reports.Select(r => r.Role).Distinct().ToList();
-                filteredReports = reports;
+                availableRoles = new List<string>();
+                filteredReports = new List<InterviewReport>();
                 
                 CalculateMetrics();
                 
@@ -65,36 +65,7 @@ namespace Ready4Hire.MVVM.Views
             }
         }
         
-        private List<InterviewReport> GenerateMockReports()
-        {
-            var random = new Random();
-            var roles = new[] { "Software Engineer", "Data Scientist", "Product Manager", "DevOps Engineer" };
-            var modes = new[] { "practice", "exam" };
-            
-            var mockReports = new List<InterviewReport>();
-            
-            for (int i = 0; i < 10; i++)
-            {
-                var score = 6.0 + random.NextDouble() * 4.0; // 6.0 - 10.0
-                var totalQuestions = 10;
-                var correctAnswers = (int)Math.Round(score);
-                
-                mockReports.Add(new InterviewReport
-                {
-                    InterviewId = Guid.NewGuid().ToString(),
-                    Role = roles[random.Next(roles.Length)],
-                    Mode = modes[random.Next(modes.Length)],
-                    CompletedAt = DateTime.Now.AddDays(-random.Next(30)),
-                    AverageScore = score,
-                    TotalQuestions = totalQuestions,
-                    CorrectAnswers = correctAnswers,
-                    TotalTimeSeconds = random.Next(600, 1800),
-                    CertificateId = (modes[i % 2] == "exam" && score >= 7.5) ? $"R4H-{Guid.NewGuid().ToString().Substring(0, 12).ToUpper()}" : null
-                });
-            }
-            
-            return mockReports.OrderByDescending(r => r.CompletedAt).ToList();
-        }
+        // Método eliminado - ya no generamos datos mock
         
         private void CalculateMetrics()
         {

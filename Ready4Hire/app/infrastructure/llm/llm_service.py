@@ -34,6 +34,8 @@ class OllamaLLMService(LLMService):
         model: str = "llama3.2:3b",
         temperature: float = 0.7,
         max_tokens: int = 512,
+        timeout: Optional[int] = None,
+        max_retries: Optional[int] = None,
     ):
         """
         Inicializa el servicio Ollama.
@@ -43,8 +45,26 @@ class OllamaLLMService(LLMService):
             model: Modelo por defecto
             temperature: Temperatura por defecto
             max_tokens: Máximo de tokens por defecto
+            timeout: Timeout en segundos (None = usar configuración)
+            max_retries: Máximo de reintentos (None = usar configuración)
         """
-        self.client = OllamaClient(base_url=base_url, default_model=model)
+        # Usar configuración de Settings si no se especifica
+        if timeout is None or max_retries is None:
+            try:
+                from app.config import settings
+                timeout = timeout or settings.OLLAMA_TIMEOUT
+                max_retries = max_retries or settings.OLLAMA_MAX_RETRIES
+            except ImportError:
+                # Fallback si no se puede importar settings
+                timeout = timeout or 45
+                max_retries = max_retries or 1
+        
+        self.client = OllamaClient(
+            base_url=base_url,
+            default_model=model,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
         self.default_temperature = temperature
         self.default_max_tokens = max_tokens
 

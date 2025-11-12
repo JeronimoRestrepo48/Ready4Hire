@@ -1,48 +1,51 @@
 /**
  * App Navigator
- * Navegación principal - decide entre Auth y Main
+ * Main navigation setup for the app
  */
 
-import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
-import { useAuth } from '../store/AuthContext';
+import React, {useEffect} from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createStackNavigator} from '@react-navigation/stack';
+import {useSelector, useDispatch} from 'react-redux';
+import {RootState} from '../store';
+import {loadUserFromStorage} from '../store/slices/authSlice';
 
+// Screens
 import AuthNavigator from './AuthNavigator';
-import TabNavigator from './TabNavigator';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import MainNavigator from './MainNavigator';
+import SplashScreen from '../screens/SplashScreen';
 
 const Stack = createStackNavigator();
 
-const AppNavigator = () => {
-  const { user, isLoading } = useAuth();
+const AppNavigator: React.FC = () => {
+  const dispatch = useDispatch();
+  const {isAuthenticated, loading} = useSelector((state: RootState) => state.auth);
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
-      </View>
-    );
+  useEffect(() => {
+    // Load user from AsyncStorage on app start
+    try {
+      dispatch(loadUserFromStorage() as any);
+    } catch (error) {
+      console.error('Failed to load user from storage:', error);
+    }
+  }, [dispatch]);
+
+  if (loading) {
+    return <SplashScreen />;
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {user ? (
-        <Stack.Screen name="Main" component={TabNavigator} />
-      ) : (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      )}
-    </Stack.Navigator>
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{headerShown: false}}>
+        {isAuthenticated ? (
+          <Stack.Screen name="Main" component={MainNavigator} />
+        ) : (
+          <Stack.Screen name="Auth" component={AuthNavigator} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 };
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#0a0e1a',
-  },
-});
 
 export default AppNavigator;
 

@@ -1,0 +1,1295 @@
+@page "/game/skill-builder"
+@inject Ready4Hire.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>📚 Constructor de Habilidades - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">📚 Nivel @currentLevel</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">⭐ @skillPoints SP</span>
+            <span class="stat-item">📈 Ejercicio @currentExercise/@totalExercises</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">📚</div>
+            <h1>Constructor de Habilidades</h1>
+            <p>Desarrolla tus habilidades paso a paso con entrenamiento adaptativo</p>
+            
+            <div class="skill-selection">
+                <h3>🎯 Selecciona una habilidad para entrenar:</h3>
+                <div class="skills-grid">
+                    @foreach (var skill in availableSkills)
+                    {
+                        <div class="skill-card @(selectedSkill?.Id == skill.Id ? "selected" : "")" 
+                             @onclick="() => SelectSkill(skill)">
+                            <div class="skill-icon">@skill.Icon</div>
+                            <h4>@skill.Name</h4>
+                            <p>@skill.Description</p>
+                            <div class="skill-meta">
+                                <span class="skill-level">Nivel @skill.Level</span>
+                                <span class="skill-exercises">@skill.ExerciseCount ejercicios</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            @if (selectedSkill != null)
+            {
+                <div class="skill-details">
+                    <h4>📋 Plan de Entrenamiento: @selectedSkill.Name</h4>
+                    <div class="training-plan">
+                        <ul>
+                            @foreach (var topic in selectedSkill.Topics)
+                            {
+                                <li>@topic</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            }
+            
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedSkill == null)">
+                Comenzar Entrenamiento
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetCompletionIcon()</div>
+            <h2>¡Entrenamiento Completado!</h2>
+            <div class="skill-progress">
+                <h3>Tu Progreso en @selectedSkill?.Name</h3>
+                <div class="progress-details">
+                    <div class="level-up">
+                        @if (leveledUp)
+                        {
+                            <span class="level-badge new">¡Nivel @currentLevel!</span>
+                            <p>🎉 ¡Has subido de nivel! Ahora puedes acceder a ejercicios más avanzados.</p>
+                        }
+                        else
+                        {
+                            <span class="level-badge current">Nivel @currentLevel</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntos Ganados</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Skill Points</span>
+                    <span class="result-value">@skillPoints SP</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Ejercicios Completados</span>
+                    <span class="result-value">@exercisesCompleted/@totalExercises</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Precisión Promedio</span>
+                    <span class="result-value">@(Math.Round(averageAccuracy * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Conceptos Dominados</span>
+                    <span class="result-value">@conceptsMastered</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Siguiente Nivel</span>
+                    <span class="result-value">@GetNextLevelInfo()</span>
+                </div>
+            </div>
+            <div class="mastery-feedback">
+                <h4>📈 Retroalimentación:</h4>
+                <p>@GetMasteryFeedback()</p>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    Entrenar de Nuevo
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="exercise-header">
+                <div class="exercise-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: @((currentExercise * 100.0) / totalExercises)%"></div>
+                    </div>
+                    <span class="progress-text">@currentExercise de @totalExercises ejercicios</span>
+                </div>
+                <div class="difficulty-indicator">
+                    <span>Dificultad: </span>
+                    @for (int i = 0; i < currentExerciseData.Difficulty; i++)
+                    {
+                        <span class="star filled">★</span>
+                    }
+                    @for (int i = currentExerciseData.Difficulty; i < 5; i++)
+                    {
+                        <span class="star">☆</span>
+                    }
+                </div>
+            </div>
+
+            <div class="exercise-panel">
+                <div class="exercise-type-badge">
+                    @currentExerciseData.Type
+                </div>
+                
+                <h3>@currentExerciseData.Title</h3>
+                <div class="exercise-description">
+                    @((MarkupString)currentExerciseData.Description.Replace("\n", "<br />"))
+                </div>
+                
+                @if (!string.IsNullOrEmpty(currentExerciseData.Example))
+                {
+                    <div class="exercise-example">
+                        <h4>💡 Ejemplo:</h4>
+                        <pre><code>@currentExerciseData.Example</code></pre>
+                    </div>
+                }
+                
+                @if (currentExerciseData.Type == "Múltiple Opción")
+                {
+                    <div class="options-section">
+                        <h4>Selecciona la respuesta correcta:</h4>
+                        <div class="options-list">
+                            @for (int i = 0; i < currentExerciseData.Options.Count; i++)
+                            {
+                                var optionIndex = i;
+                                <div class="option-item @(selectedOption == optionIndex ? "selected" : "")"
+                                     @onclick="() => SelectOption(optionIndex)">
+                                    <span class="option-letter">@((char)('A' + i))</span>
+                                    <span class="option-text">@currentExerciseData.Options[i]</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (currentExerciseData.Type == "Código")
+                {
+                    <div class="code-section">
+                        <h4>💻 Escribe tu solución:</h4>
+                        <textarea class="code-editor" @bind="userCode" 
+                                  placeholder="// Escribe tu código aquí..."></textarea>
+                    </div>
+                }
+                else if (currentExerciseData.Type == "Conceptual")
+                {
+                    <div class="text-section">
+                        <h4>📝 Tu respuesta:</h4>
+                        <textarea class="text-answer" @bind="userTextAnswer" 
+                                  placeholder="Explica tu respuesta aquí..."></textarea>
+                    </div>
+                }
+                
+                @if (showFeedback)
+                {
+                    <div class="feedback-section">
+                        <div class="exercise-result @(isCorrect ? "correct" : "incorrect")">
+                            <div class="result-header">
+                                @if (isCorrect)
+                                {
+                                    <span class="result-icon">✅</span>
+                                    <span>¡Correcto! +@lastExercisePoints pts (+@lastSkillPoints SP)</span>
+                                }
+                                else
+                                {
+                                    <span class="result-icon">💡</span>
+                                    <span>Puedes mejorarlo. +@lastExercisePoints pts</span>
+                                }
+                            </div>
+                            <div class="detailed-feedback">
+                                @((MarkupString)currentExerciseData.Feedback.Replace("\n", "<br />"))
+                            </div>
+                            @if (!string.IsNullOrEmpty(currentExerciseData.LearningTip))
+                            {
+                                <div class="learning-tip">
+                                    <h5>🎓 Tip de aprendizaje:</h5>
+                                    <p>@currentExerciseData.LearningTip</p>
+                                </div>
+                            }
+                        </div>
+                        
+                        @if (currentExercise < totalExercises)
+                        {
+                            <button class="btn-next" @onclick="NextExercise">
+                                Siguiente Ejercicio ➡️
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn-complete" @onclick="CompleteTraining">
+                                Completar Entrenamiento 🏆
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="exercise-actions">
+                        <button class="btn-submit" @onclick="SubmitAnswer" disabled="@(!HasValidAnswer())">
+                            Verificar Respuesta
+                        </button>
+                        @if (hintsUsed < maxHints)
+                        {
+                            <button class="btn-hint" @onclick="ShowHint">
+                                💡 Pista (@(maxHints - hintsUsed) disponibles)
+                            </button>
+                        }
+                    </div>
+                }
+                
+                @if (!string.IsNullOrEmpty(currentHint))
+                {
+                    <div class="hint-box">
+                        <strong>💡 Pista:</strong> @currentHint
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private class Skill
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public int Level { get; set; }
+        public int ExerciseCount { get; set; }
+        public List<string> Topics { get; set; } = new();
+    }
+
+    private class Exercise
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = ""; // "Múltiple Opción", "Código", "Conceptual"
+        public string Example { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public int CorrectOption { get; set; }
+        public int Difficulty { get; set; }
+        public string Feedback { get; set; } = "";
+        public string LearningTip { get; set; } = "";
+        public List<string> Hints { get; set; } = new();
+    }
+
+    private List<Skill> availableSkills = new();
+    private List<Exercise> exercises = new();
+    private Skill? selectedSkill;
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool leveledUp = false;
+    private bool showFeedback = false;
+    private bool isCorrect = false;
+    private int currentLevel = 1;
+    private int currentExercise = 1;
+    private int totalExercises = 6;
+    private int currentScore = 0;
+    private int skillPoints = 0;
+    private int exercisesCompleted = 0;
+    private int conceptsMastered = 0;
+    private int selectedOption = -1;
+    private int lastExercisePoints = 0;
+    private int lastSkillPoints = 0;
+    private int hintsUsed = 0;
+    private int maxHints = 2;
+    private double averageAccuracy = 0;
+    private string userCode = "";
+    private string userTextAnswer = "";
+    private string currentHint = "";
+    private Exercise currentExerciseData = new();
+    private List<bool> exerciseResults = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+        
+        GenerateSkills();
+    }
+
+    private void GenerateSkills()
+    {
+        availableSkills = new List<Skill>
+        {
+            new Skill
+            {
+                Id = "algorithms",
+                Name = "Algoritmos y Estructuras de Datos",
+                Description = "Domina los fundamentos algorítmicos y estructuras de datos esenciales",
+                Icon = "🧮",
+                Level = 1,
+                ExerciseCount = 6,
+                Topics = new() { "Arrays y listas", "Búsqueda y ordenamiento", "Árboles", "Grafos básicos", "Complejidad temporal", "Recursión" }
+            },
+            new Skill
+            {
+                Id = "oop",
+                Name = "Programación Orientada a Objetos",
+                Description = "Aprende principios de POO y patrones de diseño fundamentales",
+                Icon = "🏗️",
+                Level = 1,
+                ExerciseCount = 6,
+                Topics = new() { "Encapsulación", "Herencia", "Polimorfismo", "Abstracción", "Patrones de diseño", "SOLID principles" }
+            },
+            new Skill
+            {
+                Id = "databases",
+                Name = "Bases de Datos",
+                Description = "Construye expertise en diseño y consultas de bases de datos",
+                Icon = "🗃️",
+                Level = 1,
+                ExerciseCount = 6,
+                Topics = new() { "SQL básico", "Joins", "Índices", "Normalización", "Transacciones", "NoSQL básico" }
+            }
+        };
+    }
+
+    private void SelectSkill(Skill skill)
+    {
+        selectedSkill = skill;
+        GenerateExercises(skill);
+        StateHasChanged();
+    }
+
+    private void GenerateExercises(Skill skill)
+    {
+        if (skill.Id == "algorithms")
+        {
+            exercises = new List<Exercise>
+            {
+                new Exercise
+                {
+                    Title = "Complejidad Temporal - Conceptos Básicos",
+                    Description = "¿Cuál es la complejidad temporal del siguiente código?\n\nfor (int i = 0; i < n; i++) {\n    for (int j = 0; j < n; j++) {\n        console.log(i, j);\n    }\n}",
+                    Type = "Múltiple Opción",
+                    Options = new() { "O(n)", "O(n²)", "O(log n)", "O(2n)" },
+                    CorrectOption = 1,
+                    Difficulty = 1,
+                    Feedback = "Correcto. Los bucles anidados que dependen del mismo tamaño n resultan en complejidad O(n²).",
+                    LearningTip = "Cuando veas bucles anidados, multiplica sus complejidades. n × n = n²",
+                    Hints = new() { "Cuenta cuántos bucles hay", "Cada bucle ejecuta n veces" }
+                },
+                new Exercise
+                {
+                    Title = "Búsqueda en Array",
+                    Description = "Implementa una función de búsqueda lineal que encuentre un elemento en un array.",
+                    Type = "Código",
+                    Example = "// Ejemplo: buscar(array, 5) debe retornar el índice donde está el 5\n// Si no se encuentra, retornar -1",
+                    Difficulty = 2,
+                    Feedback = "Una búsqueda lineal recorre el array elemento por elemento hasta encontrar el objetivo.",
+                    LearningTip = "La búsqueda lineal es O(n) pero funciona en arrays no ordenados.",
+                    Hints = new() { "Usa un bucle for", "Compara cada elemento con el objetivo" }
+                },
+                new Exercise
+                {
+                    Title = "Recursión - Concepto",
+                    Description = "Explica qué es la recursión y cuáles son sus componentes esenciales.",
+                    Type = "Conceptual",
+                    Difficulty = 2,
+                    Feedback = "La recursión es cuando una función se llama a sí misma. Necesita: caso base (condición de parada) y caso recursivo (llamada a sí misma con parámetros modificados).",
+                    LearningTip = "Siempre define un caso base para evitar recursión infinita.",
+                    Hints = new() { "Piensa en una función que se llama a sí misma", "¿Qué necesita para no ejecutarse infinitamente?" }
+                }
+            };
+        }
+        // Agregar más ejercicios para otras habilidades...
+        else if (skill.Id == "oop")
+        {
+            exercises = new List<Exercise>
+            {
+                new Exercise
+                {
+                    Title = "Principios de Encapsulación",
+                    Description = "¿Cuál es el propósito principal de la encapsulación en POO?",
+                    Type = "Múltiple Opción",
+                    Options = new() { "Hacer el código más rápido", "Ocultar implementación y controlar acceso", "Reducir líneas de código", "Mejorar la interfaz gráfica" },
+                    CorrectOption = 1,
+                    Difficulty = 1,
+                    Feedback = "Correcto. La encapsulación oculta los detalles de implementación y controla el acceso a los datos.",
+                    LearningTip = "Encapsulación = datos privados + métodos públicos para acceder a ellos.",
+                    Hints = new() { "Piensa en 'esconder' datos", "Se relaciona con modificadores de acceso" }
+                }
+            };
+        }
+        else if (skill.Id == "databases")
+        {
+            exercises = new List<Exercise>
+            {
+                new Exercise
+                {
+                    Title = "SQL Básico - SELECT",
+                    Description = "¿Cuál es la sintaxis correcta para seleccionar todos los campos de una tabla llamada 'usuarios'?",
+                    Type = "Múltiple Opción",
+                    Options = new() { "GET * FROM usuarios", "SELECT ALL FROM usuarios", "SELECT * FROM usuarios", "FETCH * FROM usuarios" },
+                    CorrectOption = 2,
+                    Difficulty = 1,
+                    Feedback = "Correcto. SELECT * FROM tabla_nombre es la sintaxis estándar de SQL.",
+                    LearningTip = "SELECT es la palabra clave para consultar datos en SQL.",
+                    Hints = new() { "Usa la palabra SELECT", "* significa todos los campos" }
+                }
+            };
+        }
+        
+        // Rellenar hasta 6 ejercicios si es necesario
+        while (exercises.Count < 6)
+        {
+            exercises.Add(new Exercise
+            {
+                Title = "Ejercicio Práctico",
+                Description = "Continúa practicando para dominar esta habilidad.",
+                Type = "Múltiple Opción",
+                Options = new() { "Opción A", "Opción B", "Opción C", "Opción D" },
+                CorrectOption = 0,
+                Difficulty = 1,
+                Feedback = "¡Excelente trabajo practicando!",
+                Hints = new() { "Sigue practicando", "La práctica hace al maestro" }
+            });
+        }
+    }
+
+    private void StartGame()
+    {
+        if (selectedSkill == null) return;
+        
+        gameStarted = true;
+        currentExercise = 1;
+        currentScore = 0;
+        skillPoints = 0;
+        exercisesCompleted = 0;
+        conceptsMastered = 0;
+        exerciseResults.Clear();
+        currentExerciseData = exercises[0];
+        ResetExercise();
+        StateHasChanged();
+    }
+
+    private void ResetExercise()
+    {
+        selectedOption = -1;
+        userCode = "";
+        userTextAnswer = "";
+        currentHint = "";
+        showFeedback = false;
+        isCorrect = false;
+        hintsUsed = 0;
+        lastExercisePoints = 0;
+        lastSkillPoints = 0;
+    }
+
+    private void SelectOption(int option)
+    {
+        selectedOption = option;
+        StateHasChanged();
+    }
+
+    private bool HasValidAnswer()
+    {
+        return currentExerciseData.Type switch
+        {
+            "Múltiple Opción" => selectedOption >= 0,
+            "Código" => !string.IsNullOrWhiteSpace(userCode),
+            "Conceptual" => !string.IsNullOrWhiteSpace(userTextAnswer),
+            _ => false
+        };
+    }
+
+    private void SubmitAnswer()
+    {
+        if (!HasValidAnswer()) return;
+
+        // Evaluar respuesta
+        isCorrect = currentExerciseData.Type switch
+        {
+            "Múltiple Opción" => selectedOption == currentExerciseData.CorrectOption,
+            "Código" => userCode.Length > 20, // Simulación simple
+            "Conceptual" => userTextAnswer.Length > 30, // Simulación simple
+            _ => false
+        };
+
+        exerciseResults.Add(isCorrect);
+        
+        // Calcular puntos
+        lastExercisePoints = isCorrect ? (50 + (currentExerciseData.Difficulty * 10)) : 25;
+        lastSkillPoints = isCorrect ? currentExerciseData.Difficulty : 0;
+        
+        // Penalización por pistas
+        lastExercisePoints = Math.Max(10, lastExercisePoints - (hintsUsed * 5));
+        
+        currentScore += lastExercisePoints;
+        skillPoints += lastSkillPoints;
+        
+        if (isCorrect) 
+        {
+            exercisesCompleted++;
+            conceptsMastered += currentExerciseData.Difficulty;
+        }
+        
+        showFeedback = true;
+        StateHasChanged();
+    }
+
+    private void ShowHint()
+    {
+        if (hintsUsed < maxHints && hintsUsed < currentExerciseData.Hints.Count)
+        {
+            currentHint = currentExerciseData.Hints[hintsUsed];
+            hintsUsed++;
+            StateHasChanged();
+        }
+    }
+
+    private void NextExercise()
+    {
+        currentExercise++;
+        currentExerciseData = exercises[currentExercise - 1];
+        ResetExercise();
+        StateHasChanged();
+    }
+
+    private void CompleteTraining()
+    {
+        // Calcular estadísticas finales
+        averageAccuracy = exerciseResults.Count > 0 ? exerciseResults.Count(x => x) / (double)exerciseResults.Count : 0;
+        
+        // Verificar subida de nivel
+        int newLevel = 1 + (skillPoints / 10);
+        leveledUp = newLevel > currentLevel;
+        currentLevel = newLevel;
+        
+        gameFinished = true;
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedSkill = null;
+        leveledUp = false;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetCompletionIcon()
+    {
+        return averageAccuracy switch
+        {
+            >= 0.8 => "🏆",
+            >= 0.6 => "🥇",
+            >= 0.4 => "🥈",
+            _ => "📚"
+        };
+    }
+
+    private string GetMasteryFeedback()
+    {
+        return averageAccuracy switch
+        {
+            >= 0.8 => $"¡Excelente dominio de {selectedSkill?.Name}! Estás listo para desafíos más avanzados.",
+            >= 0.6 => $"Buen progreso en {selectedSkill?.Name}. Con más práctica alcanzarás el nivel experto.",
+            >= 0.4 => $"Fundamentos sólidos en {selectedSkill?.Name}. Continúa practicando para mejorar.",
+            _ => $"Sigue practicando {selectedSkill?.Name}. La constancia es clave para el dominio."
+        };
+    }
+
+    private string GetNextLevelInfo()
+    {
+        int pointsNeeded = ((currentLevel + 1) * 10) - skillPoints;
+        return pointsNeeded > 0 ? $"{pointsNeeded} SP" : "¡Máximo!";
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1.5rem;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.9rem;
+        padding: 0.3rem 0.8rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ffffff 0%, #f1c40f 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #e8e8e8;
+        margin-bottom: 2rem;
+    }
+
+    .skill-selection {
+        margin-bottom: 2rem;
+        max-width: 1000px;
+    }
+
+    .skill-selection h3 {
+        color: #f1c40f;
+        margin-bottom: 1.5rem;
+    }
+
+    .skills-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .skill-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.3s;
+        text-align: left;
+    }
+
+    .skill-card:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(241, 196, 15, 0.5);
+        transform: translateY(-5px);
+    }
+
+    .skill-card.selected {
+        background: rgba(241, 196, 15, 0.2);
+        border-color: #f1c40f;
+        transform: translateY(-5px);
+    }
+
+    .skill-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .skill-card h4 {
+        color: #f1c40f;
+        margin-bottom: 0.5rem;
+        font-size: 1.2rem;
+    }
+
+    .skill-card p {
+        color: #e0e0e0;
+        margin-bottom: 1rem;
+        line-height: 1.4;
+        font-size: 0.95rem;
+    }
+
+    .skill-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        color: #b0b0b0;
+    }
+
+    .skill-level {
+        background: rgba(241, 196, 15, 0.2);
+        color: #f1c40f;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+    }
+
+    .skill-details {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        max-width: 600px;
+        text-align: left;
+    }
+
+    .skill-details h4 {
+        color: #f1c40f;
+        margin-bottom: 1rem;
+    }
+
+    .training-plan ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .training-plan li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .training-plan li:before {
+        content: "📖 ";
+        margin-right: 0.5rem;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #f1c40f 0%, #e67e22 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(241, 196, 15, 0.3);
+    }
+
+    .btn-start-game:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-start-game:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(241, 196, 15, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1000px;
+        margin: 0 auto;
+    }
+
+    .exercise-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .exercise-progress {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(45deg, #f1c40f 0%, #e67e22 100%);
+        transition: width 0.3s;
+    }
+
+    .progress-text {
+        font-size: 0.9rem;
+        color: #e0e0e0;
+    }
+
+    .difficulty-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .star {
+        color: #f1c40f;
+        font-size: 1.1rem;
+    }
+
+    .star.filled {
+        color: #f1c40f;
+    }
+
+    .exercise-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .exercise-type-badge {
+        display: inline-block;
+        background: rgba(241, 196, 15, 0.2);
+        color: #f1c40f;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+    }
+
+    .exercise-panel h3 {
+        color: #f1c40f;
+        margin-bottom: 1rem;
+        font-size: 1.3rem;
+    }
+
+    .exercise-description {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .exercise-example {
+        background: rgba(241, 196, 15, 0.1);
+        border-left: 4px solid #f1c40f;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1.5rem;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .exercise-example h4 {
+        margin: 0 0 0.5rem 0;
+        color: #f1c40f;
+    }
+
+    .exercise-example pre {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-family: 'Fira Code', 'Cascadia Code', monospace;
+    }
+
+    .options-section h4,
+    .code-section h4,
+    .text-section h4 {
+        color: #f1c40f;
+        margin-bottom: 1rem;
+    }
+
+    .options-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .option-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .option-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(241, 196, 15, 0.3);
+    }
+
+    .option-item.selected {
+        background: rgba(241, 196, 15, 0.1);
+        border-color: #f1c40f;
+    }
+
+    .option-letter {
+        background: #f1c40f;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .option-text {
+        flex: 1;
+        line-height: 1.4;
+    }
+
+    .code-editor, .text-answer {
+        width: 100%;
+        min-height: 150px;
+        background: #1e1e1e;
+        color: #ffffff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        padding: 1rem;
+        font-family: 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        resize: vertical;
+    }
+
+    .text-answer {
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        font-size: 16px;
+    }
+
+    .exercise-actions {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        margin-top: 1.5rem;
+    }
+
+    .btn-submit {
+        background: linear-gradient(45deg, #f1c40f 0%, #e67e22 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-submit:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-submit:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(241, 196, 15, 0.3);
+    }
+
+    .btn-hint {
+        background: rgba(52, 152, 219, 0.2);
+        color: #3498db;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .btn-hint:hover {
+        background: rgba(52, 152, 219, 0.3);
+    }
+
+    .hint-box {
+        background: rgba(52, 152, 219, 0.1);
+        border-left: 4px solid #3498db;
+        padding: 1rem 1.5rem;
+        margin-top: 1rem;
+        border-radius: 0 8px 8px 0;
+        color: #3498db;
+    }
+
+    .feedback-section {
+        margin-top: 2rem;
+    }
+
+    .exercise-result {
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .exercise-result.correct {
+        background: rgba(46, 204, 113, 0.1);
+        border-left: 4px solid #2ecc71;
+    }
+
+    .exercise-result.incorrect {
+        background: rgba(52, 152, 219, 0.1);
+        border-left: 4px solid #3498db;
+    }
+
+    .result-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+    }
+
+    .result-icon {
+        font-size: 1.2rem;
+    }
+
+    .detailed-feedback {
+        line-height: 1.6;
+        color: #e0e0e0;
+        margin-bottom: 1rem;
+    }
+
+    .learning-tip {
+        background: rgba(155, 89, 182, 0.1);
+        border-left: 4px solid #9b59b6;
+        padding: 1rem 1.5rem;
+        border-radius: 0 8px 8px 0;
+    }
+
+    .learning-tip h5 {
+        margin: 0 0 0.5rem 0;
+        color: #9b59b6;
+    }
+
+    .learning-tip p {
+        margin: 0;
+        color: #e0e0e0;
+    }
+
+    .btn-next, .btn-complete {
+        background: linear-gradient(45deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-next:hover, .btn-complete:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #f1c40f 0%, #e67e22 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .skill-progress {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .skill-progress h3 {
+        color: #f1c40f;
+        margin-bottom: 1rem;
+    }
+
+    .level-up {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .level-badge {
+        padding: 0.5rem 1.5rem;
+        border-radius: 25px;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .level-badge.current {
+        background: rgba(241, 196, 15, 0.2);
+        color: #f1c40f;
+    }
+
+    .level-badge.new {
+        background: linear-gradient(45deg, #f1c40f 0%, #e67e22 100%);
+        color: white;
+        animation: levelUpGlow 2s infinite alternate;
+    }
+
+    @@keyframes levelUpGlow {
+        from { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
+        to { box-shadow: 0 0 20px rgba(241, 196, 15, 0.8); }
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 800px;
+    }
+
+    .result-stat {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(241, 196, 15, 0.1);
+        border-color: #f1c40f;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #f1c40f;
+    }
+
+    .mastery-feedback {
+        max-width: 600px;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .mastery-feedback h4 {
+        color: #f1c40f;
+        margin-bottom: 0.5rem;
+    }
+
+    .mastery-feedback p {
+        color: #e0e0e0;
+        line-height: 1.6;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #f1c40f 0%, #e67e22 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #e0e0e0;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

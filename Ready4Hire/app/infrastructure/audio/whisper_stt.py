@@ -91,27 +91,50 @@ class WhisperSTT:
         """
         self._ensure_initialized()
 
-        # Validar tipo de archivo
+        # Validar tipo de archivo (más permisivo para webm desde navegador)
         import mimetypes
 
         mime, _ = mimetypes.guess_type(audio_file.filename or "")
+        
+        # Aceptar audio/webm desde navegadores además de otros formatos
+        content_type = getattr(audio_file, "content_type", None) or ""
+        is_audio = (
+            (mime and mime.startswith("audio")) or
+            content_type.startswith("audio/") or
+            audio_file.filename and audio_file.filename.lower().endswith((".wav", ".mp3", ".m4a", ".webm", ".ogg", ".flac"))
+        )
 
-        if not mime or not mime.startswith("audio"):
-            raise HTTPException(status_code=400, detail="El archivo debe ser de tipo audio (wav, mp3, m4a, etc.)")
+        if not is_audio:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"El archivo debe ser de tipo audio. Recibido: {content_type or mime or 'desconocido'}"
+            )
 
+        # Determinar extensión del archivo
+        filename = audio_file.filename or "audio"
+        file_ext = None
+        if "." in filename:
+            file_ext = filename.rsplit(".", 1)[1].lower()
+        
+        # Usar extensión apropiada (webm necesita conversión, pero Whisper puede manejarlo)
+        # Whisper soporta múltiples formatos, usar .wav como fallback
+        suffix = f".{file_ext}" if file_ext in ["wav", "mp3", "m4a", "ogg", "flac"] else ".wav"
+        
         # Guardar temporalmente el archivo
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             tmp.write(audio_file.file.read())
             tmp_path = tmp.name
 
         try:
-            logger.info(f"🎤 Transcribiendo audio en idioma: {language}")
+            logger.info(f"🎤 Transcribiendo audio en idioma: {language}, formato: {suffix}")
 
             # Transcribir con Whisper
             if self.model is None:
                 raise RuntimeError("Whisper model is not loaded")
 
-            result = self.model.transcribe(tmp_path, language=language)
+            # Whisper puede manejar múltiples formatos, pero si es webm puede necesitar conversión
+            # Por ahora intentamos directamente (Whisper moderno puede manejar webm)
+            result = self.model.transcribe(tmp_path, language=language if language != "auto" else None)
             text = str(result["text"]).strip()
 
             logger.info(f"✅ Transcripción exitosa: {len(text)} caracteres")

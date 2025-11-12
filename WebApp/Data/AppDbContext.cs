@@ -21,6 +21,7 @@ namespace Ready4Hire.Data
         public DbSet<InterviewReport> InterviewReports => Set<InterviewReport>();
         public DbSet<Certificate> Certificates => Set<Certificate>();
         public DbSet<UserProgress> UserProgress => Set<UserProgress>();
+        public DbSet<Ready4Hire.Services.AuditLog> AuditLogs => Set<Ready4Hire.Services.AuditLog>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -152,6 +153,13 @@ namespace Ready4Hire.Data
             
             modelBuilder.Entity<UserProgress>()
                 .HasIndex(up => up.MasteryLevel);
+            
+            // AuditLogs configuration
+            modelBuilder.Entity<Ready4Hire.Services.AuditLog>()
+                .HasIndex(a => new { a.UserId, a.Timestamp });
+            
+            modelBuilder.Entity<Ready4Hire.Services.AuditLog>()
+                .HasIndex(a => new { a.EntityType, a.Severity });
         }
     }
 }

@@ -9,6 +9,17 @@ var connectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION")
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Si no hay variable de entorno, usar la configuración de appsettings.json
+connectionString ??= builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Validar que la cadena de conexión esté configurada
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "La cadena de conexión no está configurada. " +
+        "Configure la variable de entorno POSTGRES_CONNECTION o agregue DefaultConnection en appsettings.json");
+}
+
 // Configurar DbContextFactory para evitar problemas de concurrencia en Blazor Server
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
@@ -17,6 +28,10 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped<Ready4Hire.Services.AuthService>();
 builder.Services.AddScoped<Ready4Hire.Services.SecurityService>();
 builder.Services.AddScoped<Ready4Hire.Services.FileUploadService>();
+
+// Servicios de gamificación
+builder.Services.AddScoped<Ready4Hire.Services.AchievementProgressService>();
+builder.Services.AddScoped<Ready4Hire.Services.BadgeProgressService>();
 
 // HttpClient para APIs
 builder.Services.AddHttpClient();

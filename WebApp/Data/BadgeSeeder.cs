@@ -283,6 +283,398 @@ namespace Ready4Hire.Data
                     RewardPoints = 600,
                     RewardXp = 900
                 },
+
+                // ============================================================================
+                // NUEVAS BADGES COMÚN - MÁS ALCANZABLES
+                // ============================================================================
+                new Badge
+                {
+                    Name = "🏃 Principiante Activo",
+                    Description = "Juega 3 juegos en un día",
+                    Icon = "🏃",
+                    Category = "general",
+                    Rarity = "common",
+                    RequirementType = "daily_games_played",
+                    RequirementValue = 3,
+                    RewardPoints = 50,
+                    RewardXp = 80
+                },
+                new Badge
+                {
+                    Name = "🔄 Perseverante",
+                    Description = "Reintenta un juego después de fallar",
+                    Icon = "🔄",
+                    Category = "general",
+                    Rarity = "common",
+                    RequirementType = "games_retried",
+                    RequirementValue = 1,
+                    RewardPoints = 40,
+                    RewardXp = 60
+                },
+                new Badge
+                {
+                    Name = "📝 Completista",
+                    Description = "Completa tu perfil al 100%",
+                    Icon = "📝",
+                    Category = "milestone",
+                    Rarity = "common",
+                    RequirementType = "profile_completion",
+                    RequirementValue = 100,
+                    RewardPoints = 100,
+                    RewardXp = 150
+                },
+                new Badge
+                {
+                    Name = "🎲 Explorador",
+                    Description = "Prueba 3 tipos diferentes de juegos",
+                    Icon = "🎲",
+                    Category = "general",
+                    Rarity = "common",
+                    RequirementType = "different_game_types",
+                    RequirementValue = 3,
+                    RewardPoints = 75,
+                    RewardXp = 120
+                },
+                new Badge
+                {
+                    Name = "⏰ Puntual",
+                    Description = "Completa una sesión en menos de 30 minutos",
+                    Icon = "⏰",
+                    Category = "general",
+                    Rarity = "common",
+                    RequirementType = "quick_session",
+                    RequirementValue = 1,
+                    RewardPoints = 60,
+                    RewardXp = 90
+                },
+
+                // ============================================================================
+                // NUEVAS BADGES RARAS - INTERMEDIAS
+                // ============================================================================
+                new Badge
+                {
+                    Name = "🧩 Solucionador Nato",
+                    Description = "Resuelve 25 rompecabezas lógicos",
+                    Icon = "🧩",
+                    Category = "technical",
+                    Rarity = "rare",
+                    RequirementType = "logic_puzzles_solved",
+                    RequirementValue = 25,
+                    RewardPoints = 250,
+                    RewardXp = 400
+                },
+                new Badge
+                {
+                    Name = "💭 Pensador Crítico",
+                    Description = "Completa 15 desafíos de pensamiento crítico",
+                    Icon = "💭",
+                    Category = "soft_skills",
+                    Rarity = "rare",
+                    RequirementType = "critical_thinking_completed",
+                    RequirementValue = 15,
+                    RewardPoints = 300,
+                    RewardXp = 450
+                },
+                new Badge
+                {
+                    Name = "🏋️ Entrenador Mental",
+                    Description = "Completa 20 desafíos de memoria",
+                    Icon = "🏋️",
+                    Category = "technical",
+                    Rarity = "rare",
+                    RequirementType = "memory_challenges_completed",
+                    RequirementValue = 20,
+                    RewardPoints = 280,
+                    RewardXp = 420
+                },
+                new Badge
+                {
+                    Name = "⚖️ Organizador Experto",
+                    Description = "Completa 12 ejercicios de gestión del tiempo",
+                    Icon = "⚖️",
+                    Category = "soft_skills",
+                    Rarity = "rare",
+                    RequirementType = "time_management_completed",
+                    RequirementValue = 12,
+                    RewardPoints = 320,
+                    RewardXp = 480
+                },
+                new Badge
+                {
+                    Name = "🗣️ Comunicador Eficaz",
+                    Description = "Completa 18 ejercicios de comunicación",
+                    Icon = "🗣️",
+                    Category = "soft_skills",
+                    Rarity = "rare",
+                    RequirementType = "communication_exercises_completed",
+                    RequirementValue = 18,
+                    RewardPoints = 290,
+                    RewardXp = 440
+                },
+                new Badge
+                {
+                    Name = "🎯 Precisión Láser",
+                    Description = "Mantén 85%+ de precisión en 10 juegos seguidos",
+                    Icon = "🎯",
+                    Category = "achievement",
+                    Rarity = "rare",
+                    RequirementType = "accuracy_streak",
+                    RequirementValue = 10,
+                    RewardPoints = 400,
+                    RewardXp = 600
+                },
+                new Badge
+                {
+                    Name = "🔥 Semana Intensiva",
+                    Description = "Juega todos los días de una semana",
+                    Icon = "🔥",
+                    Category = "achievement",
+                    Rarity = "rare",
+                    RequirementType = "weekly_streak",
+                    RequirementValue = 7,
+                    RewardPoints = 350,
+                    RewardXp = 500
+                },
+
+                // ============================================================================
+                // NUEVAS BADGES ÉPICAS - DESAFIANTES PERO ALCANZABLES
+                // ============================================================================
+                new Badge
+                {
+                    Name = "🎨 Creativo Innovador",
+                    Description = "Completa 25 ejercicios del laboratorio de innovación",
+                    Icon = "🎨",
+                    Category = "soft_skills",
+                    Rarity = "epic",
+                    RequirementType = "innovation_lab_completed",
+                    RequirementValue = 25,
+                    RewardPoints = 500,
+                    RewardXp = 750
+                },
+                new Badge
+                {
+                    Name = "🏃‍♂️ Corredor de Problemas",
+                    Description = "Gana 30 carreras de resolución de problemas",
+                    Icon = "🏃‍♂️", 
+                    Category = "technical",
+                    Rarity = "epic",
+                    RequirementType = "problem_solving_races_won",
+                    RequirementValue = 30,
+                    RewardPoints = 600,
+                    RewardXp = 900
+                },
+                new Badge
+                {
+                    Name = "🌳 Estratega Maestro",
+                    Description = "Completa 20 árboles de decisión complejos",
+                    Icon = "🌳",
+                    Category = "soft_skills",
+                    Rarity = "epic",
+                    RequirementType = "decision_trees_completed",
+                    RequirementValue = 20,
+                    RewardPoints = 550,
+                    RewardXp = 800
+                },
+                new Badge
+                {
+                    Name = "👁️ Detector de Patrones",
+                    Description = "Identifica correctamente 100 patrones",
+                    Icon = "👁️",
+                    Category = "technical",
+                    Rarity = "epic",
+                    RequirementType = "patterns_identified",
+                    RequirementValue = 100,
+                    RewardPoints = 700,
+                    RewardXp = 1000
+                },
+                new Badge
+                {
+                    Name = "💪 Resistente al Estrés",
+                    Description = "Supera 15 pruebas de estrés exitosamente",
+                    Icon = "💪",
+                    Category = "soft_skills",
+                    Rarity = "epic",
+                    RequirementType = "stress_tests_passed",
+                    RequirementValue = 15,
+                    RewardPoints = 650,
+                    RewardXp = 950
+                },
+                new Badge
+                {
+                    Name = "🎖️ Veterano",
+                    Description = "Lleva más de 60 días registrado",
+                    Icon = "🎖️",
+                    Category = "milestone",
+                    Rarity = "epic",
+                    RequirementType = "days_registered",
+                    RequirementValue = 60,
+                    RewardPoints = 500,
+                    RewardXp = 750
+                },
+                new Badge
+                {
+                    Name = "🔥 Racha de Oro",
+                    Description = "Mantén una racha de 14 días consecutivos",
+                    Icon = "🔥",
+                    Category = "achievement",
+                    Rarity = "epic",
+                    RequirementType = "streak_days",
+                    RequirementValue = 14,
+                    RewardPoints = 800,
+                    RewardXp = 1200
+                },
+                new Badge
+                {
+                    Name = "🏆 Ganador Consistente",
+                    Description = "Gana 100 juegos en total",
+                    Icon = "🏆",
+                    Category = "achievement",
+                    Rarity = "epic",
+                    RequirementType = "games_won",
+                    RequirementValue = 100,
+                    RewardPoints = 750,
+                    RewardXp = 1100
+                },
+
+                // ============================================================================
+                // NUEVAS BADGES LEGENDARIAS - OBJETIVOS A LARGO PLAZO
+                // ============================================================================
+                new Badge
+                {
+                    Name = "🧠 Genio Multidisciplinario",
+                    Description = "Alcanza maestría en todos los tipos de juegos",
+                    Icon = "🧠",
+                    Category = "achievement",
+                    Rarity = "legendary",
+                    RequirementType = "mastery_all_games",
+                    RequirementValue = 15,
+                    RewardPoints = 2000,
+                    RewardXp = 3000
+                },
+                new Badge
+                {
+                    Name = "🎭 Camaleón Profesional",
+                    Description = "Completa entrevistas para 5 profesiones diferentes",
+                    Icon = "🎭",
+                    Category = "milestone",
+                    Rarity = "legendary",
+                    RequirementType = "different_professions",
+                    RequirementValue = 5,
+                    RewardPoints = 1800,
+                    RewardXp = 2700
+                },
+                new Badge
+                {
+                    Name = "⚡ Rayo Humano",
+                    Description = "Completa 50 rondas rápidas en tiempo récord",
+                    Icon = "⚡",
+                    Category = "achievement",
+                    Rarity = "legendary",
+                    RequirementType = "speed_rounds_record",
+                    RequirementValue = 50,
+                    RewardPoints = 2200,
+                    RewardXp = 3300
+                },
+                new Badge
+                {
+                    Name = "🌟 Mentor de la Comunidad",
+                    Description = "Ayuda a otros usuarios conseguir sus primeros logros",
+                    Icon = "🌟",
+                    Category = "general",
+                    Rarity = "legendary",
+                    RequirementType = "mentoring_achievements",
+                    RequirementValue = 10,
+                    RewardPoints = 3000,
+                    RewardXp = 5000
+                },
+                new Badge
+                {
+                    Name = "🏰 Constructor de Imperio",
+                    Description = "Acumula más de 50,000 puntos de experiencia",
+                    Icon = "🏰",
+                    Category = "milestone",
+                    Rarity = "legendary",
+                    RequirementType = "total_experience",
+                    RequirementValue = 50000,
+                    RewardPoints = 4000,
+                    RewardXp = 7500
+                },
+                new Badge
+                {
+                    Name = "🎯 Perfección Absoluta",
+                    Description = "Mantén 100% de precisión en 20 sesiones completas",
+                    Icon = "🎯",
+                    Category = "achievement",
+                    Rarity = "legendary",
+                    RequirementType = "perfect_sessions",
+                    RequirementValue = 20,
+                    RewardPoints = 5000,
+                    RewardXp = 8000
+                },
+
+                // ============================================================================
+                // BADGES ESPECIALES Y SECRETAS
+                // ============================================================================
+                new Badge
+                {
+                    Name = "🎂 Primer Aniversario",
+                    Description = "Celebra un año completo en Ready4Hire",
+                    Icon = "🎂",
+                    Category = "milestone",
+                    Rarity = "legendary",
+                    RequirementType = "days_registered",
+                    RequirementValue = 365,
+                    RewardPoints = 3650,
+                    RewardXp = 5000
+                },
+                new Badge
+                {
+                    Name = "🎃 Cazador Nocturno",
+                    Description = "Completa 25 sesiones entre medianoche y 6 AM",
+                    Icon = "🎃",
+                    Category = "general",
+                    Rarity = "epic",
+                    RequirementType = "midnight_sessions",
+                    RequirementValue = 25,
+                    RewardPoints = 600,
+                    RewardXp = 900
+                },
+                new Badge
+                {
+                    Name = "⚖️ Equilibrio Perfecto",
+                    Description = "Mantén el mismo número de juegos técnicos y soft skills",
+                    Icon = "⚖️",
+                    Category = "achievement",
+                    Rarity = "rare",
+                    RequirementType = "balanced_gameplay",
+                    RequirementValue = 50,
+                    RewardPoints = 400,
+                    RewardXp = 600
+                },
+                new Badge
+                {
+                    Name = "🔍 Inspector",
+                    Description = "Encuentra y reporta 3 bugs o mejoras",
+                    Icon = "🔍",
+                    Category = "general",
+                    Rarity = "epic",
+                    RequirementType = "bugs_reported",
+                    RequirementValue = 3,
+                    RewardPoints = 800,
+                    RewardXp = 1200
+                },
+                new Badge
+                {
+                    Name = "💝 Embajador",
+                    Description = "Invita a 5 amigos a unirse a Ready4Hire",
+                    Icon = "💝",
+                    Category = "general",
+                    Rarity = "rare",
+                    RequirementType = "referrals_successful",
+                    RequirementValue = 5,
+                    RewardPoints = 500,
+                    RewardXp = 750
+                }
             };
         }
     }

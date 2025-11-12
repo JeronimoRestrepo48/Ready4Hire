@@ -1,0 +1,118 @@
+@*
+    Componente para cargar todos los scripts de mejoras del frontend
+*@
+
+<!-- CSS de mejoras -->
+<link href="~/css/improvements.css" rel="stylesheet" />
+
+<!-- Scripts de mejoras -->
+<script src="~/js/toast-notifications.js"></script>
+<script src="~/js/theme-service.js"></script>
+<script src="~/js/search-service.js"></script>
+<script src="~/js/chat-enhancements.js"></script>
+<script src="~/js/form-validation.js"></script>
+<script src="~/js/lazy-load.js"></script>
+<script src="~/js/scroll-reveal.js"></script>
+<script src="~/js/onboarding.js"></script>
+<script src="~/js/charts-enhanced.js"></script>
+
+<script>
+    // Inicialización del Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('Service Worker registrado:', registration);
+                })
+                .catch(error => {
+                    console.log('Error registrando Service Worker:', error);
+                });
+        });
+    }
+
+    // Inicializar Scroll Reveal después de cargar contenido
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.ScrollRevealService) {
+            window.ScrollRevealService.init();
+        }
+    });
+
+    // Utilidades globales
+    window.Utils = {
+        // Debounce function
+        debounce: function(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        },
+
+        // Throttle function
+        throttle: function(func, limit) {
+            let inThrottle;
+            return function(...args) {
+                if (!inThrottle) {
+                    func.apply(this, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            };
+        },
+
+        // Copy to clipboard
+        copyToClipboard: async function(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                if (window.Toast) {
+                    window.Toast.success('Copiado al portapapeles');
+                }
+                return true;
+            } catch (err) {
+                console.error('Error copying to clipboard:', err);
+                if (window.Toast) {
+                    window.Toast.error('Error al copiar');
+                }
+                return false;
+            }
+        },
+
+        // Format date
+        formatDate: function(date, format = 'es-ES') {
+            return new Intl.DateTimeFormat(format).format(new Date(date));
+        },
+
+        // Format number
+        formatNumber: function(number, locale = 'es-ES') {
+            return new Intl.NumberFormat(locale).format(number);
+        }
+    };
+
+    // Manejar tecla de atajo para búsqueda (Ctrl/Cmd + K)
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            // Disparar búsqueda global si existe
+            const searchInput = document.querySelector('.global-search-input');
+            if (searchInput) {
+                searchInput.focus();
+            }
+        }
+    });
+
+    // Manejar escape para cerrar modales
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            // Cerrar modales abiertos
+            const openModals = document.querySelectorAll('.modern-modal-overlay:not([style*="display: none"])');
+            openModals.forEach(modal => {
+                modal.style.display = 'none';
+            });
+        }
+    });
+</script>
+

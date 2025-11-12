@@ -1,37 +1,6 @@
 {
   "name": "Ready4Hire",
   "displayName": "Ready4Hire",
-  "version": "1.0.0",
-  "description": "Tu preparación para entrevistas, siempre contigo",
-  "orientation": "portrait",
-  "icon": "./assets/icon.png",
-  "splash": {
-    "image": "./assets/splash.png",
-    "resizeMode": "contain",
-    "backgroundColor": "#0a0e1a"
-  },
-  "updates": {
-    "fallbackToCacheTimeout": 0
-  },
-  "assetBundlePatterns": [
-    "**/*"
-  ],
-  "ios": {
-    "supportsTablet": true,
-    "bundleIdentifier": "com.ready4hire.app",
-    "buildNumber": "1.0.0"
-  },
-  "android": {
-    "package": "com.ready4hire.app",
-    "versionCode": 1,
-    "adaptiveIcon": {
-      "foregroundImage": "./assets/adaptive-icon.png",
-      "backgroundColor": "#0a0e1a"
-    },
-    "permissions": [
-      "INTERNET",
-      "ACCESS_NETWORK_STATE"
-    ]
-  }
+  "version": "2.0.0"
 }
 

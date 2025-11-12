@@ -1,0 +1,1473 @@
+@page "/game/decision-trees"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>🌳 Árboles de Decisión - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">🌳 Nivel @currentLevel/@totalLevels</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">📊 Eficiencia: @(Math.Round(efficiency * 100))%</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">🌳</div>
+            <h1>Árboles de Decisión</h1>
+            <p>Navega decisiones complejas paso a paso como un estratega</p>
+            <div class="game-rules">
+                <h3>🎯 Objetivo:</h3>
+                <p>Toma la mejor secuencia de decisiones navegando a través de escenarios complejos. Cada elección afecta el resultado final.</p>
+                
+                <h4>🌲 Mecánica del juego:</h4>
+                <ul>
+                    <li>🎯 <strong>Escenario inicial:</strong> Se presenta una situación compleja</li>
+                    <li>🔀 <strong>Puntos de decisión:</strong> Elige entre 3-4 opciones en cada paso</li>
+                    <li>⚡ <strong>Consecuencias:</strong> Cada decisión lleva a nuevos escenarios</li>
+                    <li>🎖️ <strong>Resultado final:</strong> Tu camino determina el éxito total</li>
+                    <li>📈 <strong>Múltiples finales:</strong> Diferentes caminos, diferentes resultados</li>
+                </ul>
+
+                <h4>🎨 Tipos de escenarios:</h4>
+                <ul>
+                    <li>💼 Decisiones empresariales</li>
+                    <li>👥 Manejo de equipos</li>
+                    <li>⚠️ Gestión de crisis</li>
+                    <li>🎯 Estrategia de producto</li>
+                    <li>💰 Inversiones y recursos</li>
+                </ul>
+
+                <div class="strategy-guide">
+                    <h4>💡 Guía estratégica:</h4>
+                    <p>• Analiza todas las opciones antes de decidir</p>
+                    <p>• Considera las consecuencias a largo plazo</p>
+                    <p>• Balance entre riesgo y recompensa</p>
+                    <p>• Aprende de los resultados de cada camino</p>
+                </div>
+            </div>
+            <div class="difficulty-selector">
+                <h4>Selecciona complejidad:</h4>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn @(selectedDifficulty == "junior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("junior")'>
+                        <span>🟢 Simple</span>
+                        <small>3 niveles, decisiones directas</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "mid" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("mid")'>
+                        <span>🟡 Complejo</span>
+                        <small>4 niveles, múltiples variables</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "senior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("senior")'>
+                        <span>🔴 Experto</span>
+                        <small>5 niveles, alta incertidumbre</small>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedDifficulty == null)">
+                🌱 Comenzar Árbol
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetResultIcon()</div>
+            <h2>¡Árbol Completado!</h2>
+            <div class="final-outcome">
+                <h3>@finalOutcome.Title</h3>
+                <p>@finalOutcome.Description</p>
+                <div class="outcome-score">Resultado: @finalOutcome.SuccessLevel</div>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Decisiones Tomadas</span>
+                    <span class="result-value">@decisionPath.Count</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Eficiencia</span>
+                    <span class="result-value">@(Math.Round(efficiency * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Estilo de Decisión</span>
+                    <span class="result-value">@GetDecisionStyle()</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Nivel de Liderazgo</span>
+                    <span class="result-value">@GetLeadershipLevel()</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Orientación</span>
+                    <span class="result-value">@GetOrientation()</span>
+                </div>
+            </div>
+            <div class="decision-analysis">
+                <h4>📊 Análisis de tu camino:</h4>
+                <div class="path-visualization">
+                    @for (int i = 0; i < decisionPath.Count; i++)
+                    {
+                        <div class="path-step">
+                            <div class="step-number">@(i + 1)</div>
+                            <div class="step-content">
+                                <div class="step-decision">@decisionPath[i]</div>
+                                @if (i < decisionOutcomes.Count)
+                                {
+                                    <div class="step-outcome">→ @decisionOutcomes[i]</div>
+                                }
+                            </div>
+                        </div>
+                        @if (i < decisionPath.Count - 1)
+                        {
+                            <div class="path-connector">↓</div>
+                        }
+                    }
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    🔄 Nuevo Árbol
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    🎮 Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="tree-visualization">
+                <div class="tree-progress">
+                    @for (int i = 1; i <= totalLevels; i++)
+                    {
+                        <div class="level-node @(i <= currentLevel ? "completed" : "") @(i == currentLevel ? "current" : "")">
+                            @if (i <= currentLevel)
+                            {
+                                <span>@i</span>
+                            }
+                            else
+                            {
+                                <span>@i</span>
+                            }
+                        </div>
+                        @if (i < totalLevels)
+                        {
+                            <div class="level-connector @(i < currentLevel ? "completed" : "")">
+                                <div class="connector-line"></div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="current-scenario">
+                <div class="scenario-header">
+                    <h2>Nivel @currentLevel: @currentScenario.Title</h2>
+                    <div class="scenario-type">@GetScenarioIcon() @currentScenario.Type</div>
+                </div>
+
+                <div class="scenario-context">
+                    <div class="context-panel">
+                        <h4>📋 Situación:</h4>
+                        <p>@currentScenario.Context</p>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(currentScenario.PreviousOutcome))
+                    {
+                        <div class="previous-outcome">
+                            <h4>⚡ Resultado anterior:</h4>
+                            <p>@currentScenario.PreviousOutcome</p>
+                        </div>
+                    }
+
+                    <div class="current-challenge">
+                        <h4>🎯 Desafío actual:</h4>
+                        <p>@currentScenario.Challenge</p>
+                    </div>
+                </div>
+
+                <div class="decision-options">
+                    <h3>¿Cuál es tu decisión?</h3>
+                    <div class="options-grid">
+                        @for (int i = 0; i < currentScenario.Options.Count; i++)
+                        {
+                            var index = i;
+                            var option = currentScenario.Options[index];
+                            <button class="decision-btn @(selectedDecision == index ? "selected" : "")"
+                                    @onclick="() => SelectDecision(index)"
+                                    disabled="@showingResult">
+                                <div class="decision-header">
+                                    <div class="decision-icon">@GetDecisionIcon(option.Type)</div>
+                                    <div class="decision-title">@option.Title</div>
+                                </div>
+                                <div class="decision-description">@option.Description</div>
+                                <div class="decision-implications">
+                                    <div class="implication-item">
+                                        <span class="implication-label">Riesgo:</span>
+                                        <span class="implication-value @GetRiskClass(option.Risk)">@option.Risk</span>
+                                    </div>
+                                    <div class="implication-item">
+                                        <span class="implication-label">Impacto:</span>
+                                        <span class="implication-value @GetImpactClass(option.Impact)">@option.Impact</span>
+                                    </div>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                @if (showingResult)
+                {
+                    <div class="result-panel">
+                        <div class="result-header">
+                            <div class="result-icon">
+                                @if (selectedDecisionResult.Success)
+                                {
+                                    <span>✅</span>
+                                }
+                                else
+                                {
+                                    <span>⚠️</span>
+                                }
+                            </div>
+                            <div class="result-title">
+                                <h4>@selectedDecisionResult.Title</h4>
+                                <div class="result-score">+@selectedDecisionResult.Points pts</div>
+                            </div>
+                        </div>
+                        <div class="result-content">
+                            <p>@selectedDecisionResult.Outcome</p>
+                            @if (!string.IsNullOrEmpty(selectedDecisionResult.LearningPoint))
+                            {
+                                <div class="learning-point">
+                                    <strong>💡 Punto clave:</strong> @selectedDecisionResult.LearningPoint
+                                </div>
+                            }
+                        </div>
+                        <div class="impact-metrics">
+                            <div class="metric-grid">
+                                <div class="metric-item">
+                                    <span class="metric-label">Equipo:</span>
+                                    <span class="metric-value">@selectedDecisionResult.TeamImpact</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">Recursos:</span>
+                                    <span class="metric-value">@selectedDecisionResult.ResourceImpact</span>
+                                </div>
+                                <div class="metric-item">
+                                    <span class="metric-label">Tiempo:</span>
+                                    <span class="metric-value">@selectedDecisionResult.TimeImpact</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="scenario-actions">
+                    @if (!showingResult)
+                    {
+                        <button class="btn-make-decision" @onclick="MakeDecision" disabled="@(selectedDecision == -1)">
+                            🎯 Tomar Decisión
+                        </button>
+                        <button class="btn-analyze" @onclick="ShowAnalysis">
+                            🔍 Analizar Opciones
+                        </button>
+                    }
+                    else
+                    {
+                        @if (currentLevel < totalLevels)
+                        {
+                            <button class="btn-continue" @onclick="ContinueToNextLevel">
+                                Continuar Árbol ➡️
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn-complete" @onclick="CompleteTree">
+                                🏆 Completar Árbol
+                            </button>
+                        }
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(analysisText))
+                {
+                    <div class="analysis-panel">
+                        <div class="analysis-icon">🔍</div>
+                        <div class="analysis-content">
+                            <h4>Análisis estratégico:</h4>
+                            <p>@analysisText</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool showingResult = false;
+    private int selectedDecision = -1;
+
+    private int currentLevel = 1;
+    private int totalLevels = 4;
+    private int currentScore = 0;
+    private double efficiency = 0;
+
+    private string? selectedDifficulty = null;
+    private string analysisText = "";
+
+    private ScenarioNode currentScenario = new();
+    private DecisionResult selectedDecisionResult = new();
+    private FinalOutcome finalOutcome = new();
+    private List<string> decisionPath = new();
+    private List<string> decisionOutcomes = new();
+
+    public class ScenarioNode
+    {
+        public string Title { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Context { get; set; } = "";
+        public string Challenge { get; set; } = "";
+        public string PreviousOutcome { get; set; } = "";
+        public List<DecisionOption> Options { get; set; } = new();
+    }
+
+    public class DecisionOption
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Risk { get; set; } = "";
+        public string Impact { get; set; } = "";
+        public DecisionResult Result { get; set; } = new();
+    }
+
+    public class DecisionResult
+    {
+        public string Title { get; set; } = "";
+        public string Outcome { get; set; } = "";
+        public string LearningPoint { get; set; } = "";
+        public bool Success { get; set; } = true;
+        public int Points { get; set; } = 0;
+        public string TeamImpact { get; set; } = "";
+        public string ResourceImpact { get; set; } = "";
+        public string TimeImpact { get; set; } = "";
+    }
+
+    public class FinalOutcome
+    {
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string SuccessLevel { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void SelectDifficulty(string difficulty)
+    {
+        selectedDifficulty = difficulty;
+        totalLevels = difficulty switch
+        {
+            "junior" => 3,
+            "mid" => 4,
+            "senior" => 5,
+            _ => 4
+        };
+        StateHasChanged();
+    }
+
+    private void StartGame()
+    {
+        if (selectedDifficulty == null) return;
+
+        gameStarted = true;
+        currentLevel = 1;
+        currentScore = 0;
+        decisionPath.Clear();
+        decisionOutcomes.Clear();
+
+        GenerateScenario();
+        StateHasChanged();
+    }
+
+    private void GenerateScenario()
+    {
+        selectedDecision = -1;
+        showingResult = false;
+        analysisText = "";
+
+        // Generar escenario basado en el nivel actual
+        var scenarios = GetScenariosByLevel(currentLevel);
+        currentScenario = scenarios[new Random().Next(scenarios.Length)];
+    }
+
+    private ScenarioNode[] GetScenariosByLevel(int level)
+    {
+        var scenarios = new[]
+        {
+            new ScenarioNode
+            {
+                Title = "Crisis de Producto",
+                Type = "Gestión de Crisis",
+                Context = "Tu equipo ha detectado un bug crítico en el producto que afecta al 15% de los usuarios. El parche tardará 2 días en desarrollarse.",
+                Challenge = "Los usuarios reportan el problema en redes sociales. ¿Cómo manejas la situación?",
+                Options = new List<DecisionOption>
+                {
+                    new DecisionOption
+                    {
+                        Title = "Comunicación Transparente",
+                        Description = "Anunciar públicamente el problema y el timeline de solución",
+                        Type = "Comunicación",
+                        Risk = "Bajo",
+                        Impact = "Alto",
+                        Result = new DecisionResult
+                        {
+                            Title = "Confianza Mantenida",
+                            Outcome = "Los usuarios aprecian la transparencia. Algunos esperan pacientemente mientras otros migran temporalmente.",
+                            LearningPoint = "La transparencia genera confianza a largo plazo",
+                            Success = true,
+                            Points = 80,
+                            TeamImpact = "Motivado",
+                            ResourceImpact = "Estable",
+                            TimeImpact = "Ganado"
+                        }
+                    },
+                    new DecisionOption
+                    {
+                        Title = "Silencio Estratégico",
+                        Description = "Trabajar en la solución sin comunicación pública",
+                        Type = "Reservado",
+                        Risk = "Alto",
+                        Impact = "Variable",
+                        Result = new DecisionResult
+                        {
+                            Title = "Presión Creciente",
+                            Outcome = "La falta de comunicación genera más especulaciones y críticas en redes sociales.",
+                            LearningPoint = "El silencio puede interpretarse como indiferencia",
+                            Success = false,
+                            Points = 30,
+                            TeamImpact = "Estresado",
+                            ResourceImpact = "Tenso",
+                            TimeImpact = "Perdido"
+                        }
+                    },
+                    new DecisionOption
+                    {
+                        Title = "Solución Temporal",
+                        Description = "Lanzar un workaround rápido mientras se desarrolla la solución definitiva",
+                        Type = "Pragmático",
+                        Risk = "Medio",
+                        Impact = "Alto",
+                        Result = new DecisionResult
+                        {
+                            Title = "Alivio Temporal",
+                            Outcome = "El workaround reduce las quejas pero introduce complejidad técnica adicional.",
+                            LearningPoint = "Las soluciones rápidas pueden crear deuda técnica",
+                            Success = true,
+                            Points = 65,
+                            TeamImpact = "Presionado",
+                            ResourceImpact = "Comprometido",
+                            TimeImpact = "Mixto"
+                        }
+                    }
+                }
+            }
+        };
+
+        return scenarios;
+    }
+
+    private void SelectDecision(int index)
+    {
+        selectedDecision = index;
+        StateHasChanged();
+    }
+
+    private void MakeDecision()
+    {
+        if (selectedDecision == -1) return;
+
+        var selectedOption = currentScenario.Options[selectedDecision];
+        selectedDecisionResult = selectedOption.Result;
+        
+        // Registrar decisión en el camino
+        decisionPath.Add(selectedOption.Title);
+        decisionOutcomes.Add(selectedDecisionResult.Outcome);
+        
+        currentScore += selectedDecisionResult.Points;
+        showingResult = true;
+        StateHasChanged();
+    }
+
+    private void ShowAnalysis()
+    {
+        var analyses = new[]
+        {
+            "Considera el impacto a largo plazo de cada decisión en la confianza del cliente.",
+            "Evalúa cómo cada opción afectará a tu equipo y recursos disponibles.",
+            "Piensa en precedentes: ¿qué mensaje envías con esta decisión?",
+            "Balance entre velocidad de respuesta y calidad de la solución.",
+            "¿Cómo se alinea cada opción con los valores de tu organización?"
+        };
+
+        analysisText = analyses[new Random().Next(analyses.Length)];
+        StateHasChanged();
+
+        // Limpiar análisis después de 7 segundos
+        Task.Delay(7000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            analysisText = "";
+            StateHasChanged();
+        }));
+    }
+
+    private void ContinueToNextLevel()
+    {
+        currentLevel++;
+        GenerateScenario();
+        StateHasChanged();
+    }
+
+    private void CompleteTree()
+    {
+        gameFinished = true;
+        
+        // Calcular resultado final basado en las decisiones
+        efficiency = decisionPath.Count > 0 ? (double)currentScore / (decisionPath.Count * 100) : 0;
+        
+        finalOutcome = new FinalOutcome
+        {
+            Title = efficiency switch
+            {
+                >= 0.8 => "🏆 Liderazgo Excepcional",
+                >= 0.6 => "⭐ Gestión Exitosa",
+                >= 0.4 => "👍 Decisiones Sólidas",
+                _ => "📈 Aprendizaje Valioso"
+            },
+            Description = efficiency switch
+            {
+                >= 0.8 => "Has demostrado habilidades excepcionales de toma de decisiones. Tu enfoque estratégico y visión a largo plazo generaron resultados sobresalientes.",
+                >= 0.6 => "Tus decisiones fueron efectivas y bien fundamentadas. Mostraste un buen balance entre riesgo y recompensa.",
+                >= 0.4 => "Tomaste decisiones razonables con resultados mixtos. Hay oportunidades de mejora en el análisis estratégico.",
+                _ => "Las decisiones presentaron desafíos, pero cada experiencia es una oportunidad de aprendizaje para futuras situaciones."
+            },
+            SuccessLevel = efficiency switch
+            {
+                >= 0.8 => "Excepcional",
+                >= 0.6 => "Exitoso",
+                >= 0.4 => "Satisfactorio",
+                _ => "En desarrollo"
+            }
+        };
+        
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedDifficulty = null;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetScenarioIcon()
+    {
+        return currentScenario.Type switch
+        {
+            "Gestión de Crisis" => "⚠️",
+            "Estrategia" => "🎯",
+            "Recursos Humanos" => "👥",
+            "Finanzas" => "💰",
+            "Producto" => "📦",
+            _ => "🎯"
+        };
+    }
+
+    private string GetDecisionIcon(string type)
+    {
+        return type switch
+        {
+            "Comunicación" => "📢",
+            "Reservado" => "🤐",
+            "Pragmático" => "🔧",
+            "Arriesgado" => "🎲",
+            "Conservador" => "🛡️",
+            _ => "💭"
+        };
+    }
+
+    private string GetRiskClass(string risk)
+    {
+        return risk.ToLower() switch
+        {
+            "alto" => "risk-high",
+            "medio" => "risk-medium",
+            "bajo" => "risk-low",
+            _ => "risk-medium"
+        };
+    }
+
+    private string GetImpactClass(string impact)
+    {
+        return impact.ToLower() switch
+        {
+            "alto" => "impact-high",
+            "medio" => "impact-medium",
+            "bajo" => "impact-low",
+            _ => "impact-medium"
+        };
+    }
+
+    private string GetResultIcon()
+    {
+        return efficiency switch
+        {
+            >= 0.8 => "🏆",
+            >= 0.6 => "⭐",
+            >= 0.4 => "👍",
+            _ => "📈"
+        };
+    }
+
+    private string GetDecisionStyle()
+    {
+        // Análisis simplificado basado en las decisiones tomadas
+        return efficiency switch
+        {
+            >= 0.8 => "Estratégico",
+            >= 0.6 => "Equilibrado",
+            >= 0.4 => "Pragmático",
+            _ => "Intuitivo"
+        };
+    }
+
+    private string GetLeadershipLevel()
+    {
+        return efficiency switch
+        {
+            >= 0.8 => "Visionario",
+            >= 0.6 => "Competente",
+            >= 0.4 => "En desarrollo",
+            _ => "Emergente"
+        };
+    }
+
+    private string GetOrientation()
+    {
+        return efficiency switch
+        {
+            >= 0.7 => "Resultados",
+            >= 0.5 => "Procesos",
+            _ => "Aprendizaje"
+        };
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.8rem;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        white-space: nowrap;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: tree-grow 3s ease-in-out infinite;
+    }
+
+    @@keyframes tree-grow {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ffffff 0%, #f39c12 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #e8f5e8;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: left;
+        max-width: 700px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .game-rules h3, .game-rules h4 {
+        color: #f39c12;
+        margin-bottom: 0.8rem;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+        margin-bottom: 1rem;
+    }
+
+    .game-rules li {
+        margin-bottom: 0.4rem;
+        font-size: 0.95rem;
+    }
+
+    .strategy-guide {
+        background: rgba(243, 156, 18, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(243, 156, 18, 0.3);
+        margin-top: 1rem;
+    }
+
+    .strategy-guide h4 {
+        color: #f39c12;
+        margin-bottom: 0.5rem;
+    }
+
+    .strategy-guide p {
+        margin: 0.2rem 0;
+        font-size: 0.9rem;
+        color: #e8f5e8;
+    }
+
+    .difficulty-selector {
+        margin-bottom: 2rem;
+    }
+
+    .difficulty-selector h4 {
+        color: #f39c12;
+        margin-bottom: 1rem;
+    }
+
+    .difficulty-options {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .difficulty-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.15);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: white;
+        min-width: 160px;
+    }
+
+    .difficulty-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(243, 156, 18, 0.5);
+    }
+
+    .difficulty-btn.selected {
+        background: rgba(243, 156, 18, 0.2);
+        border-color: #f39c12;
+    }
+
+    .difficulty-btn span {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+
+    .difficulty-btn small {
+        color: #b0e0b0;
+        font-size: 0.8rem;
+        text-align: center;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(243, 156, 18, 0.3);
+    }
+
+    .btn-start-game:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-start-game:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(243, 156, 18, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+        min-height: calc(100vh - 140px);
+    }
+
+    .tree-visualization {
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: center;
+    }
+
+    .tree-progress {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1rem 2rem;
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .level-node {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        transition: all 0.3s;
+    }
+
+    .level-node.completed {
+        background: rgba(243, 156, 18, 0.3);
+        border-color: #f39c12;
+        color: #f39c12;
+    }
+
+    .level-node.current {
+        background: rgba(243, 156, 18, 0.5);
+        border-color: #f39c12;
+        animation: node-pulse 2s infinite;
+    }
+
+    @@keyframes node-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+
+    .level-connector {
+        display: flex;
+        align-items: center;
+    }
+
+    .connector-line {
+        width: 30px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.3);
+        transition: all 0.3s;
+    }
+
+    .level-connector.completed .connector-line {
+        background: #f39c12;
+    }
+
+    .current-scenario {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 16px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .scenario-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .scenario-header h2 {
+        color: #f39c12;
+        margin: 0;
+    }
+
+    .scenario-type {
+        background: rgba(243, 156, 18, 0.2);
+        color: #f39c12;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .scenario-context {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .context-panel, .previous-outcome, .current-challenge {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .context-panel h4, .previous-outcome h4, .current-challenge h4 {
+        color: #f39c12;
+        margin-bottom: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .context-panel p, .previous-outcome p, .current-challenge p {
+        color: #e8f5e8;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .decision-options {
+        margin-bottom: 2rem;
+    }
+
+    .decision-options h3 {
+        color: #f39c12;
+        margin-bottom: 1.5rem;
+        text-align: center;
+    }
+
+    .options-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .decision-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+        color: white;
+    }
+
+    .decision-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(243, 156, 18, 0.5);
+        transform: translateY(-1px);
+    }
+
+    .decision-btn.selected {
+        background: rgba(243, 156, 18, 0.2);
+        border-color: #f39c12;
+    }
+
+    .decision-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .decision-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .decision-icon {
+        font-size: 1.5rem;
+    }
+
+    .decision-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #f39c12;
+    }
+
+    .decision-description {
+        color: #e8f5e8;
+        line-height: 1.4;
+        margin-bottom: 1rem;
+    }
+
+    .decision-implications {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .implication-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .implication-label {
+        font-size: 0.85rem;
+        color: #b0e0b0;
+    }
+
+    .implication-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+    }
+
+    .risk-high, .impact-high {
+        background: rgba(231, 76, 60, 0.3);
+        color: #e74c3c;
+    }
+
+    .risk-medium, .impact-medium {
+        background: rgba(243, 156, 18, 0.3);
+        color: #f39c12;
+    }
+
+    .risk-low, .impact-low {
+        background: rgba(46, 204, 113, 0.3);
+        color: #2ecc71;
+    }
+
+    .result-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin: 2rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-header {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .result-icon {
+        font-size: 2rem;
+    }
+
+    .result-title h4 {
+        color: #f39c12;
+        margin: 0 0 0.3rem 0;
+    }
+
+    .result-score {
+        color: #2ecc71;
+        font-weight: 600;
+    }
+
+    .result-content {
+        color: #e8f5e8;
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+
+    .learning-point {
+        background: rgba(243, 156, 18, 0.1);
+        padding: 0.8rem;
+        border-radius: 8px;
+        border-left: 4px solid #f39c12;
+        margin-top: 1rem;
+        color: #f39c12;
+    }
+
+    .impact-metrics {
+        margin-top: 1rem;
+    }
+
+    .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+    }
+
+    .metric-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .metric-label {
+        font-size: 0.8rem;
+        color: #b0e0b0;
+        margin-bottom: 0.2rem;
+    }
+
+    .metric-value {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #f39c12;
+    }
+
+    .scenario-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+    }
+
+    .btn-make-decision, .btn-analyze, .btn-continue, .btn-complete {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-make-decision {
+        background: linear-gradient(45deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+
+    .btn-analyze {
+        background: rgba(52, 152, 219, 0.2);
+        color: #3498db;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-continue {
+        background: linear-gradient(45deg, #2ecc71 0%, #27ae60 100%);
+        color: white;
+    }
+
+    .btn-complete {
+        background: linear-gradient(45deg, #9b59b6 0%, #8e44ad 100%);
+        color: white;
+    }
+
+    .btn-make-decision:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-make-decision:hover:not(:disabled), .btn-continue:hover, .btn-complete:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .analysis-panel {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: rgba(52, 152, 219, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        margin-top: 1rem;
+    }
+
+    .analysis-icon {
+        font-size: 1.5rem;
+        color: #3498db;
+    }
+
+    .analysis-content h4 {
+        color: #3498db;
+        margin: 0 0 0.5rem 0;
+    }
+
+    .analysis-content p {
+        color: #3498db;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #f39c12 0%, #e67e22 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .final-outcome {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .final-outcome h3 {
+        color: #f39c12;
+        margin-bottom: 0.5rem;
+    }
+
+    .final-outcome p {
+        color: #e8f5e8;
+        line-height: 1.6;
+        margin-bottom: 1rem;
+    }
+
+    .outcome-score {
+        background: rgba(243, 156, 18, 0.2);
+        color: #f39c12;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        display: inline-block;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    .result-stat {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(243, 156, 18, 0.1);
+        border-color: #f39c12;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0e0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #f39c12;
+    }
+
+    .decision-analysis {
+        margin-bottom: 2rem;
+        max-width: 800px;
+        width: 100%;
+    }
+
+    .decision-analysis h4 {
+        color: #f39c12;
+        margin-bottom: 1rem;
+    }
+
+    .path-visualization {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .path-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .step-number {
+        width: 30px;
+        height: 30px;
+        background: rgba(243, 156, 18, 0.3);
+        color: #f39c12;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .step-content {
+        flex: 1;
+    }
+
+    .step-decision {
+        font-weight: 600;
+        color: #ffffff;
+        margin-bottom: 0.3rem;
+    }
+
+    .step-outcome {
+        color: #b0e0b0;
+        font-size: 0.9rem;
+        line-height: 1.4;
+    }
+
+    .path-connector {
+        text-align: center;
+        color: #f39c12;
+        font-size: 1.5rem;
+        margin: 0.5rem 0;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #f39c12 0%, #e67e22 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #e8f5e8;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

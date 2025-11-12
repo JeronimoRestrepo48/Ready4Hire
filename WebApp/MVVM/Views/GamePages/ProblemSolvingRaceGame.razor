@@ -1,0 +1,513 @@
+@page "/game/problem-solving-race"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>🏃‍♂️ Carrera de Resolución - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">🏁 @currentProblem/@totalProblems</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">⏰ @FormatTime(timeElapsed)</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">🏃‍♂️</div>
+            <h1>Carrera de Resolución</h1>
+            <p>Resuelve problemas complejos contra el tiempo</p>
+            <div class="game-rules">
+                <h3>📋 Reglas:</h3>
+                <ul>
+                    <li>⏰ Tiempo limitado por problema</li>
+                    <li>🎯 5 problemas en total</li>
+                    <li>⭐ +100 pts por respuesta correcta</li>
+                    <li>⚡ Bonus por velocidad</li>
+                </ul>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame">
+                Iniciar Carrera
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetResultIcon()</div>
+            <h1>@GetResultTitle()</h1>
+            <div class="results-stats">
+                <div class="result-stat">
+                    <div class="stat-value">@currentScore</div>
+                    <div class="stat-label">Puntos Totales</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@correctAnswers/@totalProblems</div>
+                    <div class="stat-label">Correctos</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@FormatTime(timeElapsed)</div>
+                    <div class="stat-label">Tiempo Total</div>
+                </div>
+            </div>
+            <button class="btn-play-again" @onclick="RestartGame">Correr de Nuevo</button>
+            <button class="btn-back-results" @onclick="GoToGamification">Ver Gamificación</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-play">
+            <div class="question-container">
+                <div class="question-number">Problema @currentProblem de @totalProblems</div>
+                <div class="time-remaining">⏰ @problemTimeRemaining seg</div>
+                <h2 class="question-text">@problems[currentProblem - 1].Question</h2>
+                
+                <div class="answers-grid">
+                    @for (int i = 0; i < problems[currentProblem - 1].Options.Count; i++)
+                    {
+                        var index = i;
+                        var option = problems[currentProblem - 1].Options[index];
+                        var cssClass = "answer-option";
+                        if (selectedAnswer == index)
+                        {
+                            cssClass += " selected";
+                        }
+                        
+                        <button class="@cssClass" 
+                                @onclick="() => SelectAnswer(index)">
+                            <span class="option-letter">@GetOptionLetter(index)</span>
+                            <span class="option-text">@option</span>
+                        </button>
+                    }
+                </div>
+
+                <button class="btn-submit" @onclick="SubmitAnswer" disabled="@(selectedAnswer == -1)">
+                    Resolver Problema
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private int currentProblem = 1;
+    private int totalProblems = 5;
+    private int currentScore = 0;
+    private int correctAnswers = 0;
+    private int timeElapsed = 0;
+    private int problemTimeRemaining = 45;
+    private int selectedAnswer = -1;
+
+    private List<ProblemQuestion> problems = new();
+    private System.Threading.Timer? gameTimer;
+    private System.Threading.Timer? problemTimer;
+
+    public class ProblemQuestion
+    {
+        public string Question { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public int CorrectAnswer { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        InitializeProblems();
+    }
+
+    private void InitializeProblems()
+    {
+        problems = new List<ProblemQuestion>
+        {
+            new() {
+                Question = "Si un tren viaja a 80 km/h y necesita llegar en 2 horas, ¿qué distancia recorrerá?",
+                Options = new() {"120 km", "160 km", "180 km", "200 km"},
+                CorrectAnswer = 1
+            },
+            new() {
+                Question = "En una oficina hay 12 empleados. Si 3/4 trabajan desde casa, ¿cuántos están en la oficina?",
+                Options = new() {"2", "3", "4", "6"},
+                CorrectAnswer = 1
+            },
+            new() {
+                Question = "¿Cuál es la mejor estrategia para resolver un conflicto entre equipos?",
+                Options = new() {"Ignorar el problema", "Mediar y encontrar puntos en común", "Favorecer al equipo más fuerte", "Reorganizar los equipos"},
+                CorrectAnswer = 1
+            },
+            new() {
+                Question = "Si A > B, B > C, y C > D, ¿cuál es el orden correcto?",
+                Options = new() {"D > C > B > A", "A > B > C > D", "B > A > C > D", "C > D > A > B"},
+                CorrectAnswer = 1
+            },
+            new() {
+                Question = "¿Cuántos triángulos hay en una figura con 4 triángulos pequeños formando uno grande?",
+                Options = new() {"4", "5", "8", "10"},
+                CorrectAnswer = 2
+            }
+        };
+    }
+
+    private void StartGame()
+    {
+        gameStarted = true;
+        gameFinished = false;
+        currentProblem = 1;
+        currentScore = 0;
+        correctAnswers = 0;
+        timeElapsed = 0;
+        problemTimeRemaining = 45;
+        selectedAnswer = -1;
+        
+        StartTimers();
+    }
+
+    private void StartTimers()
+    {
+        // Timer principal del juego
+        gameTimer?.Dispose();
+        gameTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                timeElapsed++;
+                StateHasChanged();
+            });
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
+        // Timer del problema actual
+        StartProblemTimer();
+    }
+
+    private void StartProblemTimer()
+    {
+        problemTimeRemaining = 45;
+        problemTimer?.Dispose();
+        problemTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                if (problemTimeRemaining > 0)
+                {
+                    problemTimeRemaining--;
+                    StateHasChanged();
+                }
+                else
+                {
+                    problemTimer?.Dispose();
+                    NextProblem();
+                }
+            });
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+    private void SelectAnswer(int index)
+    {
+        selectedAnswer = index;
+    }
+
+    private void SubmitAnswer()
+    {
+        if (selectedAnswer == -1) return;
+
+        problemTimer?.Dispose();
+
+        if (selectedAnswer == problems[currentProblem - 1].CorrectAnswer)
+        {
+            correctAnswers++;
+            var timeBonus = problemTimeRemaining * 2;
+            currentScore += 100 + timeBonus;
+        }
+
+        NextProblem();
+    }
+
+    private void NextProblem()
+    {
+        currentProblem++;
+        selectedAnswer = -1;
+        
+        if (currentProblem > totalProblems)
+        {
+            EndGame();
+        }
+        else
+        {
+            StartProblemTimer();
+        }
+    }
+
+    private void EndGame()
+    {
+        gameFinished = true;
+        gameTimer?.Dispose();
+        problemTimer?.Dispose();
+    }
+
+    private void RestartGame()
+    {
+        StartGame();
+    }
+
+    private async Task GoBack()
+    {
+        if (await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/gamification");
+        }
+        else
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification");
+    }
+
+    private string GetResultIcon()
+    {
+        var accuracy = (float)correctAnswers / totalProblems;
+        return accuracy switch
+        {
+            >= 0.8f => "🏆",
+            >= 0.6f => "🥈",
+            >= 0.4f => "🥉",
+            _ => "📈"
+        };
+    }
+
+    private string GetResultTitle()
+    {
+        var accuracy = (float)correctAnswers / totalProblems;
+        return accuracy switch
+        {
+            >= 0.8f => "¡Velocista Excepcional!",
+            >= 0.6f => "¡Gran Corredor!",
+            >= 0.4f => "¡Buen Ritmo!",
+            _ => "Sigue Entrenando"
+        };
+    }
+
+    private string GetOptionLetter(int index)
+    {
+        return ((char)('A' + index)).ToString();
+    }
+
+    private string FormatTime(int seconds)
+    {
+        var minutes = seconds / 60;
+        var remainingSeconds = seconds % 60;
+        return $"{minutes:D2}:{remainingSeconds:D2}";
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Dispose();
+        problemTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 2rem;
+        min-height: 100vh;
+        background: #0a0a0a;
+        color: #fff;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #1a1a1a;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #1a1a1a;
+        color: #fff;
+        border: 1px solid #374151;
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: #374151;
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .stat-item {
+        background: #1a1a1a;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        border: 1px solid #374151;
+    }
+
+    .game-intro, .game-results {
+        text-align: center;
+        max-width: 600px;
+        margin: 4rem auto;
+    }
+
+    .intro-icon {
+        font-size: 6rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-rules {
+        background: #1a1a1a;
+        padding: 2rem;
+        border-radius: 12px;
+        margin: 2rem 0;
+        text-align: left;
+        border: 1px solid #374151;
+    }
+
+    .btn-start-game, .btn-play-again, .btn-back-results, .btn-submit {
+        background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        border: none;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-start-game:hover, .btn-play-again:hover, .btn-back-results:hover, .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    }
+
+    .btn-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .question-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .question-number {
+        font-size: 1.1rem;
+        color: #9ca3af;
+        margin-bottom: 0.5rem;
+    }
+
+    .time-remaining {
+        font-size: 1.2rem;
+        color: #e74c3c;
+        font-weight: bold;
+        margin-bottom: 1rem;
+    }
+
+    .question-text {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        line-height: 1.4;
+    }
+
+    .answers-grid {
+        display: grid;
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .answer-option {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: #1a1a1a;
+        border: 2px solid #374151;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: left;
+    }
+
+    .answer-option:hover {
+        border-color: #e74c3c;
+        background: #2a1a1a;
+    }
+
+    .answer-option.selected {
+        border-color: #e74c3c;
+        background: #3a1a1a;
+    }
+
+    .option-letter {
+        background: #374151;
+        color: white;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+
+    .option-text {
+        flex: 1;
+    }
+
+    .results-stats {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+    }
+
+    .result-stat {
+        text-align: center;
+        background: #1a1a1a;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #374151;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #e74c3c;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #9ca3af;
+        margin-top: 0.5rem;
+    }
+</style>

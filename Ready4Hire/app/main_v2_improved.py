@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 FastAPI Application v2.1 - Ready4Hire (IMPROVED)
 Arquitectura DDD con seguridad mejorada, rate limiting, y DTOs.
@@ -25,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from app.infrastructure.security.rate_limiting import get_rate_limit_key, RATE_LIMITS
 from typing import Optional
 from contextlib import asynccontextmanager
 import logging
@@ -37,21 +40,25 @@ from app.config import settings
 # Container DI
 from app.container import Container
 
+# Design Patterns
+from app.infrastructure.patterns.observer import get_event_bus, EventObserver
+from app.infrastructure.patterns.facade import InfrastructureFacade
+
 # ============================================================================
 # NEW FEATURES - v2.1 Enterprise Edition
 # ============================================================================
 
 # Redis Cache
-from app.infrastructure.cache.redis_cache import get_redis_cache, RedisCache
+from app.infrastructure.cache.redis_cache import get_redis_cache, RedisCacheService
 
 # WebSockets
-from app.infrastructure.websocket.websocket_manager import get_websocket_manager, WebSocketManager
+from app.infrastructure.websocket.websocket_manager import get_websocket_manager, ConnectionManager
 
 # Circuit Breaker
 from app.infrastructure.resilience.circuit_breaker import (
     with_circuit_breaker,
     with_retry_and_circuit_breaker,
-    CircuitBreakerOpenException
+    CircuitOpenError
 )
 
 # Telemetry & Monitoring
@@ -92,6 +99,7 @@ from app.domain.value_objects.context_questions import (
 )
 from app.domain.value_objects.interview_status import InterviewStatus
 from app.domain.value_objects.skill_level import SkillLevel
+from app.domain.value_objects.interview_mode import PRACTICE_MODE
 from app.domain.entities.interview import Interview
 from app.domain.entities.answer import Answer
 
@@ -102,6 +110,7 @@ from app.api.gamification_routes import router as gamification_router
 from app.api.rag_routes import router as rag_router
 from app.api.certificate_routes import router as certificate_router
 from app.api.graphql_router import router as graphql_router
+from app.api.audio_routes import router as audio_router
 
 # ============================================================================
 # Configurar Logging
@@ -111,9 +120,10 @@ logging.basicConfig(level=log_level, format="%(asctime)s - %(name)s - %(levelnam
 logger = logging.getLogger(__name__)
 
 # ============================================================================
-# Rate Limiter
+# Rate Limiter (with user-based limiting)
 # ============================================================================
-limiter = Limiter(key_func=get_remote_address)
+# Use custom key function that prioritizes user_id over IP
+limiter = Limiter(key_func=get_rate_limit_key)
 
 
 # ============================================================================
@@ -240,12 +250,39 @@ if Path(settings.STATIC_FILES_PATH).exists():
 # ============================================================================
 container: Optional[Container] = None
 
+# ============================================================================
+# Event Observers (Design Pattern: Observer)
+# ============================================================================
+
+class InterviewEventObserver(EventObserver):
+    """Observer para eventos de entrevistas."""
+    
+    def get_observed_events(self):
+        """Define qué eventos observar."""
+        return ["interview_started", "interview_completed", "answer_submitted", "question_answered"]
+    
+    def on_event(self, event):
+        """Maneja eventos de entrevistas."""
+        if event.name == "interview_started":
+            logger.info(f"📊 Entrevista iniciada: {event.data.get('interview_id')}")
+        elif event.name == "interview_completed":
+            logger.info(f"✅ Entrevista completada: {event.data.get('interview_id')}")
+        elif event.name == "answer_submitted":
+            logger.debug(f"💬 Respuesta enviada: {event.data.get('question_id')}")
+        elif event.name == "question_answered":
+            logger.debug(f"✅ Pregunta respondida: {event.data.get('question_id')} - Score: {event.data.get('score')}")
+
 
 def get_container() -> Container:
     """Obtiene el container de DI (lazy initialization)"""
     global container
     if container is None:
         container = Container(ollama_url=settings.OLLAMA_URL, ollama_model=None)  # Auto-detectar según GPU
+        
+        # Design Patterns: Registrar Event Observer
+        container.event_bus.subscribe(InterviewEventObserver())
+        logger.info("✅ Event Observer registrado para patrones de diseño")
+        
     return container
 
 
@@ -301,10 +338,14 @@ async def general_exception_handler(request: Request, exc: Exception):
 # ============================================================================
 # Include Routers
 # ============================================================================
+from app.api import auth_routes
+
+app.include_router(auth_routes.router)
 app.include_router(gamification_router)
 app.include_router(rag_router)
 app.include_router(certificate_router)
 app.include_router(graphql_router)
+app.include_router(audio_router)
 
 
 # ============================================================================
@@ -329,16 +370,32 @@ async def _select_questions_with_clustering(c: Container, interview, context_tex
     try:
         # 1. Obtener preguntas según tipo
         if interview.interview_type == "technical":
-            all_questions = await c.question_repository.find_all_technical()
+            # Primero intentar preguntas específicas del rol
+            role_questions = await c.question_repository.find_by_role(interview.role, category="technical")
+            # Si no hay suficientes, usar todas las preguntas técnicas
+            if len(role_questions) < MAIN_QUESTIONS_COUNT:
+                all_technical = await c.question_repository.find_all_technical()
+                # Combinar, priorizando las específicas del rol
+                all_questions = role_questions + [q for q in all_technical if q.id not in [rq.id for rq in role_questions]]
+            else:
+                all_questions = role_questions
         elif interview.interview_type == "soft_skills":
             all_questions = await c.question_repository.find_all_soft_skills()
         else:
-            tech_qs = await c.question_repository.find_all_technical()
+            # Mixed: obtener ambas
+            role_tech = await c.question_repository.find_by_role(interview.role, category="technical")
+            all_tech = await c.question_repository.find_all_technical()
             soft_qs = await c.question_repository.find_all_soft_skills()
-            all_questions = tech_qs + soft_qs
+            # Combinar priorizando preguntas específicas del rol
+            all_questions = role_tech + [q for q in all_tech if q.id not in [rq.id for rq in role_tech]] + soft_qs
 
         if not all_questions:
-            return []
+            logger.warning(f"⚠️ No se encontraron preguntas para {interview.role}, usando preguntas genéricas")
+            # Fallback: usar preguntas técnicas genéricas
+            all_questions = await c.question_repository.find_all_technical()
+            if not all_questions:
+                logger.error("❌ No hay preguntas técnicas disponibles en el sistema")
+                return []
 
         # 2. Filtrado por nivel
         level_filtered = [q for q in all_questions if q.difficulty == interview.skill_level.value]
@@ -420,7 +477,7 @@ async def health_check(request: Request):
     try:
         c = get_container()
         health_status = c.health_check()
-
+        
         # ────────────────────────────────────────────────────────────────────
         # Check NEW SERVICES - v2.1
         # ────────────────────────────────────────────────────────────────────
@@ -472,7 +529,7 @@ async def health_check(request: Request):
             for v in health_status.values()
         )
 
-        all_healthy = all("healthy" in v.lower() or "✅" in v for v in health_status.values())
+        all_healthy = all("healthy" in v.lower() or "✅" in v or "disabled" in v.lower() for v in health_status.values())
 
         overall_status = "degraded" if is_degraded else ("healthy" if all_healthy else "degraded")
 
@@ -487,6 +544,80 @@ async def health_check(request: Request):
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"status": "unhealthy", "error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()},
+        )
+
+
+@app.get("/health/ready", tags=["Health"])
+@limiter.limit("30/minute")
+async def readiness_check(request: Request):
+    """
+    Kubernetes readiness probe.
+    
+    Returns 200 if the service is ready to accept traffic.
+    Checks: Database, Redis, Qdrant, Ollama
+    """
+    try:
+        c = get_container()
+        health_status = c.health_check()
+        
+        # Check critical dependencies
+        critical_checks = [
+            health_status.get("components", {}).get("repositories"),
+            health_status.get("components", {}).get("llm_service"),
+        ]
+        
+        if not all(critical_checks):
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "reason": "Critical dependencies unavailable"}
+            )
+        
+        return {"status": "ready"}
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "error": str(e)}
+        )
+
+
+@app.get("/health/live", tags=["Health"])
+@limiter.limit("30/minute")
+async def liveness_check(request: Request):
+    """
+    Kubernetes liveness probe.
+    
+    Returns 200 if the service is alive (not stuck).
+    Simple check - just verify the service responds.
+    """
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+
+@app.get("/health/startup", tags=["Health"])
+@limiter.limit("30/minute")
+async def startup_check(request: Request):
+    """
+    Kubernetes startup probe.
+    
+    Returns 200 when the service has finished initializing.
+    Used for slow-starting services.
+    """
+    try:
+        # Check if all services are initialized
+        c = get_container()
+        
+        # Verify container is initialized
+        if not c:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "starting", "message": "Container not initialized"}
+            )
+        
+        return {"status": "started", "timestamp": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "starting", "error": str(e)}
         )
 
 
@@ -559,11 +690,24 @@ async def start_interview(
             skill_level=SkillLevel.from_string(interview_request.difficulty),
             interview_type=interview_request.category,
             current_phase="context",
-            mode="practice",
+            mode=PRACTICE_MODE,
         )
 
         await c.interview_repository.save(interview)
         logger.info(f"Entrevista iniciada: {interview.id} - Usuario: {interview_request.user_id}")
+
+        # Design Pattern: Observer - Publicar evento de entrevista iniciada
+        c.event_bus.publish(
+            "interview_started",
+            {
+                "interview_id": interview.id,
+                "user_id": interview_request.user_id,
+                "role": interview_request.role,
+                "difficulty": interview_request.difficulty,
+                "category": interview_request.category,
+            },
+            source="start_interview_endpoint"
+        )
 
         # Obtener primera pregunta de contexto (personalizada por profesión)
         # Usar nombre de profesión directamente del frontend
@@ -634,27 +778,40 @@ async def process_answer(
                 # Obtener perfil del usuario para mejorar clustering
                 user_profile = None
                 try:
-                    # Intentar obtener perfil del usuario desde PostgreSQL
-                    from app.infrastructure.persistence.postgres_sync_service import get_sync_session
+                    # Intentar obtener perfil del usuario desde PostgreSQL usando PostgresSyncService
+                    from app.infrastructure.persistence.postgres_sync_service import PostgresSyncService
+                    import asyncio
                     
-                    with get_sync_session() as session:
-                        result = session.execute(
-                            "SELECT profession, experience_level, skills, soft_skills, interests FROM users WHERE id = %s",
-                            (interview.user_id,)
-                        )
-                        user_row = result.fetchone()
+                    # Obtener instancia del servicio (si está disponible)
+                    sync_service = getattr(c, 'postgres_sync_service', None)
+                    if sync_service and sync_service.pool:
+                        # Usar pool asyncpg para consultar
+                        async def get_user_profile():
+                            async with sync_service.pool.acquire() as conn:
+                                row = await conn.fetchrow(
+                                    'SELECT "Profession", "ExperienceLevel", "Skills", "SoftSkills", "Interests" FROM "Users" WHERE "Id" = $1',
+                                    int(interview.user_id) if interview.user_id.isdigit() else None
+                                )
+                                if row:
+                                    return {
+                                        "profession": row["Profession"] if row["Profession"] else interview.role,
+                                        "experience_level": row["ExperienceLevel"],
+                                        "technical_skills": row["Skills"] if row["Skills"] else [],
+                                        "soft_skills": row["SoftSkills"] if row["SoftSkills"] else [],
+                                        "interests": row["Interests"] if row["Interests"] else [],
+                                    }
+                                return None
                         
-                        if user_row:
-                            user_profile = {
-                                "profession": user_row[0] if user_row[0] else interview.role,
-                                "experience_level": user_row[1],
-                                "technical_skills": user_row[2] if user_row[2] else [],
-                                "soft_skills": user_row[3] if user_row[3] else [],
-                                "interests": user_row[4] if user_row[4] else [],
-                            }
+                        # Ejecutar consulta async
+                        loop = asyncio.get_event_loop()
+                        user_profile = loop.run_until_complete(get_user_profile())
+                        
+                        if user_profile:
                             logger.info(f"📊 Perfil de usuario cargado: {user_profile.get('profession')}, {len(user_profile.get('technical_skills', []))} skills técnicas")
                 except Exception as e:
                     logger.warning(f"⚠️ No se pudo cargar perfil del usuario: {e}")
+                
+                if not user_profile:
                     user_profile = {"profession": interview.role}
 
                 # Seleccionar preguntas con ML (ahora incluye perfil del usuario)
@@ -726,22 +883,101 @@ async def process_answer(
             if not interview.current_question:
                 raise HTTPException(status_code=400, detail="No active question")
 
-            # Detectar emoción
-            emotion_result = c.emotion_detector.detect(answer_request.answer)
-            emotion = emotion_result["emotion"] if isinstance(emotion_result["emotion"], Emotion) else Emotion.NEUTRAL
+            # Detectar emoción con manejo robusto de errores
+            try:
+                emotion_result = c.emotion_detector.detect(answer_request.answer)
+                emotion = emotion_result["emotion"] if isinstance(emotion_result["emotion"], Emotion) else Emotion.NEUTRAL
+                emotion_confidence = emotion_result.get("confidence", 0.5)
+            except Exception as e:
+                logger.warning(f"⚠️ Emotion detection failed, using neutral: {e}")
+                emotion = Emotion.NEUTRAL
+                emotion_confidence = 0.5
 
-            # Evaluar con LLM
-            evaluation = c.evaluation_service.evaluate_answer(
-                question=interview.current_question.text,
-                answer=answer_request.answer,
-                expected_concepts=interview.current_question.expected_concepts,
-                keywords=interview.current_question.keywords,
-                category=interview.current_question.category,
-                difficulty=interview.current_question.difficulty,
-                role=interview.role,
+            # Verificar límite de tiempo en modo EXAM
+            if interview.mode.is_exam():
+                time_limit = interview.mode.time_limit_seconds()
+                if answer_request.time_taken and answer_request.time_taken > time_limit:
+                    logger.warning(f"⏱️ Tiempo agotado en modo examen: {answer_request.time_taken}s > {time_limit}s")
+                    await c.interview_repository.save(interview)
+                    return ProcessAnswerResponse(
+                        evaluation=EvaluationDTO(score=0, is_correct=False, feedback="Tiempo agotado"),
+                        feedback="⏱️ Se agotó el tiempo límite para esta pregunta en modo examen. Continuemos con la siguiente pregunta.",
+                        emotion=EmotionDTO(emotion="neutral", confidence=0.0),
+                        next_question=None,
+                        phase="questions",
+                        progress=ProgressDTO(
+                            context_completed=CONTEXT_QUESTIONS_COUNT,
+                            questions_completed=interview.metadata.get("current_question_index", 0),
+                            total_questions=MAIN_QUESTIONS_COUNT,
+                        ),
+                        interview_status="questions",
+                    )
+
+            # Obtener intentos actuales para esta pregunta (usar modo para determinar máximo)
+            current_question_id = interview.current_question.id
+            question_attempts_key = f"attempts_{current_question_id}"
+            current_attempt = interview.metadata.get(question_attempts_key, 0) + 1
+            MAX_ATTEMPTS = interview.mode.max_attempts_per_question()
+
+            # Design Pattern: Observer - Publicar evento de respuesta enviada
+            c.event_bus.publish(
+                "answer_submitted",
+                {
+                    "interview_id": interview.id,
+                    "question_id": interview.current_question.id,
+                    "user_id": interview.user_id,
+                    "answer_length": len(answer_request.answer),
+                },
+                source="process_answer_endpoint"
             )
 
-            # Generar feedback
+            # Evaluar con LLM (con fallback robusto)
+            try:
+                evaluation = c.evaluation_service.evaluate_answer(
+                    question=interview.current_question.text,
+                    answer=answer_request.answer,
+                    expected_concepts=interview.current_question.expected_concepts,
+                    keywords=interview.current_question.keywords,
+                    category=interview.current_question.category,
+                    difficulty=interview.current_question.difficulty,
+                    role=interview.role,
+                )
+            except Exception as e:
+                logger.error(f"Error en evaluación, usando fallback: {e}")
+                # Fallback: evaluación simple basada en keywords
+                keywords_found = sum(1 for kw in interview.current_question.keywords if kw.lower() in answer_request.answer.lower())
+                concepts_found = sum(1 for ec in interview.current_question.expected_concepts if ec.lower() in answer_request.answer.lower())
+                
+                score = min(5.0, (keywords_found / max(len(interview.current_question.keywords), 1)) * 5 + 
+                           (concepts_found / max(len(interview.current_question.expected_concepts), 1)) * 5)
+                
+                evaluation = {
+                    "score": score,
+                    "is_correct": score >= 6.0,
+                    "justification": "No se pudo evaluar la respuesta completamente. Revisa los conceptos clave mencionados.",
+                    "breakdown": {},
+                    "strengths": ["Estás intentando responder"] if len(answer_request.answer) > 10 else [],
+                    "improvements": ["Asegúrate de mencionar conceptos clave relacionados con la pregunta"],
+                    "concepts_covered": [],
+                    "missing_concepts": interview.current_question.expected_concepts,
+                }
+                logger.warning(f"🔄 FALLBACK ACTIVADO: Evaluación - Razón: {str(e)}")
+            
+            # Design Pattern: Observer - Publicar evento de pregunta respondida
+            c.event_bus.publish(
+                "question_answered",
+                {
+                    "interview_id": interview.id,
+                    "question_id": interview.current_question.id,
+                    "score": evaluation.get("score", 0),
+                    "is_correct": evaluation.get("is_correct", False),
+                    "attempt": current_attempt,
+                },
+                source="process_answer_endpoint"
+            )
+
+            # Generar feedback (usar estilo según modo)
+            feedback_style = interview.mode.feedback_style()
             feedback_result = c.feedback_service.generate_feedback(
                 question=interview.current_question.text,
                 answer=answer_request.answer,
@@ -750,6 +986,158 @@ async def process_answer(
                 role=interview.role,
                 category=interview.current_question.category,
             )
+            
+            # Generar feedback motivacional si respuesta incorrecta (solo modo PRÁCTICA)
+            motivational_feedback = ""
+            if not evaluation["is_correct"] and interview.mode.is_practice():
+                try:
+                    from app.infrastructure.llm.advanced_prompts import get_prompt_engine
+                    prompt_engine = get_prompt_engine()
+                    motivational_prompt = prompt_engine.get_motivational_feedback_prompt(
+                        role=interview.role,
+                        question=interview.current_question.text,
+                        answer=answer_request.answer,
+                        evaluation=evaluation,
+                        attempt=current_attempt,
+                    )
+                    motivational_response = c.evaluation_service.llm_service.generate(
+                        prompt=motivational_prompt,
+                        temperature=0.8,
+                        max_tokens=200,
+                    )
+                    from app.infrastructure.llm.response_sanitizer import ResponseSanitizer
+                    sanitizer = ResponseSanitizer()
+                    motivational_feedback = sanitizer.sanitize_feedback(
+                        motivational_response, 
+                        role=interview.role, 
+                        category=interview.current_question.category
+                    )
+                except Exception as e:
+                    logger.warning(f"Error generando feedback motivacional: {e}")
+                    # Fallback
+                    motivational_feedback = "💪 No te desanimes. Cada intento es una oportunidad de aprender. ¡Sigue adelante!"
+                    logger.warning(f"🔄 FALLBACK ACTIVADO: Feedback motivacional - Razón: {str(e)}")
+            
+            # Agregar feedback motivacional al feedback principal
+            if motivational_feedback:
+                feedback_result = f"{feedback_result}\n\n{motivational_feedback}"
+
+            # Sistema de intentos: Si respuesta incorrecta y quedan intentos, generar hint (solo modo PRÁCTICA)
+            attempts_left = MAX_ATTEMPTS - current_attempt
+            hint = None
+            
+            # MEJORA v3.4: Registrar métricas de intentos
+            try:
+                from app.infrastructure.monitoring.metrics import get_metrics
+                metrics = get_metrics(enabled=True)
+                metrics.inc_counter("attempts_total")
+                metrics.observe_histogram("attempts_per_question", current_attempt)
+            except Exception:
+                pass  # Métricas opcionales
+            
+            # Solo generar hints si está en modo PRÁCTICA y hints están habilitados
+            if not evaluation["is_correct"] and attempts_left > 0 and interview.mode.hints_enabled():
+                # Generar hint progresivo usando advanced_prompts
+                try:
+                    from app.infrastructure.llm.advanced_prompts import get_prompt_engine
+                    prompt_engine = get_prompt_engine()
+                    hint_prompt = prompt_engine.get_hint_prompt(
+                        role=interview.role,
+                        question=interview.current_question.text,
+                        answer=answer_request.answer,
+                        expected_concepts=interview.current_question.expected_concepts,
+                        attempts=current_attempt,
+                    )
+                    # Generar hint con LLM
+                    hint_response = c.evaluation_service.llm_service.generate(
+                        prompt=hint_prompt,
+                        temperature=0.7,
+                        max_tokens=150,
+                    )
+                    # Sanitizar hint
+                    from app.infrastructure.llm.response_sanitizer import ResponseSanitizer
+                    sanitizer = ResponseSanitizer()
+                    hint = sanitizer.sanitize_feedback(hint_response, role=interview.role, category=interview.current_question.category)
+                    # Agregar hint al feedback
+                    feedback_result = f"{feedback_result}\n\n💡 Pista (intento {current_attempt}/{MAX_ATTEMPTS}): {hint}"
+                    # MEJORA v3.4: Registrar métricas de hints
+                    try:
+                        from app.infrastructure.monitoring.metrics import get_metrics
+                        get_metrics(enabled=True).inc_counter("hints_generated_total")
+                    except Exception:
+                        pass
+                except Exception as e:
+                    logger.warning(f"Error generando hint: {e}")
+                    # Fallback hint simple
+                    if current_attempt == 1:
+                        hint = f"💡 Considera revisar los conceptos clave: {', '.join(interview.current_question.expected_concepts[:2])}"
+                    elif current_attempt == 2:
+                        hint = f"💡 Piensa en cómo estos conceptos se relacionan: {', '.join(interview.current_question.expected_concepts)}"
+                    else:
+                        hint = f"💡 La respuesta debería incluir: {', '.join(interview.current_question.expected_concepts)}"
+                    feedback_result = f"{feedback_result}\n\n{hint}"
+            
+            # Si se agotaron los intentos y respuesta incorrecta, dar respuesta correcta con consejos (solo modo PRÁCTICA)
+            if not evaluation["is_correct"] and current_attempt >= MAX_ATTEMPTS and interview.mode.is_practice():
+                try:
+                    from app.infrastructure.llm.advanced_prompts import get_prompt_engine
+                    prompt_engine = get_prompt_engine()
+                    
+                    # Generar respuesta correcta
+                    correct_answer_prompt = prompt_engine.get_correct_answer_prompt(
+                        role=interview.role,
+                        question=interview.current_question.text,
+                        expected_concepts=interview.current_question.expected_concepts,
+                    )
+                    correct_answer_response = c.evaluation_service.llm_service.generate(
+                        prompt=correct_answer_prompt,
+                        temperature=0.6,
+                        max_tokens=300,
+                    )
+                    from app.infrastructure.llm.response_sanitizer import ResponseSanitizer
+                    sanitizer = ResponseSanitizer()
+                    correct_answer = sanitizer.sanitize_feedback(
+                        correct_answer_response,
+                        role=interview.role,
+                        category=interview.current_question.category
+                    )
+                    
+                    # Generar consejos de mejora
+                    improvement_prompt = prompt_engine.get_improvement_tips_prompt(
+                        role=interview.role,
+                        question=interview.current_question.text,
+                        answer=answer_request.answer,
+                        correct_answer=correct_answer,
+                    )
+                    improvement_response = c.evaluation_service.llm_service.generate(
+                        prompt=improvement_prompt,
+                        temperature=0.7,
+                        max_tokens=200,
+                    )
+                    improvement_tips = sanitizer.sanitize_feedback(
+                        improvement_response,
+                        role=interview.role,
+                        category=interview.current_question.category
+                    )
+                    
+                    feedback_result = (
+                        f"{feedback_result}\n\n"
+                        "📚 Respuesta Correcta Esperada:\n"
+                        f"{correct_answer}\n\n"
+                        "💡 Consejos de Mejora:\n"
+                        f"{improvement_tips}\n"
+                    )
+                except Exception as e:
+                    logger.warning(f"Error generando respuesta correcta: {e}")
+                    # Fallback simple
+                    feedback_result = (
+                        f"{feedback_result}\n\n"
+                        "📚 Conceptos clave que debías mencionar: "
+                        f"{', '.join(interview.current_question.expected_concepts)}\n"
+                        "💡 Recomendación: Estudia estos conceptos y cómo se relacionan "
+                        "para fortalecer tu comprensión.\n"
+                    )
+                    logger.warning(f"🔄 FALLBACK ACTIVADO: Respuesta correcta - Razón: {str(e)}")
 
             # Guardar respuesta
             from app.domain.value_objects.score import Score
@@ -762,16 +1150,74 @@ async def process_answer(
                 emotion=emotion,
                 time_taken=answer_request.time_taken or 0,
                 evaluation_details=evaluation,
+                hints_used=1 if hint else 0,
             )
 
-            interview.add_answer(answer_entity)
+            # Actualizar intentos en metadata
+            interview.metadata[question_attempts_key] = current_attempt
 
-            current_index = interview.metadata.get("current_question_index", 0) + 1
-            interview.metadata["current_question_index"] = current_index
+            # Solo avanzar si respuesta correcta O si ya usó todos los intentos
+            should_advance = evaluation["is_correct"] or current_attempt >= MAX_ATTEMPTS
+            
+            if should_advance:
+                # Guardar respuesta: usar la actual directamente (es la más reciente)
+                interview.add_answer(answer_entity)
+                # Limpiar intentos y respuestas temporales de esta pregunta
+                if question_attempts_key in interview.metadata:
+                    del interview.metadata[question_attempts_key]
+                if f"last_answer_{current_question_id}" in interview.metadata:
+                    del interview.metadata[f"last_answer_{current_question_id}"]
+                current_index = interview.metadata.get("current_question_index", 0) + 1
+                interview.metadata["current_question_index"] = current_index
+            else:
+                # Guardar respuesta temporalmente pero no avanzar
+                # Se guardará cuando sea correcta o se agoten los intentos
+                interview.metadata[f"last_answer_{current_question_id}"] = answer_entity.to_dict()
+                # No incrementar índice todavía
+                current_index = interview.metadata.get("current_question_index", 0)
 
             logger.info(
-                f"✅ Respuesta evaluada: score={evaluation['score']}, pregunta {current_index}/{MAIN_QUESTIONS_COUNT}"
+                f"✅ Respuesta evaluada: score={evaluation['score']}, intento {current_attempt}/{MAX_ATTEMPTS}, pregunta {current_index}/{MAIN_QUESTIONS_COUNT}"
             )
+
+            # Si no avanzamos, permitir reintentar la misma pregunta
+            if not should_advance:
+                await c.interview_repository.save(interview)
+                return ProcessAnswerResponse(
+                    evaluation=EvaluationDTO(
+                        score=evaluation["score"],
+                        is_correct=evaluation["is_correct"],
+                        feedback=evaluation.get("justification", ""),
+                        breakdown=evaluation.get("breakdown"),
+                        strengths=evaluation.get("strengths", []),
+                        improvements=evaluation.get("improvements", []),
+                        concepts_covered=evaluation.get("concepts_covered", []),
+                        missing_concepts=evaluation.get("missing_concepts", []),
+                    ),
+                    feedback=feedback_result,
+                    emotion=EmotionDTO(
+                        emotion=emotion.value,
+                        confidence=emotion_result.get("confidence", 0.0),
+                        language=emotion_result.get("language"),
+                    ),
+                    next_question=QuestionDTO(
+                        id=interview.current_question.id,
+                        text=interview.current_question.text,
+                        category=interview.current_question.category,
+                        difficulty=interview.current_question.difficulty,
+                        topic=interview.current_question.topic,
+                        expected_concepts=interview.current_question.expected_concepts,
+                    ),
+                    phase="questions",
+                    progress=ProgressDTO(
+                        context_completed=CONTEXT_QUESTIONS_COUNT,
+                        questions_completed=current_index,
+                        total_questions=MAIN_QUESTIONS_COUNT,
+                        percentage=(current_index / MAIN_QUESTIONS_COUNT) * 100,
+                    ),
+                    attempts_left=attempts_left,
+                    interview_status="questions",
+                )
 
             # ¿Completamos la entrevista?
             if current_index >= MAIN_QUESTIONS_COUNT:
@@ -779,6 +1225,101 @@ async def process_answer(
                 await c.interview_repository.save(interview)
 
                 logger.info(f"🎉 Entrevista completada: {interview_id}")
+                
+                # Design Pattern: Observer - Publicar evento de entrevista completada
+                overall_score = sum([a.score.value for a in interview.answers]) / len(interview.answers) if interview.answers else 0
+                c.event_bus.publish(
+                    "interview_completed",
+                    {
+                        "interview_id": interview.id,
+                        "user_id": interview.user_id,
+                        "role": interview.role,
+                        "total_questions": MAIN_QUESTIONS_COUNT,
+                        "final_score": overall_score,
+                    },
+                    source="process_answer_endpoint"
+                )
+                
+                # Generar feedback final completo
+                final_feedback_text = ""
+                try:
+                    all_answers = [
+                        {
+                            "question": q.text,
+                            "answer": a.text,
+                            "score": a.score.value,
+                            "is_correct": a.is_correct,
+                            "evaluation_details": a.evaluation_details,
+                        }
+                        for q, a in zip(interview.questions_history, interview.answers_history)
+                    ]
+                    
+                    accuracy = sum([1 for a in interview.answers if a.is_correct]) / len(interview.answers) * 100 if interview.answers else 0
+                    
+                    final_feedback_text = c.feedback_service.generate_final_feedback(
+                        role=interview.role,
+                        category=interview.interview_type,
+                        all_answers=all_answers,
+                        overall_score=overall_score,
+                        accuracy=accuracy,
+                    )
+                except Exception as e:
+                    logger.error(f"Error generando feedback final: {e}")
+                    final_feedback_text = f"¡Felicidades por completar la entrevista! Tu score promedio fue {overall_score:.2f}/10."
+                    logger.warning(f"🔄 FALLBACK ACTIVADO: Feedback final - Razón: {str(e)}")
+                
+                # Generar reporte completo con gráficos
+                report_data = None
+                report_url = None
+                certificate_eligible = False
+                certificate_id = None
+                
+                try:
+                    from app.infrastructure.llm.report_generator import get_report_generator
+                    import json
+                    
+                    report_generator = get_report_generator()
+                    
+                    interview_data = {
+                        "id": interview.id,
+                        "role": interview.role,
+                        "mode": interview.mode.to_string(),
+                        "completed_at": interview.completed_at.isoformat() if interview.completed_at else datetime.now(timezone.utc).isoformat(),
+                        "answers_history": [a.to_dict() for a in interview.answers],
+                        "questions_history": [q.to_dict() for q in interview.questions_history],
+                    }
+                    
+                    user_data = {
+                        "name": f"User_{interview.user_id}",
+                        "user_id": interview.user_id,
+                    }
+                    
+                    report = report_generator.generate_report(interview_data, user_data)
+                    
+                    # Exportar a JSON
+                    report_json_str = report_generator.export_to_json(report)
+                    report_data = json.loads(report_json_str)
+                    
+                    # Guardar reporte en metadata de entrevista
+                    interview.metadata["report"] = report_json_str
+                    interview.metadata["report_id"] = report.interview_id
+                    interview.metadata["certificate_eligible"] = report.certificate_eligible
+                    interview.metadata["certificate_id"] = report.certificate_id
+                    
+                    report_url = report.shareable_url
+                    certificate_eligible = report.certificate_eligible
+                    certificate_id = report.certificate_id
+                    
+                    await c.interview_repository.save(interview)
+                    
+                    logger.info(f"📊 Reporte generado para entrevista {interview.id}")
+                except Exception as e:
+                    logger.error(f"Error generando reporte: {e}")
+                    logger.warning(f"🔄 FALLBACK ACTIVADO: Reporte - Razón: {str(e)}")
+                    # Continuar sin reporte (no crítico)
+                
+                # Agregar feedback final al feedback principal
+                feedback_result = f"{feedback_result}\n\n🎉 FEEDBACK FINAL:\n{final_feedback_text}"
 
                 return ProcessAnswerResponse(
                     evaluation=EvaluationDTO(
@@ -807,6 +1348,10 @@ async def process_answer(
                     ),
                     interview_status="completed",
                     interview_completed=True,
+                    final_report=report_data,
+                    report_url=report_url,
+                    certificate_eligible=certificate_eligible,
+                    certificate_id=certificate_id,
                 )
             else:
                 # Siguiente pregunta
@@ -851,6 +1396,7 @@ async def process_answer(
                                 total_questions=MAIN_QUESTIONS_COUNT,
                                 percentage=(current_index / MAIN_QUESTIONS_COUNT) * 100,
                             ),
+                            attempts_left=None,  # Nueva pregunta, resetear intentos
                             interview_status="questions",
                         )
 

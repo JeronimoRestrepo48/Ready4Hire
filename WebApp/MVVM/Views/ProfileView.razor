@@ -7,7 +7,7 @@
 
 <PageTitle>Mi Perfil - Ready4Hire</PageTitle>
 
-<div class="profile-container">
+<div class="profile-container-full">
     @if (isLoading)
     {
         <div class="loading">
@@ -18,154 +18,189 @@
     else if (user != null)
     {
         <!-- Header del Perfil -->
-        <div class="profile-header">
-            <div class="avatar-section">
-                <div class="avatar-large">
+        <div class="profile-header-modern">
+            <div class="avatar-section-modern">
+                <div class="avatar-large-modern">
                     @GetUserInitials()
                 </div>
-                <button class="btn-change-avatar">Cambiar Avatar</button>
+                <button class="btn-change-avatar-modern">Cambiar Avatar</button>
             </div>
             
-            <div class="user-info-section">
-                <h1 class="profile-name">@user.Name @user.LastName</h1>
-                <p class="user-email-highlight">@user.Email</p>
-                <p class="user-profession">@(user.Profession ?? "Sin profesión asignada") • @(user.ExperienceLevel ?? "Principiante")</p>
+            <div class="user-info-section-modern">
+                <h1 class="profile-name-modern">@user.Name @user.LastName</h1>
+                <p class="user-email-modern">@user.Email</p>
+                <p class="user-profession-modern">@(user.Profession ?? "Sin profesión asignada") • @(user.ExperienceLevel ?? "Principiante")</p>
             </div>
 
-            <div class="profile-stats-quick">
-                <div class="quick-stat">
-                    <div class="stat-icon">🏆</div>
-                    <div class="stat-value">@user.TotalPoints</div>
-                    <div class="stat-label">Puntos</div>
+            <div class="profile-stats-quick-modern">
+                <div class="quick-stat-modern">
+                    <div class="stat-icon-modern">🏆</div>
+                    <div class="stat-value-modern">@user.TotalPoints</div>
+                    <div class="stat-label-modern">Puntos</div>
                 </div>
-                <div class="quick-stat">
-                    <div class="stat-icon">⭐</div>
-                    <div class="stat-value">Nivel @user.Level</div>
-                    <div class="stat-label">@GetXpProgress()% al siguiente</div>
+                <div class="quick-stat-modern">
+                    <div class="stat-icon-modern">⭐</div>
+                    <div class="stat-value-modern">Nivel @user.Level</div>
+                    <div class="stat-label-modern">@GetXpProgress()% al siguiente</div>
                 </div>
-                <div class="quick-stat">
-                    <div class="stat-icon">🔥</div>
-                    <div class="stat-value">@user.StreakDays</div>
-                    <div class="stat-label">Días de racha</div>
+                <div class="quick-stat-modern">
+                    <div class="stat-icon-modern">🔥</div>
+                    <div class="stat-value-modern">@user.StreakDays</div>
+                    <div class="stat-label-modern">Días de racha</div>
                 </div>
             </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="profile-tabs">
-            <button class="tab-btn @(activeTab == "info" ? "active" : "")" @onclick='() => activeTab = "info"'>
-                Información
+        <!-- Sistema de Pestañas -->
+        <div class="profile-tabs-modern">
+            <button class="tab-btn-modern @(activeTab == "info" ? "active" : "")" @onclick='() => SwitchTab("info")'>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Información</span>
             </button>
-            <button class="tab-btn @(activeTab == "badges" ? "active" : "")" @onclick='() => activeTab = "badges"'>
-                🏅 Insignias (@userBadges.Count(b => b.IsUnlocked))
+            <button class="tab-btn-modern @(activeTab == "badges" ? "active" : "")" @onclick='() => SwitchTab("badges")'>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"></path>
+                </svg>
+                <span>Insignias</span>
+                @if (userBadges.Count(b => b.IsUnlocked) > 0)
+                {
+                    <span class="tab-badge-count">@userBadges.Count(b => b.IsUnlocked)</span>
+                }
             </button>
-            <button class="tab-btn @(activeTab == "progress" ? "active" : "")" @onclick='() => activeTab = "progress"'>
-                Progreso
-            </button>
-            <button class="tab-btn @(activeTab == "settings" ? "active" : "")" @onclick='() => activeTab = "settings"'>
-                Configuración
+            <button class="tab-btn-modern @(activeTab == "progress" ? "active" : "")" @onclick='() => SwitchTab("progress")'>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                <span>Progreso</span>
             </button>
         </div>
 
-        <!-- Tab Content -->
-        <div class="profile-content">
+        <!-- Contenido de Pestañas -->
+        <div class="profile-content-modern">
             @if (activeTab == "info")
             {
-                <div class="info-section">
-                    <div class="info-card">
-                        <h3>Información Personal</h3>
-                        <div class="info-grid">
-                            <div class="info-item">
+                <!-- Pestaña: Información Personal y Habilidades -->
+                <div class="tab-content-modern">
+                    <div class="info-card-modern">
+                        <div class="card-header-modern">
+                            <h3>📋 Información Personal</h3>
+                            <button class="btn-edit-modern">Editar</button>
+                        </div>
+                        <div class="info-grid-modern">
+                            <div class="info-item-modern">
                                 <label>Nombre:</label>
                                 <span>@user.Name</span>
                             </div>
-                            <div class="info-item">
+                            <div class="info-item-modern">
                                 <label>Apellido:</label>
                                 <span>@user.LastName</span>
                             </div>
-                            <div class="info-item">
+                            <div class="info-item-modern">
                                 <label>Email:</label>
                                 <span>@user.Email</span>
                             </div>
-                            <div class="info-item">
+                            <div class="info-item-modern">
                                 <label>País:</label>
-                                <span>@user.Country</span>
+                                <span>@(user.Country ?? "No especificado")</span>
                             </div>
-                            <div class="info-item">
+                            <div class="info-item-modern">
                                 <label>Trabajo:</label>
-                                <span>@user.Job</span>
+                                <span>@(user.Job ?? "No especificado")</span>
                             </div>
-                            <div class="info-item">
+                            <div class="info-item-modern">
                                 <label>Profesión:</label>
                                 <span>@(user.Profession ?? "No especificada")</span>
                             </div>
-                            <div class="info-item">
+                            <div class="info-item-modern">
                                 <label>Nivel de Experiencia:</label>
                                 <span>@(user.ExperienceLevel ?? "Principiante")</span>
                             </div>
                         </div>
-                        <button class="btn-edit">Editar Información</button>
                     </div>
 
-                    <div class="info-card">
-                        <div class="card-header-with-action">
-                            <h3>Habilidades Técnicas</h3>
-                            <button class="btn-add-skill" @onclick="@(() => ShowAddSkillModal("technical"))">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <div class="skills-card-modern">
+                        <div class="card-header-modern">
+                            <h3>💻 Habilidades Técnicas</h3>
+                            <button class="btn-add-skill-modern" @onclick="@(() => ShowAddSkillModal("technical"))">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5V19M5 12H19"></path>
                                 </svg>
                                 Agregar
                             </button>
                         </div>
-                        <div class="skills-tags">
-                            @foreach (var skill in user.Skills)
+                        <div class="skills-tags-modern">
+                            @if (user.Skills.Any())
                             {
-                                <span class="skill-tag technical">
-                                    @skill
-                                    <button class="remove-skill" @onclick="@(() => RemoveSkill("technical", skill))">×</button>
-                                </span>
+                                @foreach (var skill in user.Skills)
+                                {
+                                    <span class="skill-tag-modern technical-tag">
+                                        @skill
+                                        <button class="remove-skill-modern" @onclick="@(() => RemoveSkill("technical", skill))" title="Eliminar">×</button>
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <p class="empty-state">No hay habilidades técnicas agregadas. ¡Agrega tu primera habilidad!</p>
                             }
                         </div>
                     </div>
 
-                    <div class="info-card">
-                        <div class="card-header-with-action">
-                            <h3>Habilidades Blandas</h3>
-                            <button class="btn-add-skill" @onclick="@(() => ShowAddSkillModal("soft"))">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <div class="skills-card-modern">
+                        <div class="card-header-modern">
+                            <h3>🤝 Habilidades Blandas</h3>
+                            <button class="btn-add-skill-modern" @onclick="@(() => ShowAddSkillModal("soft"))">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5V19M5 12H19"></path>
                                 </svg>
                                 Agregar
                             </button>
                         </div>
-                        <div class="skills-tags">
-                            @foreach (var skill in user.Softskills)
+                        <div class="skills-tags-modern">
+                            @if (user.Softskills.Any())
                             {
-                                <span class="skill-tag soft">
-                                    @skill
-                                    <button class="remove-skill" @onclick="@(() => RemoveSkill("soft", skill))">×</button>
-                                </span>
+                                @foreach (var skill in user.Softskills)
+                                {
+                                    <span class="skill-tag-modern soft-tag">
+                                        @skill
+                                        <button class="remove-skill-modern" @onclick="@(() => RemoveSkill("soft", skill))" title="Eliminar">×</button>
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <p class="empty-state">No hay habilidades blandas agregadas. ¡Agrega tu primera habilidad!</p>
                             }
                         </div>
                     </div>
 
-                    <div class="info-card">
-                        <div class="card-header-with-action">
-                            <h3>Intereses</h3>
-                            <button class="btn-add-skill" @onclick="@(() => ShowAddSkillModal("interest"))">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <div class="skills-card-modern">
+                        <div class="card-header-modern">
+                            <h3>🎯 Intereses</h3>
+                            <button class="btn-add-skill-modern" @onclick="@(() => ShowAddSkillModal("interest"))">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 5V19M5 12H19"></path>
                                 </svg>
                                 Agregar
                             </button>
                         </div>
-                        <div class="skills-tags">
-                            @foreach (var interest in user.Interests)
+                        <div class="skills-tags-modern">
+                            @if (user.Interests.Any())
                             {
-                                <span class="skill-tag interest">
-                                    @interest
-                                    <button class="remove-skill" @onclick="@(() => RemoveSkill("interest", interest))">×</button>
-                                </span>
+                                @foreach (var interest in user.Interests)
+                                {
+                                    <span class="skill-tag-modern interest-tag">
+                                        @interest
+                                        <button class="remove-skill-modern" @onclick="@(() => RemoveSkill("interest", interest))" title="Eliminar">×</button>
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <p class="empty-state">No hay intereses agregados. ¡Agrega tus intereses profesionales!</p>
                             }
                         </div>
                     </div>
@@ -173,23 +208,39 @@
             }
             else if (activeTab == "badges")
             {
-                <div class="badges-section">
-                    <div class="badges-header">
-                        <h2>🏅 Mis Insignias</h2>
-                        <p>@userBadges.Count(b => b.IsUnlocked) de @availableBadges.Count desbloqueadas</p>
+                <!-- Pestaña: Insignias -->
+                <div class="tab-content-modern">
+                    <div class="badges-header-modern">
+                        <div>
+                            <h2>🏅 Mis Insignias</h2>
+                            <p class="badges-count-text">@userBadges.Count(b => b.IsUnlocked) de @availableBadges.Count desbloqueadas</p>
+                        </div>
+                        <div class="badge-progress-ring">
+                            <svg class="progress-ring" width="80" height="80">
+                                <circle class="progress-ring-bg" cx="40" cy="40" r="36" stroke-width="6"></circle>
+                                <circle class="progress-ring-fill" cx="40" cy="40" r="36" stroke-width="6" 
+                                        style="stroke-dasharray: @(2 * Math.PI * 36 * (userBadges.Count(b => b.IsUnlocked) / (double)Math.Max(availableBadges.Count, 1))) @(2 * Math.PI * 36);"></circle>
+                            </svg>
+                            <span class="progress-percentage">@((int)((userBadges.Count(b => b.IsUnlocked) / (double)Math.Max(availableBadges.Count, 1)) * 100))%</span>
+                        </div>
+                    </div>
+
+                    <div class="badges-explanation-modern">
+                        <span>💡</span>
+                        <p><strong>Las insignias son logros permanentes</strong> que desbloqueas por completar hitos específicos. Son diferentes a los logros temporales de la gamificación.</p>
                     </div>
 
                     <!-- Filtros -->
-                    <div class="badge-filters">
-                        <select @bind="badgeFilterRarity" class="filter-select">
-                            <option value="">Todas las raritas</option>
+                    <div class="badge-filters-modern">
+                        <select @bind="badgeFilterRarity" class="filter-select-modern">
+                            <option value="">Todas las rarezas</option>
                             <option value="common">Común</option>
                             <option value="rare">Raro</option>
                             <option value="epic">Épico</option>
                             <option value="legendary">Legendario</option>
                         </select>
 
-                        <select @bind="badgeFilterCategory" class="filter-select">
+                        <select @bind="badgeFilterCategory" class="filter-select-modern">
                             <option value="">Todas las categorías</option>
                             <option value="milestone">Hitos</option>
                             <option value="technical">Técnicas</option>
@@ -198,31 +249,31 @@
                             <option value="general">General</option>
                         </select>
 
-                        <label class="filter-checkbox">
+                        <label class="filter-checkbox-modern">
                             <input type="checkbox" @bind="showOnlyUnlocked" />
                             <span>Solo desbloqueadas</span>
                         </label>
                     </div>
 
                     <!-- Grid de Badges -->
-                    <div class="badges-grid">
+                    <div class="badges-grid-modern">
                         @foreach (var userBadge in GetFilteredBadges())
                         {
                             var badge = availableBadges.FirstOrDefault(b => b.Id == userBadge.BadgeId);
                             if (badge != null)
                             {
-                                <div class="badge-card @(userBadge.IsUnlocked ? "unlocked" : "locked") rarity-@badge.Rarity">
-                                    <div class="badge-icon-large">@badge.Icon</div>
-                                    <div class="badge-rarity">@GetRarityName(badge.Rarity)</div>
+                                <div class="badge-card-modern @(userBadge.IsUnlocked ? "unlocked" : "locked") rarity-@badge.Rarity">
+                                    <div class="badge-icon-large-modern">@badge.Icon</div>
+                                    <div class="badge-rarity-modern">@GetRarityName(badge.Rarity)</div>
                                     <h4>@badge.Name</h4>
                                     <p>@badge.Description</p>
                                     
                                     @if (userBadge.IsUnlocked)
                                     {
-                                        <div class="badge-unlocked-info">
-                                            <span class="unlocked-badge">✅ Desbloqueado</span>
-                                            <span class="unlock-date">@userBadge.UnlockedAt.ToString("dd MMM yyyy")</span>
-                                            <div class="badge-rewards">
+                                        <div class="badge-unlocked-info-modern">
+                                            <span class="unlocked-badge-modern">✅ Desbloqueado</span>
+                                            <span class="unlock-date-modern">@userBadge.UnlockedAt.ToString("dd MMM yyyy")</span>
+                                            <div class="badge-rewards-modern">
                                                 <span>+@badge.RewardPoints pts</span>
                                                 <span>+@badge.RewardXp XP</span>
                                             </div>
@@ -230,12 +281,12 @@
                                     }
                                     else
                                     {
-                                        <div class="badge-progress-section">
-                                            <div class="progress-bar">
-                                                <div class="progress-fill" style="width: @(userBadge.Progress * 100)%"></div>
+                                        <div class="badge-progress-section-modern">
+                                            <div class="progress-bar-modern">
+                                                <div class="progress-fill-modern" style="width: @(userBadge.Progress * 100)%"></div>
                                             </div>
-                                            <span class="progress-text">@((int)(userBadge.Progress * 100))% completo</span>
-                                            <div class="badge-requirement">
+                                            <span class="progress-text-modern">@((int)(userBadge.Progress * 100))% completo</span>
+                                            <div class="badge-requirement-modern">
                                                 @GetRequirementText(badge)
                                             </div>
                                         </div>
@@ -248,70 +299,79 @@
             }
             else if (activeTab == "progress")
             {
-                <div class="progress-section">
-                    <div class="progress-card">
-                        <h3>Progreso de Nivel</h3>
-                        <div class="level-progress">
-                            <div class="level-display">
-                                <div class="level-badge-large">
-                                    <span class="level-number">@user.Level</span>
+                <!-- Pestaña: Progreso -->
+                <div class="tab-content-modern">
+                    <div class="progress-card-modern">
+                        <div class="card-header-modern">
+                            <h3>📊 Progreso de Nivel</h3>
+                        </div>
+                        <div class="level-progress-modern">
+                            <div class="level-display-modern">
+                                <div class="level-badge-large-modern">
+                                    <span class="level-number-modern">@user.Level</span>
+                                    <span class="level-label-small">NIVEL</span>
                                 </div>
-                                <div class="level-info">
-                                    <p class="level-label">Nivel Actual</p>
-                                    <p class="xp-info">@user.Experience / @GetNextLevelXp() XP</p>
+                                <div class="level-info-modern">
+                                    <p class="level-label-modern">Nivel Actual</p>
+                                    <p class="xp-info-modern">@user.Experience / @GetNextLevelXp() XP</p>
                                 </div>
                             </div>
-                            <div class="xp-bar-large">
-                                <div class="xp-fill" style="width: @GetXpProgress()%"></div>
+                            <div class="xp-bar-large-modern">
+                                <div class="xp-fill-modern" style="width: @GetXpProgress()%">
+                                    <div class="xp-glow"></div>
+                                </div>
                             </div>
-                            <p class="xp-remaining">@(GetNextLevelXp() - user.Experience) XP para el siguiente nivel</p>
+                            <p class="xp-remaining-modern">@(GetNextLevelXp() - user.Experience) XP para el siguiente nivel</p>
                         </div>
                     </div>
 
-                    <div class="stats-grid-detailed">
-                        <div class="stat-card-detailed">
-                            <div class="stat-icon-large">🎯</div>
-                            <div class="stat-number">@user.TotalGamesPlayed</div>
-                            <div class="stat-label">Juegos Jugados</div>
+                    <div class="stats-grid-detailed-modern">
+                        <div class="stat-card-detailed-modern">
+                            <div class="stat-icon-large-modern">🎯</div>
+                            <div class="stat-number-modern">@user.TotalGamesPlayed</div>
+                            <div class="stat-label-modern">Juegos Jugados</div>
                         </div>
-                        <div class="stat-card-detailed">
-                            <div class="stat-icon-large">🏆</div>
-                            <div class="stat-number">@user.TotalGamesWon</div>
-                            <div class="stat-label">Juegos Ganados</div>
+                        <div class="stat-card-detailed-modern">
+                            <div class="stat-icon-large-modern">🏆</div>
+                            <div class="stat-number-modern">@user.TotalGamesWon</div>
+                            <div class="stat-label-modern">Juegos Ganados</div>
                         </div>
-                        <div class="stat-card-detailed">
-                            <div class="stat-icon-large">📈</div>
-                            <div class="stat-number">@GetWinRate()%</div>
-                            <div class="stat-label">Win Rate</div>
+                        <div class="stat-card-detailed-modern">
+                            <div class="stat-icon-large-modern">📈</div>
+                            <div class="stat-number-modern">@GetWinRate()%</div>
+                            <div class="stat-label-modern">Win Rate</div>
                         </div>
-                        <div class="stat-card-detailed">
-                            <div class="stat-icon-large">🎖️</div>
-                            <div class="stat-number">@userBadges.Count(b => b.IsUnlocked)</div>
-                            <div class="stat-label">Insignias</div>
+                        <div class="stat-card-detailed-modern">
+                            <div class="stat-icon-large-modern">🎖️</div>
+                            <div class="stat-number-modern">@userBadges.Count(b => b.IsUnlocked)</div>
+                            <div class="stat-label-modern">Insignias</div>
+                        </div>
+                        <div class="stat-card-detailed-modern">
+                            <div class="stat-icon-large-modern">🔥</div>
+                            <div class="stat-number-modern">@user.StreakDays</div>
+                            <div class="stat-label-modern">Días de Racha</div>
+                        </div>
+                        <div class="stat-card-detailed-modern">
+                            <div class="stat-icon-large-modern">⭐</div>
+                            <div class="stat-number-modern">@user.TotalPoints</div>
+                            <div class="stat-label-modern">Puntos Totales</div>
                         </div>
                     </div>
 
-                    <div class="progress-card">
-                        <h3>Actividad Reciente</h3>
-                        <div class="activity-info">
-                            <p>Última actividad: @(user.LastActivityDate?.ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</p>
-                            <p>Racha actual: @user.StreakDays días 🔥</p>
+                    <div class="activity-card-modern">
+                        <div class="card-header-modern">
+                            <h3>📅 Actividad Reciente</h3>
                         </div>
-                    </div>
-                </div>
-            }
-            else if (activeTab == "settings")
-            {
-                <div class="settings-section">
-                    <div class="settings-card">
-                        <h3>Preferencias de Cuenta</h3>
-                        <button class="btn-action">Cambiar Contraseña</button>
-                        <button class="btn-action">Configurar Notificaciones</button>
-                        <button class="btn-action">Privacidad</button>
-                    </div>
-                    <div class="settings-card danger-zone">
-                        <h3>Zona Peligrosa</h3>
-                        <button class="btn-danger">Eliminar Cuenta</button>
+                        <div class="activity-info-modern">
+                            <div class="activity-item-modern">
+                                <span class="activity-label">Última actividad:</span>
+                                <span class="activity-value">@(user.LastActivityDate?.ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</span>
+                            </div>
+                            <div class="activity-item-modern">
+                                <span class="activity-label">Racha actual:</span>
+                                <span class="activity-value">@user.StreakDays días 🔥</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             }
@@ -319,9 +379,9 @@
     }
     else
     {
-        <div class="error-state">
+        <div class="error-state-modern">
             <p>❌ No se pudo cargar el perfil</p>
-            <button @onclick="LoadUserData">Reintentar</button>
+            <button class="btn-retry-modern" @onclick="LoadUserData">Reintentar</button>
         </div>
     }
 </div>
@@ -373,3 +433,926 @@
     </div>
 }
 
+<style>
+    /* ============================================================================
+       PROFILE PAGE - MODERN DESIGN WITH TABS
+       ============================================================================ */
+    
+    .profile-container-full {
+        width: 100%;
+        min-height: 100vh;
+        background: #0a0a0a;
+        color: #fff;
+        padding-bottom: 2rem;
+    }
+
+    /* Loading State */
+    .loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh;
+        gap: 1rem;
+    }
+
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid rgba(102, 126, 234, 0.2);
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Header Modern */
+    .profile-header-modern {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2.5rem 2rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        flex-wrap: wrap;
+        box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);
+    }
+
+    .avatar-section-modern {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .avatar-large-modern {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 3rem;
+        font-weight: 700;
+        color: white;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+    }
+
+    .btn-change-avatar-modern {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        padding: 0.5rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.9rem;
+    }
+
+    .btn-change-avatar-modern:hover {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+    }
+
+    .user-info-section-modern {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .profile-name-modern {
+        color: #ffffff;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .user-email-modern {
+        color: #f0f0f0;
+        font-size: 1.1rem;
+        font-weight: 500;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        display: inline-block;
+        margin: 0 0 0.5rem 0;
+        backdrop-filter: blur(10px);
+    }
+
+    .user-profession-modern {
+        color: #e8e8e8;
+        font-size: 1rem;
+        margin: 0;
+    }
+
+    .profile-stats-quick-modern {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .quick-stat-modern {
+        text-align: center;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 1.25rem 1.75rem;
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+        min-width: 100px;
+        transition: transform 0.2s;
+    }
+
+    .quick-stat-modern:hover {
+        transform: translateY(-4px);
+    }
+
+    .stat-icon-modern {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value-modern {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: white;
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-label-modern {
+        font-size: 0.85rem;
+        color: #e8e8e8;
+    }
+
+    /* Tabs System */
+    .profile-tabs-modern {
+        display: flex;
+        gap: 0.5rem;
+        max-width: 1400px;
+        margin: 0 auto 2rem auto;
+        padding: 0 2rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        overflow-x: auto;
+    }
+
+    .profile-tabs-modern::-webkit-scrollbar {
+        height: 4px;
+    }
+
+    .profile-tabs-modern::-webkit-scrollbar-thumb {
+        background: #667eea;
+        border-radius: 2px;
+    }
+
+    .tab-btn-modern {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+        position: relative;
+        white-space: nowrap;
+    }
+
+    .tab-btn-modern:hover {
+        color: #fff;
+        background: rgba(102, 126, 234, 0.1);
+    }
+
+    .tab-btn-modern.active {
+        color: #667eea;
+        border-bottom-color: #667eea;
+    }
+
+    .tab-btn-modern svg {
+        flex-shrink: 0;
+    }
+
+    .tab-badge-count {
+        background: #667eea;
+        color: white;
+        padding: 0.15rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-left: 0.25rem;
+    }
+
+    /* Content Area */
+    .profile-content-modern {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 2rem;
+    }
+
+    .tab-content-modern {
+        animation: fadeIn 0.3s ease;
+    }
+
+    @@keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Cards */
+    .info-card-modern,
+    .skills-card-modern,
+    .progress-card-modern,
+    .activity-card-modern {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s;
+    }
+
+    .info-card-modern:hover,
+    .skills-card-modern:hover,
+    .progress-card-modern:hover,
+    .activity-card-modern:hover {
+        border-color: rgba(102, 126, 234, 0.5);
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.1);
+    }
+
+    .card-header-modern {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .card-header-modern h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0;
+    }
+
+    .btn-edit-modern,
+    .btn-add-skill-modern {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(102, 126, 234, 0.2);
+        border: 1px solid rgba(102, 126, 234, 0.4);
+        color: #818cf8;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 0.9rem;
+    }
+
+    .btn-edit-modern:hover,
+    .btn-add-skill-modern:hover {
+        background: rgba(102, 126, 234, 0.3);
+        border-color: rgba(102, 126, 234, 0.6);
+        transform: translateY(-2px);
+    }
+
+    /* Info Grid */
+    .info-grid-modern {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .info-item-modern {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .info-item-modern label {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-item-modern span {
+        font-size: 1rem;
+        color: #f1f5f9;
+        font-weight: 500;
+    }
+
+    /* Skills Tags */
+    .skills-tags-modern {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .skill-tag-modern {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .technical-tag {
+        background: rgba(59, 130, 246, 0.2);
+        border: 1px solid rgba(59, 130, 246, 0.4);
+        color: #93c5fd;
+    }
+
+    .soft-tag {
+        background: rgba(34, 197, 94, 0.2);
+        border: 1px solid rgba(34, 197, 94, 0.4);
+        color: #86efac;
+    }
+
+    .interest-tag {
+        background: rgba(168, 85, 247, 0.2);
+        border: 1px solid rgba(168, 85, 247, 0.4);
+        color: #c4b5fd;
+    }
+
+    .remove-skill-modern {
+        background: transparent;
+        border: none;
+        color: currentColor;
+        cursor: pointer;
+        font-size: 1.25rem;
+        line-height: 1;
+        padding: 0;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        opacity: 0.7;
+    }
+
+    .remove-skill-modern:hover {
+        opacity: 1;
+        background: rgba(255, 255, 255, 0.1);
+        transform: scale(1.1);
+    }
+
+    .empty-state {
+        color: #64748b;
+        font-style: italic;
+        padding: 1rem 0;
+    }
+
+    /* Badges Section */
+    .badges-header-modern {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        background: rgba(15, 23, 42, 0.8);
+        border-radius: 16px;
+        border: 1px solid rgba(100, 116, 139, 0.3);
+    }
+
+    .badges-header-modern h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0 0 0.5rem 0;
+    }
+
+    .badges-count-text {
+        color: #94a3b8;
+        margin: 0;
+    }
+
+    .badge-progress-ring {
+        position: relative;
+        width: 80px;
+        height: 80px;
+    }
+
+    .progress-ring {
+        transform: rotate(-90deg);
+    }
+
+    .progress-ring-bg {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.1);
+    }
+
+    .progress-ring-fill {
+        fill: none;
+        stroke: #667eea;
+        stroke-linecap: round;
+        transition: stroke-dasharray 0.3s;
+    }
+
+    .progress-percentage {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1rem;
+        font-weight: 700;
+        color: #667eea;
+    }
+
+    .badges-explanation-modern {
+        display: flex;
+        gap: 0.75rem;
+        padding: 1rem 1.5rem;
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    .badges-explanation-modern span {
+        font-size: 1.5rem;
+    }
+
+    .badges-explanation-modern p {
+        margin: 0;
+        color: #c4b5fd;
+        font-size: 0.9rem;
+    }
+
+    .badge-filters-modern {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 12px;
+        border: 1px solid rgba(100, 116, 139, 0.2);
+    }
+
+    .filter-select-modern {
+        background: rgba(51, 65, 85, 0.6);
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        border-radius: 8px;
+        color: #f1f5f9;
+        padding: 0.5rem 1rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        min-width: 150px;
+    }
+
+    .filter-select-modern:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+    }
+
+    .filter-checkbox-modern {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+        color: #f1f5f9;
+        font-size: 0.9rem;
+    }
+
+    .filter-checkbox-modern input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .badges-grid-modern {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .badge-card-modern {
+        background: rgba(15, 23, 42, 0.8);
+        border: 2px solid rgba(100, 116, 139, 0.3);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .badge-card-modern::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .badge-card-modern:hover {
+        transform: translateY(-4px);
+        border-color: rgba(102, 126, 234, 0.6);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+    }
+
+    .badge-card-modern:hover::before {
+        opacity: 1;
+    }
+
+    .badge-card-modern.unlocked {
+        border-color: rgba(34, 197, 94, 0.5);
+        background: rgba(34, 197, 94, 0.05);
+    }
+
+    .badge-card-modern.rarity-common {
+        border-color: rgba(156, 163, 175, 0.5);
+    }
+
+    .badge-card-modern.rarity-rare {
+        border-color: rgba(59, 130, 246, 0.5);
+    }
+
+    .badge-card-modern.rarity-epic {
+        border-color: rgba(168, 85, 247, 0.5);
+    }
+
+    .badge-card-modern.rarity-legendary {
+        border-color: rgba(251, 191, 36, 0.5);
+    }
+
+    .badge-icon-large-modern {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+    }
+
+    .badge-rarity-modern {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-card-modern.rarity-common .badge-rarity-modern {
+        background: rgba(156, 163, 175, 0.2);
+        color: #9ca3af;
+    }
+
+    .badge-card-modern.rarity-rare .badge-rarity-modern {
+        background: rgba(59, 130, 246, 0.2);
+        color: #93c5fd;
+    }
+
+    .badge-card-modern.rarity-epic .badge-rarity-modern {
+        background: rgba(168, 85, 247, 0.2);
+        color: #c4b5fd;
+    }
+
+    .badge-card-modern.rarity-legendary .badge-rarity-modern {
+        background: rgba(251, 191, 36, 0.2);
+        color: #fcd34d;
+    }
+
+    .badge-card-modern h4 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0.5rem 0;
+    }
+
+    .badge-card-modern p {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        margin: 0.5rem 0 1rem 0;
+        line-height: 1.5;
+    }
+
+    .badge-unlocked-info-modern {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .unlocked-badge-modern {
+        color: #22c55e;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .unlock-date-modern {
+        color: #94a3b8;
+        font-size: 0.85rem;
+    }
+
+    .badge-rewards-modern {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+        margin-top: 0.5rem;
+    }
+
+    .badge-rewards-modern span {
+        background: rgba(102, 126, 234, 0.2);
+        color: #818cf8;
+        padding: 0.25rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .badge-progress-section-modern {
+        margin-top: 1rem;
+    }
+
+    .progress-bar-modern {
+        width: 100%;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-fill-modern {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .progress-text-modern {
+        display: block;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .badge-requirement-modern {
+        color: #64748b;
+        font-size: 0.85rem;
+        font-style: italic;
+    }
+
+    /* Progress Tab */
+    .level-progress-modern {
+        padding: 1.5rem 0;
+    }
+
+    .level-display-modern {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .level-badge-large-modern {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        position: relative;
+    }
+
+    .level-number-modern {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: white;
+        line-height: 1;
+    }
+
+    .level-label-small {
+        font-size: 0.7rem;
+        color: rgba(255, 255, 255, 0.8);
+        font-weight: 600;
+        letter-spacing: 1px;
+        margin-top: 0.25rem;
+    }
+
+    .level-info-modern {
+        flex: 1;
+    }
+
+    .level-label-modern {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        margin: 0 0 0.5rem 0;
+        font-weight: 600;
+    }
+
+    .xp-info-modern {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin: 0;
+    }
+
+    .xp-bar-large-modern {
+        width: 100%;
+        height: 16px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+        position: relative;
+    }
+
+    .xp-fill-modern {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea, #764ba2);
+        border-radius: 8px;
+        transition: width 0.5s;
+        position: relative;
+    }
+
+    .xp-glow {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        animation: shimmer 2s infinite;
+    }
+
+    @@keyframes shimmer {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    .xp-remaining-modern {
+        color: #94a3b8;
+        font-size: 0.9rem;
+        margin: 0;
+        text-align: center;
+    }
+
+    .stats-grid-detailed-modern {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card-detailed-modern {
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(100, 116, 139, 0.3);
+        border-radius: 16px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s;
+    }
+
+    .stat-card-detailed-modern:hover {
+        transform: translateY(-4px);
+        border-color: rgba(102, 126, 234, 0.5);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+    }
+
+    .stat-icon-large-modern {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .stat-number-modern {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-label-modern {
+        font-size: 0.9rem;
+        color: #94a3b8;
+        font-weight: 600;
+    }
+
+    .activity-info-modern {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .activity-item-modern {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid rgba(100, 116, 139, 0.2);
+    }
+
+    .activity-item-modern:last-child {
+        border-bottom: none;
+    }
+
+    .activity-label {
+        color: #94a3b8;
+        font-weight: 600;
+    }
+
+    .activity-value {
+        color: #f1f5f9;
+        font-weight: 500;
+    }
+
+    /* Error State */
+    .error-state-modern {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 80vh;
+        gap: 1rem;
+    }
+
+    .error-state-modern p {
+        font-size: 1.25rem;
+        color: #ef4444;
+    }
+
+    .btn-retry-modern {
+        background: #667eea;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-retry-modern:hover {
+        background: #5568d3;
+        transform: translateY(-2px);
+    }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .profile-header-modern {
+            flex-direction: column;
+            text-align: center;
+            padding: 1.5rem;
+        }
+
+        .profile-stats-quick-modern {
+            justify-content: center;
+            width: 100%;
+        }
+
+        .profile-tabs-modern {
+            padding: 0 1rem;
+        }
+
+        .tab-btn-modern {
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+        }
+
+        .profile-content-modern {
+            padding: 0 1rem;
+        }
+
+        .badges-grid-modern {
+            grid-template-columns: 1fr;
+        }
+
+        .stats-grid-detailed-modern {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>

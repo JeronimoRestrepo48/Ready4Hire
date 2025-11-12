@@ -1,0 +1,431 @@
+@page "/game/memory-challenge"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>🧠 Desafío de Memoria - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">🧠 Nivel @currentLevel</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">💯 Precisión: @((int)(accuracy * 100))%</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">🧠</div>
+            <h1>Desafío de Memoria</h1>
+            <p>Memoriza secuencias y patrones complejos para entrenar tu mente</p>
+            <div class="game-rules">
+                <h3>🎯 Cómo jugar:</h3>
+                <ul>
+                    <li>🔍 Observa atentamente la secuencia mostrada</li>
+                    <li>⏰ Tienes tiempo limitado para memorizarla</li>
+                    <li>🎯 Reproduce la secuencia en el mismo orden</li>
+                    <li>📈 Las secuencias se vuelven más largas y complejas</li>
+                    <li>🏆 Gana puntos por precisión y velocidad</li>
+                </ul>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame">
+                Comenzar Desafío
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetPerformanceIcon()</div>
+            <h1>¡Desafío Completado!</h1>
+            <div class="results-stats">
+                <div class="result-stat">
+                    <div class="stat-value">@currentScore</div>
+                    <div class="stat-label">Puntos Totales</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@currentLevel</div>
+                    <div class="stat-label">Nivel Alcanzado</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@((int)(accuracy * 100))%</div>
+                    <div class="stat-label">Precisión</div>
+                </div>
+            </div>
+            <button class="btn-play-again" @onclick="RestartGame">Jugar de Nuevo</button>
+            <button class="btn-back-results" @onclick="GoToGamification">Ver Gamificación</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-play">
+            <div class="memory-container">
+                <h2>Memoriza esta secuencia:</h2>
+                <div class="sequence-display">
+                    @for (int i = 0; i < currentSequence.Count; i++)
+                    {
+                        <div class="sequence-item @(highlightedIndex == i ? "highlighted" : "")">
+                            @currentSequence[i]
+                        </div>
+                    }
+                </div>
+                @if (showingSequence)
+                {
+                    <p>Observa atentamente... @timeRemaining segundos</p>
+                }
+                else
+                {
+                    <p>Ahora reproduce la secuencia:</p>
+                    <div class="input-buttons">
+                        @foreach (var option in availableOptions)
+                        {
+                            <button class="option-btn" @onclick="() => SelectOption(option)">
+                                @option
+                            </button>
+                        }
+                    </div>
+                    <div class="user-sequence">
+                        Secuencia actual: @string.Join(" ", userSequence)
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .game-container {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .stat-item {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .game-intro, .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 70vh;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon, .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-rules {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1.5rem 0;
+        text-align: left;
+    }
+
+    .btn-start-game, .btn-play-again, .btn-back-results {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        border: none;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-start-game:hover, .btn-play-again:hover, .btn-back-results:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .memory-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .sequence-display {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+    }
+
+    .sequence-item {
+        width: 80px;
+        height: 80px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+        transition: all 0.3s;
+    }
+
+    .sequence-item.highlighted {
+        background: rgba(255, 255, 255, 0.8);
+        color: #333;
+        transform: scale(1.1);
+    }
+
+    .input-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+    }
+
+    .option-btn {
+        padding: 1rem 1.5rem;
+        background: rgba(255, 255, 255, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 1.1rem;
+    }
+
+    .option-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-1px);
+    }
+
+    .user-sequence {
+        margin-top: 1rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .results-stats {
+        display: flex;
+        gap: 2rem;
+        margin: 2rem 0;
+    }
+
+    .result-stat {
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #ffd700;
+    }
+
+    .stat-label {
+        font-size: 1rem;
+        opacity: 0.8;
+        margin-top: 0.5rem;
+    }
+</style>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool showingSequence = true;
+    private int currentLevel = 1;
+    private int currentScore = 0;
+    private float accuracy = 1.0f;
+    private int timeRemaining = 3;
+    private int highlightedIndex = -1;
+
+    private List<string> currentSequence = new();
+    private List<string> userSequence = new();
+    private List<string> availableOptions = new() { "🔴", "🟢", "🔵", "🟡", "🟣", "🟠" };
+
+    private System.Threading.Timer? gameTimer;
+
+    private void StartGame()
+    {
+        gameStarted = true;
+        gameFinished = false;
+        currentLevel = 1;
+        currentScore = 0;
+        accuracy = 1.0f;
+        GenerateNewSequence();
+        StartSequenceDisplay();
+    }
+
+    private void GenerateNewSequence()
+    {
+        currentSequence.Clear();
+        var random = new Random();
+        var sequenceLength = Math.Min(3 + currentLevel, 8);
+        
+        for (int i = 0; i < sequenceLength; i++)
+        {
+            currentSequence.Add(availableOptions[random.Next(availableOptions.Count)]);
+        }
+    }
+
+    private void StartSequenceDisplay()
+    {
+        showingSequence = true;
+        userSequence.Clear();
+        timeRemaining = 3;
+        highlightedIndex = 0;
+
+        gameTimer?.Dispose();
+        gameTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                if (timeRemaining > 0)
+                {
+                    timeRemaining--;
+                    if (highlightedIndex < currentSequence.Count - 1)
+                    {
+                        highlightedIndex++;
+                    }
+                    StateHasChanged();
+                }
+                else
+                {
+                    showingSequence = false;
+                    highlightedIndex = -1;
+                    gameTimer?.Dispose();
+                    StateHasChanged();
+                }
+            });
+        }, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(800));
+    }
+
+    private void SelectOption(string option)
+    {
+        if (showingSequence) return;
+
+        userSequence.Add(option);
+
+        if (userSequence.Count == currentSequence.Count)
+        {
+            CheckAnswer();
+        }
+    }
+
+    private void CheckAnswer()
+    {
+        bool correct = userSequence.SequenceEqual(currentSequence);
+        
+        if (correct)
+        {
+            currentScore += 100 * currentLevel;
+            currentLevel++;
+            
+            if (currentLevel > 5)
+            {
+                EndGame();
+            }
+            else
+            {
+                GenerateNewSequence();
+                StartSequenceDisplay();
+            }
+        }
+        else
+        {
+            accuracy = (float)Math.Max(0, currentLevel - 1) / currentLevel;
+            EndGame();
+        }
+    }
+
+    private void EndGame()
+    {
+        gameFinished = true;
+        showingSequence = false;
+        gameTimer?.Dispose();
+    }
+
+    private void RestartGame()
+    {
+        StartGame();
+    }
+
+    private async Task GoBack()
+    {
+        if (await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/gamification");
+        }
+        else
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification");
+    }
+
+    private string GetPerformanceIcon()
+    {
+        return accuracy switch
+        {
+            >= 0.8f => "🏆",
+            >= 0.6f => "🥈",
+            >= 0.4f => "🥉",
+            _ => "📈"
+        };
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Dispose();
+    }
+}

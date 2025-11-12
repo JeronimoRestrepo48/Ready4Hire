@@ -1,0 +1,972 @@
+@page "/game/speed-round"
+@inject Ready4Hire.Services.AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>⏱️ Ronda Rápida - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item timer @(timeRemaining <= 3 ? "urgent" : "")">⏰ @timeRemaining seg</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">❓ @currentQuestion/@totalQuestions</span>
+            <span class="stat-item">⚡ Streak: @currentStreak</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">⚡</div>
+            <h1>Ronda Rápida</h1>
+            <p>¡Velocidad extrema! Responde lo más rápido posible</p>
+            <div class="game-rules">
+                <h3>⚡ Reglas de Velocidad:</h3>
+                <ul>
+                    <li>🏃‍♂️ @totalQuestions preguntas ultra rápidas</li>
+                    <li>⏰ Solo @questionTime segundos por pregunta</li>
+                    <li>🔥 Bonus por streaks de respuestas correctas</li>
+                    <li>⚡ Sin vuelta atrás - cada segundo cuenta</li>
+                    <li>🎯 Máxima concentración requerida</li>
+                </ul>
+            </div>
+            <div class="difficulty-selector">
+                <h4>Selecciona dificultad:</h4>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn @(selectedDifficulty == "easy" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("easy")'>
+                        <span>😊 Fácil</span>
+                        <small>15 seg por pregunta</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "medium" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("medium")'>
+                        <span>😐 Medio</span>
+                        <small>10 seg por pregunta</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "hard" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("hard")'>
+                        <span>😤 Difícil</span>
+                        <small>7 seg por pregunta</small>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedDifficulty == null)">
+                ¡Comenzar Ronda Rápida!
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetResultIcon()</div>
+            <h2>¡Ronda Completada!</h2>
+            <div class="performance-grade">
+                <span class="grade">@GetPerformanceGrade()</span>
+                <span class="grade-desc">@GetGradeDescription()</span>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Respuestas Correctas</span>
+                    <span class="result-value">@correctAnswers/@totalQuestions</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Precisión</span>
+                    <span class="result-value">@(Math.Round((double)correctAnswers/totalQuestions * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Mejor Streak</span>
+                    <span class="result-value">@bestStreak</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Tiempo Promedio</span>
+                    <span class="result-value">@(Math.Round(averageResponseTime, 1))s</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Bonus Total</span>
+                    <span class="result-value">@totalBonusPoints pts</span>
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    Jugar de Nuevo
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="progress-section">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: @(currentQuestion * 100.0 / totalQuestions)%"></div>
+                </div>
+                <div class="timer-circle @(timeRemaining <= 3 ? "urgent" : timeRemaining <= 7 ? "warning" : "")">
+                    @timeRemaining
+                </div>
+            </div>
+            
+            <div class="question-panel">
+                <div class="question-header">
+                    <span class="question-number">Pregunta @currentQuestion</span>
+                    @if (currentStreak > 0)
+                    {
+                        <span class="streak-indicator">🔥 Streak x@currentStreak</span>
+                    }
+                </div>
+                
+                <h2 class="question-text">@currentQuestionData.Question</h2>
+                
+                <div class="answers-grid">
+                    @for (int i = 0; i < currentQuestionData.Options.Count; i++)
+                    {
+                        var answerIndex = i;
+                        <button class="answer-btn @(selectedAnswer == answerIndex ? "selected" : "")"
+                                @onclick="() => SelectAnswer(answerIndex)"
+                                disabled="@showFeedback">
+                            <span class="answer-letter">@((char)('A' + i))</span>
+                            <span class="answer-text">@currentQuestionData.Options[i]</span>
+                        </button>
+                    }
+                </div>
+                
+                @if (showFeedback)
+                {
+                    <div class="feedback-box @(isCorrect ? "correct" : "incorrect")">
+                        @if (isCorrect)
+                        {
+                            <div class="feedback-header">
+                                <span>✅ ¡Correcto! +@lastQuestionPoints pts</span>
+                                @if (speedBonus > 0)
+                                {
+                                    <span class="bonus">⚡ Bonus velocidad: +@speedBonus pts</span>
+                                }
+                                @if (streakBonus > 0)
+                                {
+                                    <span class="bonus">🔥 Bonus streak: +@streakBonus pts</span>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="feedback-header">
+                                <span>❌ Incorrecto. Respuesta: @GetCorrectAnswerLetter()</span>
+                            </div>
+                            <div class="streak-broken">💔 Streak perdido</div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private class SpeedQuestion
+    {
+        public string Question { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public int CorrectAnswer { get; set; }
+        public string Explanation { get; set; } = "";
+    }
+
+    private List<SpeedQuestion> questions = new();
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private bool showFeedback = false;
+    private bool isCorrect = false;
+    private int currentQuestion = 1;
+    private int totalQuestions = 15;
+    private int timeRemaining = 10;
+    private int questionTime = 10;
+    private int currentScore = 0;
+    private int correctAnswers = 0;
+    private int selectedAnswer = -1;
+    private int lastQuestionPoints = 0;
+    private int speedBonus = 0;
+    private int streakBonus = 0;
+    private int currentStreak = 0;
+    private int bestStreak = 0;
+    private int totalBonusPoints = 0;
+    private double averageResponseTime = 0;
+    private List<double> responseTimes = new();
+    private string? selectedDifficulty = null;
+    private DateTime questionStartTime;
+    private System.Threading.Timer? gameTimer;
+    private SpeedQuestion currentQuestionData = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+        
+        GenerateQuestions();
+    }
+
+    private void SelectDifficulty(string difficulty)
+    {
+        selectedDifficulty = difficulty;
+        questionTime = difficulty switch
+        {
+            "easy" => 15,
+            "medium" => 10,
+            "hard" => 7,
+            _ => 10
+        };
+        StateHasChanged();
+    }
+
+    private void GenerateQuestions()
+    {
+        questions = new List<SpeedQuestion>
+        {
+            new SpeedQuestion { Question = "¿Qué significa HTTP?", Options = new() { "HyperText Transfer Protocol", "High Transfer Text Protocol", "Home Tool Transfer Protocol", "Host Text Transfer Protocol" }, CorrectAnswer = 0 },
+            new SpeedQuestion { Question = "¿Cuál es la complejidad de búsqueda binaria?", Options = new() { "O(n)", "O(log n)", "O(n²)", "O(1)" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Qué puerto usa HTTPS por defecto?", Options = new() { "80", "443", "8080", "21" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Qué significa CPU?", Options = new() { "Computer Processing Unit", "Central Processing Unit", "Core Processing Unit", "Central Program Unit" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Cuál es el protocolo de Git?", Options = new() { "FTP", "HTTP", "SSH", "Todos los anteriores" }, CorrectAnswer = 3 },
+            new SpeedQuestion { Question = "¿Qué es un array?", Options = new() { "Una función", "Una estructura de datos", "Un bucle", "Una variable" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Qué significa RAM?", Options = new() { "Random Access Memory", "Read Access Memory", "Rapid Access Memory", "Real Access Memory" }, CorrectAnswer = 0 },
+            new SpeedQuestion { Question = "¿Cuál es la extensión de Python?", Options = new() { ".pt", ".py", ".python", ".p" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Qué es SQL?", Options = new() { "Un lenguaje de programación", "Un lenguaje de consulta", "Una base de datos", "Un servidor" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Cuántos bits tiene un byte?", Options = new() { "4", "6", "8", "16" }, CorrectAnswer = 2 },
+            new SpeedQuestion { Question = "¿Qué significa API?", Options = new() { "Application Programming Interface", "Advanced Programming Interface", "Automated Program Interface", "Application Process Interface" }, CorrectAnswer = 0 },
+            new SpeedQuestion { Question = "¿Cuál es el operador lógico AND en Python?", Options = new() { "&&", "&", "and", "AND" }, CorrectAnswer = 2 },
+            new SpeedQuestion { Question = "¿Qué es un algoritmo?", Options = new() { "Un programa", "Una secuencia de pasos", "Un lenguaje", "Una función" }, CorrectAnswer = 1 },
+            new SpeedQuestion { Question = "¿Cuál es la base del sistema binario?", Options = new() { "8", "10", "2", "16" }, CorrectAnswer = 2 },
+            new SpeedQuestion { Question = "¿Qué significa IDE?", Options = new() { "Integrated Development Environment", "Internal Development Environment", "Interactive Development Environment", "Independent Development Environment" }, CorrectAnswer = 0 }
+        };
+        
+        // Mezclar preguntas
+        var random = new Random();
+        questions = questions.OrderBy(x => random.Next()).ToList();
+    }
+
+    private void StartGame()
+    {
+        if (selectedDifficulty == null) return;
+        
+        gameStarted = true;
+        currentQuestion = 1;
+        currentScore = 0;
+        correctAnswers = 0;
+        currentStreak = 0;
+        bestStreak = 0;
+        totalBonusPoints = 0;
+        responseTimes.Clear();
+        currentQuestionData = questions[0];
+        StartQuestion();
+        StateHasChanged();
+    }
+
+    private void StartQuestion()
+    {
+        timeRemaining = questionTime;
+        selectedAnswer = -1;
+        showFeedback = false;
+        lastQuestionPoints = 0;
+        speedBonus = 0;
+        streakBonus = 0;
+        questionStartTime = DateTime.Now;
+        
+        gameTimer = new System.Threading.Timer(async _ =>
+        {
+            timeRemaining--;
+            if (timeRemaining <= 0)
+            {
+                await InvokeAsync(() => TimeUp());
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void TimeUp()
+    {
+        if (!showFeedback)
+        {
+            selectedAnswer = -1;
+            ShowFeedback();
+        }
+    }
+
+    private void SelectAnswer(int answerIndex)
+    {
+        if (showFeedback) return;
+        
+        selectedAnswer = answerIndex;
+        var responseTime = (DateTime.Now - questionStartTime).TotalSeconds;
+        responseTimes.Add(responseTime);
+        
+        ShowFeedback();
+    }
+
+    private void ShowFeedback()
+    {
+        showFeedback = true;
+        gameTimer?.Dispose();
+        
+        var responseTime = responseTimes.LastOrDefault();
+        
+        if (selectedAnswer == currentQuestionData.CorrectAnswer)
+        {
+            isCorrect = true;
+            correctAnswers++;
+            currentStreak++;
+            bestStreak = Math.Max(bestStreak, currentStreak);
+            
+            // Puntos base
+            lastQuestionPoints = 50;
+            
+            // Bonus por velocidad (responder en menos de la mitad del tiempo)
+            if (responseTime < questionTime / 2.0)
+            {
+                speedBonus = 25;
+                totalBonusPoints += speedBonus;
+            }
+            
+            // Bonus por streak
+            if (currentStreak >= 3)
+            {
+                streakBonus = currentStreak * 5;
+                totalBonusPoints += streakBonus;
+            }
+            
+            currentScore += lastQuestionPoints + speedBonus + streakBonus;
+        }
+        else
+        {
+            isCorrect = false;
+            currentStreak = 0;
+            lastQuestionPoints = 0;
+        }
+        
+        StateHasChanged();
+        
+        // Auto avanzar después de 1.5 segundos
+        Task.Delay(1500).ContinueWith(_ => InvokeAsync(NextQuestion));
+    }
+
+    private void NextQuestion()
+    {
+        if (currentQuestion >= totalQuestions)
+        {
+            EndGame();
+            return;
+        }
+        
+        currentQuestion++;
+        currentQuestionData = questions[currentQuestion - 1];
+        StartQuestion();
+        StateHasChanged();
+    }
+
+    private void EndGame()
+    {
+        gameTimer?.Dispose();
+        gameFinished = true;
+        
+        if (responseTimes.Any())
+        {
+            averageResponseTime = responseTimes.Average();
+        }
+        
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedDifficulty = null;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        gameTimer?.Dispose();
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetCorrectAnswerLetter()
+    {
+        return ((char)('A' + currentQuestionData.CorrectAnswer)).ToString();
+    }
+
+    private string GetResultIcon()
+    {
+        var accuracy = (double)correctAnswers / totalQuestions;
+        return accuracy switch
+        {
+            >= 0.9 => "🏆",
+            >= 0.8 => "🥇",
+            >= 0.7 => "🥈", 
+            >= 0.6 => "🥉",
+            _ => "⚡"
+        };
+    }
+
+    private string GetPerformanceGrade()
+    {
+        var accuracy = (double)correctAnswers / totalQuestions;
+        return accuracy switch
+        {
+            >= 0.95 => "S+",
+            >= 0.9 => "S",
+            >= 0.85 => "A+",
+            >= 0.8 => "A",
+            >= 0.75 => "B+",
+            >= 0.7 => "B",
+            >= 0.65 => "C+",
+            >= 0.6 => "C",
+            _ => "D"
+        };
+    }
+
+    private string GetGradeDescription()
+    {
+        var accuracy = (double)correctAnswers / totalQuestions;
+        return accuracy switch
+        {
+            >= 0.9 => "¡Velocidad Mental Excepcional!",
+            >= 0.8 => "¡Excelente Rapidez Mental!",
+            >= 0.7 => "¡Buena Velocidad de Procesamiento!",
+            >= 0.6 => "Velocidad Promedio",
+            _ => "Necesitas Practicar Más"
+        };
+    }
+
+    public void Dispose()
+    {
+        gameTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #2d1b69 0%, #11998e 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.3);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.9rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .stat-item.timer {
+        font-weight: 700;
+        font-size: 1rem;
+    }
+
+    .stat-item.timer.urgent {
+        background: rgba(239, 68, 68, 0.3);
+        color: #ff6b6b;
+        animation: pulse 0.5s infinite;
+    }
+
+    @@keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: bounce 2s infinite;
+    }
+
+    @@keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+        40% { transform: translateY(-10px); }
+        60% { transform: translateY(-5px); }
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .game-intro p {
+        font-size: 1.2rem;
+        color: #b0b0b0;
+        margin-bottom: 2rem;
+    }
+
+    .game-rules {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        text-align: left;
+        max-width: 500px;
+    }
+
+    .game-rules h3 {
+        margin-bottom: 1rem;
+        color: #00f2fe;
+    }
+
+    .game-rules ul {
+        list-style: none;
+        padding: 0;
+    }
+
+    .game-rules li {
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+
+    .difficulty-selector {
+        margin-bottom: 2rem;
+    }
+
+    .difficulty-selector h4 {
+        color: #00f2fe;
+        margin-bottom: 1rem;
+    }
+
+    .difficulty-options {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .difficulty-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: white;
+        min-width: 120px;
+    }
+
+    .difficulty-btn:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(0, 242, 254, 0.5);
+    }
+
+    .difficulty-btn.selected {
+        background: rgba(0, 242, 254, 0.2);
+        border-color: #00f2fe;
+    }
+
+    .difficulty-btn span {
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+    }
+
+    .difficulty-btn small {
+        color: #b0b0b0;
+        font-size: 0.8rem;
+    }
+
+    .btn-start-game {
+        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+    }
+
+    .btn-start-game:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-start-game:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 242, 254, 0.4);
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .progress-section {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .progress-bar {
+        flex: 1;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+        transition: width 0.3s;
+    }
+
+    .timer-circle {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        font-weight: 700;
+        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+        color: white;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.3s;
+    }
+
+    .timer-circle.warning {
+        background: linear-gradient(45deg, #ffc107 0%, #ff8f00 100%);
+        animation: pulse-warning 1s infinite;
+    }
+
+    .timer-circle.urgent {
+        background: linear-gradient(45deg, #ff6b6b 0%, #ee5a24 100%);
+        animation: pulse-urgent 0.5s infinite;
+    }
+
+    @@keyframes pulse-warning {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+
+    @@keyframes pulse-urgent {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+        50% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
+    }
+
+    .question-panel {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 16px;
+        padding: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .question-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .question-number {
+        color: #00f2fe;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .streak-indicator {
+        background: rgba(255, 193, 7, 0.2);
+        color: #ffc107;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        animation: glow 1s infinite alternate;
+    }
+
+    @@keyframes glow {
+        from { box-shadow: 0 0 5px rgba(255, 193, 7, 0.5); }
+        to { box-shadow: 0 0 20px rgba(255, 193, 7, 0.8); }
+    }
+
+    .question-text {
+        font-size: 1.4rem;
+        margin-bottom: 2rem;
+        line-height: 1.4;
+        text-align: center;
+    }
+
+    .answers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .answer-btn {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: white;
+        text-align: left;
+    }
+
+    .answer-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(0, 242, 254, 0.5);
+        transform: translateY(-2px);
+    }
+
+    .answer-btn.selected {
+        background: rgba(0, 242, 254, 0.2);
+        border-color: #00f2fe;
+    }
+
+    .answer-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .answer-letter {
+        background: #00f2fe;
+        color: white;
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .answer-text {
+        flex: 1;
+        line-height: 1.4;
+    }
+
+    .feedback-box {
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin-top: 1rem;
+    }
+
+    .feedback-box.correct {
+        background: rgba(34, 197, 94, 0.1);
+        border: 2px solid #22c55e;
+    }
+
+    .feedback-box.incorrect {
+        background: rgba(239, 68, 68, 0.1);
+        border: 2px solid #ef4444;
+    }
+
+    .feedback-header {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .bonus {
+        font-size: 0.9rem;
+        color: #ffc107;
+    }
+
+    .streak-broken {
+        color: #ef4444;
+        font-weight: 500;
+        margin-top: 0.5rem;
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .performance-grade {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .grade {
+        font-size: 3rem;
+        font-weight: 700;
+        color: #00f2fe;
+        margin-bottom: 0.5rem;
+    }
+
+    .grade-desc {
+        font-size: 1.1rem;
+        color: #b0b0b0;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 800px;
+    }
+
+    .result-stat {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(0, 242, 254, 0.1);
+        border-color: #00f2fe;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #00f2fe;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #00f2fe 0%, #4facfe 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #b0b0b0;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .btn-restart:hover, .btn-gamification:hover {
+        transform: translateY(-1px);
+    }
+
+    .btn-gamification:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+</style>

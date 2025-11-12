@@ -1,39 +1,34 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * E2E Tests for Complete User Journey
+ * E2E Tests for unauthenticated user journey
  */
 test.describe('User Journey', () => {
-  
-  test('complete user flow: register → login → start interview', async ({ page }) => {
-    // Navigate to home
-    await page.goto('/');
-    
-    // Try to find register/login
-    const registerButton = page.locator('text=/register|registr|sign up/i').first();
-    
-    if (await registerButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await registerButton.click();
-      
-      // Fill registration form (adjust selectors based on actual implementation)
-      const emailInput = page.locator('input[type="email"]').first();
-      if (await emailInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await emailInput.fill('test@example.com');
-      }
-    }
-    
-    // This is a basic flow test - actual implementation depends on your UI
-    await expect(page.locator('body')).toBeVisible();
+  test('login form renders required fields', async ({ page }) => {
+    await page.goto('/login');
+
+    await expect(page.locator('h1.auth-title')).toContainText(/Ready4Hire/i);
+    await expect(page.locator('input[type="email"]')).toBeVisible();
+    await expect(page.locator('input[type="password"]')).toBeVisible();
+    await expect(page.locator('button', { hasText: /Iniciar Sesión/i })).toBeVisible();
   });
 
-  test('navigation flow through main pages', async ({ page }) => {
-    await page.goto('/');
-    
-    // Check if main pages are accessible
-    const pages = ['/', '/login'];
-    
-    for (const pagePath of pages) {
-      const response = await page.goto(pagePath);
+  test('registration wizard entry point is available', async ({ page }) => {
+    await page.goto('/login');
+
+    const registerButton = page.locator('button', { hasText: /Regístrate/i }).first();
+    await expect(registerButton).toBeVisible();
+
+    await registerButton.click();
+    await expect(page.locator('.progress-text')).toContainText(/Paso 1/i);
+    await expect(page.locator('input[type="email"]')).toBeVisible();
+  });
+
+  test('public routes respond without error', async ({ page }) => {
+    const publicPaths = ['/', '/login'];
+
+    for (const path of publicPaths) {
+      const response = await page.goto(path);
       expect(response?.status()).toBeLessThan(400);
     }
   });

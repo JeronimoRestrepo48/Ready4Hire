@@ -9,6 +9,7 @@ import re
 import logging
 
 from app.infrastructure.llm.llm_service import OllamaLLMService
+from app.infrastructure.llm.response_sanitizer import ResponseSanitizer
 from app.domain.value_objects.emotion import Emotion
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class FeedbackService:
         self.llm_service = llm_service or OllamaLLMService(model=model, temperature=temperature, max_tokens=256)
         self.model = model
         self.temperature = temperature
+        self.sanitizer = ResponseSanitizer()
 
     def _get_profession_context(self, role: str, category: str) -> str:
         """Genera contexto específico según la profesión para feedback más relevante."""
@@ -112,6 +114,9 @@ class FeedbackService:
 
             # Limpiar feedback (eliminar etiquetas, etc.)
             feedback = self._clean_feedback(feedback)
+            
+            # Sanitizar para que parezca de agente especializado
+            feedback = self.sanitizer.sanitize_feedback(feedback, role=role, category=category)
 
             return feedback
 
@@ -154,52 +159,26 @@ class FeedbackService:
         # Contexto profesional específico
         profession_context = self._get_profession_context(role, category)
 
-        return f"""Eres un mentor experto y empático especializado en entrevistas para {role}.
-Proporciona feedback constructivo y motivador adaptado a esta profesión.
+        return f"""Mentor senior {role}. Feedback profesional (3-4 oraciones).
 
-**Contexto del candidato:**
-- Rol objetivo: {role}
-- Categoría: {category}
-- Estado emocional: {emotion_name}
+Rol: {role} | Categoría: {category} | Emoción: {emotion_name}
+Score: {score}/10 | Comp: {breakdown.get('completeness', 0):.1f}/3 | Prof: {breakdown.get('technical_depth', 0):.1f}/3 | Clar: {breakdown.get('clarity', 0):.1f}/2
 
-**Pregunta de entrevista:**
-{question}
+P: {question}
+R: {answer}
 
-**Respuesta del candidato:**
-{answer}
-
-**Evaluación detallada:**
-- Puntuación general: {score}/10
-- Completitud: {breakdown.get('completeness', 0):.1f}/3
-- Profundidad técnica/comportamental: {breakdown.get('technical_depth', 0):.1f}/3
-- Claridad y estructura: {breakdown.get('clarity', 0):.1f}/2
-- Uso de conceptos clave: {breakdown.get('key_concepts', 0):.1f}/2
-
-**Aspectos positivos identificados:**
-{chr(10).join(f'✓ {s}' for s in strengths) if strengths else '✓ Respuesta proporcionada con esfuerzo'}
-
-**Áreas de mejora:**
-{chr(10).join(f'→ {i}' for i in improvements) if improvements else '→ Continúa perfeccionando tu enfoque'}
-
-{history_context}
+Fortalezas: {', '.join(strengths[:2]) if strengths else 'Respuesta proporcionada'}
+Mejoras: {', '.join(improvements[:2]) if improvements else 'Continúa desarrollando'}
 
 {profession_context}
 
-**Tu feedback debe:**
-1. Ser empático y adaptado al estado emocional ({emotion_name})
-2. Reconocer fortalezas específicas mostradas
-3. Proporcionar mejoras concretas, accionables y relevantes para {role}
-4. Motivar genuinamente al candidato a seguir mejorando
-5. Usar un tono profesional pero cercano
-5. Sea breve: 3-4 oraciones (80-120 palabras)
+Instrucciones:
+- NO uses "como modelo de IA", "no puedo", "como asistente"
+- Sé directo, profesional, específico
+- Tono según emoción: {emotion_name}
+- 80-120 palabras máximo
 
-**Tono según emoción:**
-- joy/neutral: Positivo y motivador 🎉
-- sadness/fear: Empático y alentador 💪
-- anger: Calmado y comprensivo 🤝
-- surprise: Entusiasta y guía ⭐
-
-Responde SOLO el feedback en español, sin etiquetas ni formato adicional."""
+Feedback:"""
 
     def _clean_feedback(self, feedback: str) -> str:
         """Limpia el feedback eliminando etiquetas y formato innecesario."""

@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # LLM
     OLLAMA_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3.2:3b"
-    OLLAMA_TIMEOUT: int = 30
+    OLLAMA_TIMEOUT: int = 45  # Timeout optimizado para evaluaciones
     OLLAMA_MAX_RETRIES: int = 3
     LLM_TEMPERATURE_EVALUATION: float = 0.3
     LLM_TEMPERATURE_FEEDBACK: float = 0.7

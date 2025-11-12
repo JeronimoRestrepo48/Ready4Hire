@@ -77,8 +77,8 @@ namespace Ready4Hire.MVVM.Views
                     // Guardar sesión de forma segura
                     await AuthService.LoginAsync(user);
                     
-                    // Redireccionar al chat
-                    Navigation.NavigateTo("/chat/0", true);
+                    // Redireccionar directamente al chat
+                    Navigation.NavigateTo("/chat", true);
                 }
                 else
                 {
@@ -190,8 +190,8 @@ namespace Ready4Hire.MVVM.Views
                     
                     Console.WriteLine($"[REGISTRO] Sesión guardada. Redirigiendo al chat...");
                     
-                    // Redireccionar al chat
-                    Navigation.NavigateTo("/chat/0", true);
+                    // Redireccionar directamente al chat
+                    Navigation.NavigateTo("/chat", true);
                 }
                 else
                 {

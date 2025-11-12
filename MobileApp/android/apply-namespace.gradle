@@ -1,0 +1,10 @@
+// Script para aplicar namespace automáticamente a módulos de librería
+// Este script se aplica ANTES de que se evalúe el bloque android del módulo
+
+android {
+    // El namespace se pasa desde el proyecto padre a través de ext.defaultNamespace
+    if (project.ext.has('defaultNamespace')) {
+        namespace = project.ext.defaultNamespace
+    }
+}
+

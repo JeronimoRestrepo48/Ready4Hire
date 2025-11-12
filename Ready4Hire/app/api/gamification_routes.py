@@ -140,14 +140,15 @@ async def get_leaderboard(request: Request, profession: Optional[str] = None, li
 @limiter.limit("30/minute")
 async def get_available_games(request: Request, profession: Optional[str] = None, difficulty: Optional[str] = None):
     """Obtiene juegos disponibles"""
-    # Catálogo de juegos disponibles
+    # Catálogo completo de juegos disponibles (15 juegos)
     games = [
+        # 5 juegos originales
         Game(
             id="code_challenge_1",
             name="Desafío de Código",
             description="Resuelve problemas de programación",
             type=GameType.CODE_CHALLENGE,
-            profession=profession or "software_engineer",
+            profession=profession or "universal",
             difficulty=difficulty or "mid",
             duration_minutes=30,
             points_reward=300,
@@ -157,7 +158,7 @@ async def get_available_games(request: Request, profession: Optional[str] = None
             name="Quiz Rápido",
             description="Responde preguntas de conocimiento",
             type=GameType.QUICK_QUIZ,
-            profession=profession or "software_engineer",
+            profession=profession or "universal",
             difficulty=difficulty or "mid",
             duration_minutes=10,
             points_reward=100,
@@ -167,7 +168,7 @@ async def get_available_games(request: Request, profession: Optional[str] = None
             name="Simulador de Escenarios",
             description="Enfrenta situaciones laborales reales",
             type=GameType.SCENARIO_SIMULATOR,
-            profession=profession or "software_engineer",
+            profession=profession or "universal",
             difficulty=difficulty or "mid",
             duration_minutes=20,
             points_reward=250,
@@ -177,7 +178,7 @@ async def get_available_games(request: Request, profession: Optional[str] = None
             name="Ronda Rápida",
             description="Responde lo más rápido posible",
             type=GameType.SPEED_ROUND,
-            profession=profession or "software_engineer",
+            profession=profession or "universal",
             difficulty=difficulty or "mid",
             duration_minutes=5,
             points_reward=75,
@@ -187,10 +188,112 @@ async def get_available_games(request: Request, profession: Optional[str] = None
             name="Constructor de Habilidades",
             description="Mejora tus habilidades paso a paso",
             type=GameType.SKILL_BUILDER,
-            profession=profession or "software_engineer",
+            profession=profession or "universal",
             difficulty=difficulty or "mid",
             duration_minutes=15,
             points_reward=150,
+        ),
+        
+        # 10 nuevos juegos universales
+        Game(
+            id="memory_challenge_1",
+            name="Desafío de Memoria",
+            description="Memoriza secuencias y patrones complejos",
+            type=GameType.MEMORY_CHALLENGE,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=12,
+            points_reward=180,
+        ),
+        Game(
+            id="logic_puzzles_1",
+            name="Rompecabezas Lógicos",
+            description="Resuelve acertijos de lógica y razonamiento",
+            type=GameType.LOGIC_PUZZLES,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=18,
+            points_reward=220,
+        ),
+        Game(
+            id="time_management_1",
+            name="Gestión del Tiempo",
+            description="Prioriza tareas y gestiona deadlines",
+            type=GameType.TIME_MANAGEMENT,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=15,
+            points_reward=200,
+        ),
+        Game(
+            id="communication_skills_1",
+            name="Habilidades de Comunicación",
+            description="Practica comunicación efectiva",
+            type=GameType.COMMUNICATION_SKILLS,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=20,
+            points_reward=240,
+        ),
+        Game(
+            id="problem_solving_race_1",
+            name="Carrera de Resolución",
+            description="Resuelve problemas contra el tiempo",
+            type=GameType.PROBLEM_SOLVING_RACE,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=10,
+            points_reward=160,
+        ),
+        Game(
+            id="decision_trees_1",
+            name="Árboles de Decisión",
+            description="Navega decisiones complejas paso a paso",
+            type=GameType.DECISION_TREES,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=25,
+            points_reward=280,
+        ),
+        Game(
+            id="pattern_recognition_1",
+            name="Reconocimiento de Patrones",
+            description="Identifica patrones ocultos y tendencias",
+            type=GameType.PATTERN_RECOGNITION,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=14,
+            points_reward=190,
+        ),
+        Game(
+            id="critical_thinking_1",
+            name="Pensamiento Crítico",
+            description="Analiza información y evalúa argumentos",
+            type=GameType.CRITICAL_THINKING,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=22,
+            points_reward=260,
+        ),
+        Game(
+            id="innovation_lab_1",
+            name="Laboratorio de Innovación",
+            description="Desarrolla soluciones creativas e innovadoras",
+            type=GameType.INNOVATION_LAB,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=30,
+            points_reward=320,
+        ),
+        Game(
+            id="stress_test_1",
+            name="Prueba de Estrés",
+            description="Mantén el rendimiento bajo presión",
+            type=GameType.STRESS_TEST,
+            profession="universal",
+            difficulty=difficulty or "mid",
+            duration_minutes=8,
+            points_reward=140,
         ),
     ]
 
@@ -232,6 +335,29 @@ async def start_game(request: Request, game_request: StartGameRequest):
             challenge = game_engine.create_scenario_simulator(game_request.profession, "problem_solving")
         elif "speed" in game_type:
             challenge = game_engine.create_speed_round(game_request.profession)
+        elif "skill" in game_type:
+            challenge = game_engine.create_skill_builder("problem_solving", game_request.difficulty)
+        # 10 nuevos juegos universales
+        elif "memory" in game_type:
+            challenge = game_engine.create_memory_challenge(game_request.profession, game_request.difficulty)
+        elif "logic" in game_type:
+            challenge = game_engine.create_logic_puzzles(game_request.profession, game_request.difficulty)
+        elif "time" in game_type:
+            challenge = game_engine.create_time_management(game_request.profession, game_request.difficulty)
+        elif "communication" in game_type:
+            challenge = game_engine.create_communication_skills(game_request.profession, game_request.difficulty)
+        elif "problem" in game_type and "solving" in game_type:
+            challenge = game_engine.create_problem_solving_race(game_request.profession, game_request.difficulty)
+        elif "decision" in game_type:
+            challenge = game_engine.create_decision_trees(game_request.profession, game_request.difficulty)
+        elif "pattern" in game_type:
+            challenge = game_engine.create_pattern_recognition(game_request.profession, game_request.difficulty)
+        elif "critical" in game_type:
+            challenge = game_engine.create_critical_thinking(game_request.profession, game_request.difficulty)
+        elif "innovation" in game_type:
+            challenge = game_engine.create_innovation_lab(game_request.profession, game_request.difficulty)
+        elif "stress" in game_type:
+            challenge = game_engine.create_stress_test(game_request.profession, game_request.difficulty)
         else:
             challenge = game_engine.create_skill_builder("problem_solving", game_request.difficulty)
 

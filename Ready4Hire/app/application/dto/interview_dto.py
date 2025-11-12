@@ -212,6 +212,10 @@ class ProcessAnswerResponse(BaseModel):
     attempts_left: Optional[int] = None
     interview_status: str
     interview_completed: bool = False
+    final_report: Optional[Dict[str, Any]] = None  # JSON del reporte completo
+    report_url: Optional[str] = None  # URL compartible del reporte
+    certificate_eligible: bool = False  # Si es elegible para certificado
+    certificate_id: Optional[str] = None  # ID del certificado si aplica
 
     class Config:
         json_schema_extra = {

@@ -1,0 +1,1365 @@
+@page "/game/innovation-lab"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>💡 Laboratorio de Innovación - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">💡 Desafío @currentChallenge/@totalChallenges</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">🎨 Creatividad: @(Math.Round(creativityScore * 100))%</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">💡</div>
+            <h1>Laboratorio de Innovación</h1>
+            <p>Desarrolla soluciones creativas e innovadoras para desafíos complejos</p>
+            <div class="game-rules">
+                <h3>🎯 Proceso de innovación:</h3>
+                <ul>
+                    <li>🎨 <strong>Ideación:</strong> Genera múltiples ideas creativas</li>
+                    <li>🔍 <strong>Análisis:</strong> Evalúa viabilidad e impacto</li>
+                    <li>🚀 <strong>Implementación:</strong> Planifica la ejecución</li>
+                    <li>📊 <strong>Iteración:</strong> Mejora continua de la solución</li>
+                    <li>🎯 <strong>Presentación:</strong> Comunica tu innovación</li>
+                </ul>
+
+                <div class="innovation-framework">
+                    <h4>🧠 Marco de creatividad:</h4>
+                    <p>• <strong>Divergencia:</strong> Explora múltiples posibilidades</p>
+                    <p>• <strong>Convergencia:</strong> Selecciona las mejores ideas</p>
+                    <p>• <strong>Pensamiento lateral:</strong> Busca conexiones inusuales</p>
+                    <p>• <strong>Prototipado rápido:</strong> Testa ideas rápidamente</p>
+                    <p>• <strong>Feedback iterativo:</strong> Mejora basada en resultados</p>
+                </div>
+            </div>
+            <div class="difficulty-selector">
+                <h4>Nivel de innovación:</h4>
+                <div class="difficulty-options">
+                    <button class="difficulty-btn @(selectedDifficulty == "junior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("junior")'>
+                        <span>🟢 Inventor</span>
+                        <small>2 desafíos, soluciones directas</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "mid" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("mid")'>
+                        <span>🟡 Innovador</span>
+                        <small>3 desafíos, creatividad avanzada</small>
+                    </button>
+                    <button class="difficulty-btn @(selectedDifficulty == "senior" ? "selected" : "")" 
+                            @onclick='() => SelectDifficulty("senior")'>
+                        <span>🔴 Visionario</span>
+                        <small>4 desafíos, disrupciones complejas</small>
+                    </button>
+                </div>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame" disabled="@(selectedDifficulty == null)">
+                🚀 Iniciar Laboratorio
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetInnovationIcon()</div>
+            <h2>¡Laboratorio Completado!</h2>
+            <div class="innovation-assessment">
+                <h3>@GetInnovationRating()</h3>
+                <p>@GetInnovationDescription()</p>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat highlight">
+                    <span class="result-label">Puntuación Final</span>
+                    <span class="result-value">@currentScore pts</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Desafíos Completados</span>
+                    <span class="result-value">@challengesCompleted/@totalChallenges</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Creatividad</span>
+                    <span class="result-value">@(Math.Round(creativityScore * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Originalidad</span>
+                    <span class="result-value">@(Math.Round(originalityScore * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Viabilidad</span>
+                    <span class="result-value">@(Math.Round(viabilityScore * 100))%</span>
+                </div>
+                <div class="result-stat">
+                    <span class="result-label">Perfil Innovador</span>
+                    <span class="result-value">@GetInnovatorProfile()</span>
+                </div>
+            </div>
+            <div class="innovation-portfolio">
+                <h4>🎨 Tu portafolio de innovaciones:</h4>
+                <div class="portfolio-grid">
+                    @foreach (var innovation in completedInnovations)
+                    {
+                        <div class="innovation-card">
+                            <div class="innovation-title">@innovation.Title</div>
+                            <div class="innovation-score">@innovation.TotalScore pts</div>
+                            <div class="innovation-highlights">
+                                <span class="highlight">💡 @innovation.CreativityLabel</span>
+                                <span class="highlight">🚀 @innovation.ImpactLabel</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="results-actions">
+                <button class="btn-restart" @onclick="RestartGame">
+                    🔄 Nuevo Laboratorio
+                </button>
+                <button class="btn-gamification" @onclick="GoToGamification">
+                    🎮 Ver Más Juegos
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="game-content">
+            <div class="innovation-workspace">
+                <div class="challenge-brief">
+                    <div class="brief-header">
+                        <h2>Desafío @currentChallenge: @currentChallengeData.Title</h2>
+                        <div class="challenge-type">@GetChallengeIcon() @currentChallengeData.Type</div>
+                    </div>
+
+                    <div class="problem-statement">
+                        <h4>🎯 Problema a resolver:</h4>
+                        <p>@currentChallengeData.Problem</p>
+                    </div>
+
+                    <div class="constraints-section">
+                        <h4>⚠️ Limitaciones:</h4>
+                        <ul class="constraints-list">
+                            @foreach (var constraint in currentChallengeData.Constraints)
+                            {
+                                <li>@constraint</li>
+                            }
+                        </ul>
+                    </div>
+
+                    <div class="success-criteria">
+                        <h4>✅ Criterios de éxito:</h4>
+                        <div class="criteria-grid">
+                            @foreach (var criterion in currentChallengeData.SuccessCriteria)
+                            {
+                                <div class="criterion-item">
+                                    <span class="criterion-icon">@GetCriterionIcon(criterion)</span>
+                                    <span class="criterion-text">@criterion</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (currentPhase == "Ideación")
+                {
+                    <div class="ideation-phase">
+                        <div class="phase-header">
+                            <h3>🎨 Fase de Ideación</h3>
+                            <div class="timer-display">⏰ @FormatTime(timeRemaining)</div>
+                        </div>
+                        
+                        <div class="brainstorm-area">
+                            <h4>💡 Genera ideas creativas:</h4>
+                            <div class="ideas-container">
+                                @foreach (var idea in generatedIdeas)
+                                {
+                                    <div class="idea-bubble @(selectedIdea == idea ? "selected" : "")"
+                                         @onclick="() => SelectIdea(idea)">
+                                        @idea
+                                    </div>
+                                }
+                            </div>
+                            
+                            <div class="idea-input">
+                                <input type="text" @bind="newIdea" @onkeypress="HandleIdeaKeyPress"
+                                       placeholder="Escribe una nueva idea..." class="idea-text-input" />
+                                <button class="btn-add-idea" @onclick="AddIdea" disabled="@string.IsNullOrWhiteSpace(newIdea)">
+                                    ➕ Agregar
+                                </button>
+                            </div>
+                            
+                            <div class="brainstorm-stats">
+                                <span>Ideas generadas: @generatedIdeas.Count</span>
+                                <span>Objetivo: al menos 5 ideas</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-actions">
+                            <button class="btn-next-phase" @onclick="NextPhase" 
+                                    disabled="@(generatedIdeas.Count < 3)">
+                                Siguiente Fase ➡️
+                            </button>
+                            <button class="btn-inspiration" @onclick="GetInspiration">
+                                ✨ Buscar Inspiración
+                            </button>
+                        </div>
+                    </div>
+                }
+                else if (currentPhase == "Evaluación")
+                {
+                    <div class="evaluation-phase">
+                        <div class="phase-header">
+                            <h3>📊 Fase de Evaluación</h3>
+                            <p>Selecciona y evalúa tu mejor idea</p>
+                        </div>
+
+                        <div class="idea-evaluation">
+                            <h4>💡 Tu idea seleccionada:</h4>
+                            <div class="selected-idea-card">
+                                <div class="idea-content">@selectedIdea</div>
+                            </div>
+
+                            <h4>📋 Evalúa tu solución:</h4>
+                            <div class="evaluation-criteria">
+                                <div class="evaluation-item">
+                                    <label>🎨 Originalidad (1-5):</label>
+                                    <input type="range" min="1" max="5" @bind="originalityRating" class="rating-slider" />
+                                    <span class="rating-value">@originalityRating</span>
+                                </div>
+                                <div class="evaluation-item">
+                                    <label>🚀 Viabilidad (1-5):</label>
+                                    <input type="range" min="1" max="5" @bind="viabilityRating" class="rating-slider" />
+                                    <span class="rating-value">@viabilityRating</span>
+                                </div>
+                                <div class="evaluation-item">
+                                    <label>💥 Impacto (1-5):</label>
+                                    <input type="range" min="1" max="5" @bind="impactRating" class="rating-slider" />
+                                    <span class="rating-value">@impactRating</span>
+                                </div>
+                                <div class="evaluation-item">
+                                    <label>💰 Simplicidad (1-5):</label>
+                                    <input type="range" min="1" max="5" @bind="simplicityRating" class="rating-slider" />
+                                    <span class="rating-value">@simplicityRating</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="phase-actions">
+                            <button class="btn-next-phase" @onclick="NextPhase">
+                                Siguiente Fase ➡️
+                            </button>
+                            <button class="btn-back-phase" @onclick="PreviousPhase">
+                                ⬅️ Generar Más Ideas
+                            </button>
+                        </div>
+                    </div>
+                }
+                else if (currentPhase == "Presentación")
+                {
+                    <div class="presentation-phase">
+                        <div class="phase-header">
+                            <h3>🎯 Fase de Presentación</h3>
+                            <p>Presenta tu solución innovadora</p>
+                        </div>
+
+                        <div class="pitch-builder">
+                            <div class="pitch-section">
+                                <h4>🎤 Tu pitch de innovación:</h4>
+                                <div class="innovation-summary">
+                                    <div class="summary-item">
+                                        <strong>Problema:</strong> @currentChallengeData.Problem
+                                    </div>
+                                    <div class="summary-item">
+                                        <strong>Solución:</strong> @selectedIdea
+                                    </div>
+                                    <div class="summary-item">
+                                        <strong>Puntuación:</strong>
+                                        <div class="score-breakdown">
+                                            <span>Originalidad: @originalityRating/5</span>
+                                            <span>Viabilidad: @viabilityRating/5</span>
+                                            <span>Impacto: @impactRating/5</span>
+                                            <span>Simplicidad: @simplicityRating/5</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="ai-feedback">
+                                <h4>🤖 Evaluación de la IA:</h4>
+                                <div class="feedback-content">
+                                    <p>@GetAIFeedback()</p>
+                                    <div class="ai-score">
+                                        Puntuación IA: @CalculateAIScore()/100
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="phase-actions">
+                            <button class="btn-complete-challenge" @onclick="CompleteChallenge">
+                                🏆 Completar Desafío
+                            </button>
+                            <button class="btn-back-phase" @onclick="PreviousPhase">
+                                ⬅️ Revisar Evaluación
+                            </button>
+                        </div>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(inspirationText))
+                {
+                    <div class="inspiration-panel">
+                        <div class="inspiration-icon">✨</div>
+                        <div class="inspiration-content">
+                            <h5>Fuente de inspiración:</h5>
+                            <p>@inspirationText</p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    
+    private int currentChallenge = 1;
+    private int totalChallenges = 3;
+    private int currentScore = 0;
+    private int challengesCompleted = 0;
+    private int timeRemaining = 300; // 5 minutos por fase
+
+    private double creativityScore = 0;
+    private double originalityScore = 0;
+    private double viabilityScore = 0;
+
+    private string? selectedDifficulty = null;
+    private string currentPhase = "Ideación"; // Ideación -> Evaluación -> Presentación
+    private string selectedIdea = "";
+    private string newIdea = "";
+    private string inspirationText = "";
+
+    private int originalityRating = 3;
+    private int viabilityRating = 3;
+    private int impactRating = 3;
+    private int simplicityRating = 3;
+
+    private List<string> generatedIdeas = new();
+    private List<InnovationResult> completedInnovations = new();
+    private ChallengeData currentChallengeData = new();
+    private System.Threading.Timer? phaseTimer;
+
+    public class ChallengeData
+    {
+        public string Title { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Problem { get; set; } = "";
+        public List<string> Constraints { get; set; } = new();
+        public List<string> SuccessCriteria { get; set; } = new();
+    }
+
+    public class InnovationResult
+    {
+        public string Title { get; set; } = "";
+        public string Solution { get; set; } = "";
+        public int TotalScore { get; set; } = 0;
+        public string CreativityLabel { get; set; } = "";
+        public string ImpactLabel { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/", true);
+        }
+    }
+
+    private void SelectDifficulty(string difficulty)
+    {
+        selectedDifficulty = difficulty;
+        totalChallenges = difficulty switch
+        {
+            "junior" => 2,
+            "mid" => 3,
+            "senior" => 4,
+            _ => 3
+        };
+        StateHasChanged();
+    }
+
+    private void StartGame()
+    {
+        if (selectedDifficulty == null) return;
+
+        gameStarted = true;
+        currentChallenge = 1;
+        currentScore = 0;
+        challengesCompleted = 0;
+        completedInnovations.Clear();
+
+        GenerateChallenge();
+        StartPhaseTimer();
+        StateHasChanged();
+    }
+
+    private void GenerateChallenge()
+    {
+        currentPhase = "Ideación";
+        generatedIdeas.Clear();
+        selectedIdea = "";
+        timeRemaining = 300;
+        originalityRating = 3;
+        viabilityRating = 3;
+        impactRating = 3;
+        simplicityRating = 3;
+
+        var challenges = GetChallengesByDifficulty(selectedDifficulty ?? "mid");
+        currentChallengeData = challenges[new Random().Next(challenges.Length)];
+    }
+
+    private ChallengeData[] GetChallengesByDifficulty(string difficulty)
+    {
+        var challenges = new[]
+        {
+            new ChallengeData
+            {
+                Title = "Reducción de Desperdicio Alimentario",
+                Type = "Sostenibilidad",
+                Problem = "Los restaurantes desechan 30% de sus alimentos diariamente, generando pérdidas económicas y daño ambiental.",
+                Constraints = new List<string>
+                {
+                    "Presupuesto limitado de $5,000",
+                    "Debe implementarse en 30 días",
+                    "Sin cambios drásticos en operaciones",
+                    "Debe ser escalable a múltiples restaurantes"
+                },
+                SuccessCriteria = new List<string>
+                {
+                    "Originalidad", "Viabilidad", "Impacto", "Simplicidad"
+                }
+            },
+            new ChallengeData
+            {
+                Title = "Mejora de Productividad Remota",
+                Type = "Tecnología",
+                Problem = "Los equipos remotos reportan 40% menos colaboración efectiva y pérdida de creatividad en sesiones de lluvia de ideas.",
+                Constraints = new List<string>
+                {
+                    "Solo herramientas de software",
+                    "Compatible con equipos de 5-50 personas",
+                    "Funciona con conexiones limitadas",
+                    "Fácil adopción sin entrenamiento extenso"
+                },
+                SuccessCriteria = new List<string>
+                {
+                    "Originalidad", "Viabilidad", "Impacto", "Simplicidad"
+                }
+            }
+        };
+
+        return challenges;
+    }
+
+    private void StartPhaseTimer()
+    {
+        phaseTimer = new System.Threading.Timer(async _ =>
+        {
+            timeRemaining--;
+            if (timeRemaining <= 0)
+            {
+                await InvokeAsync(() => NextPhase());
+            }
+            await InvokeAsync(StateHasChanged);
+        }, null, 1000, 1000);
+    }
+
+    private void HandleIdeaKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(newIdea))
+        {
+            AddIdea();
+        }
+    }
+
+    private void AddIdea()
+    {
+        if (string.IsNullOrWhiteSpace(newIdea)) return;
+        
+        generatedIdeas.Add(newIdea.Trim());
+        newIdea = "";
+        StateHasChanged();
+    }
+
+    private void SelectIdea(string idea)
+    {
+        selectedIdea = idea;
+        StateHasChanged();
+    }
+
+    private void GetInspiration()
+    {
+        var inspirations = new[]
+        {
+            "¿Qué haría la naturaleza para resolver este problema?",
+            "¿Cómo lo solucionarían los niños de forma simple?",
+            "¿Qué pasaría si combinaras dos industrias diferentes?",
+            "¿Cómo lo haría una startup con recursos limitados?",
+            "¿Qué tecnología emergente podría aplicarse aquí?",
+            "¿Cómo lo resolverían en el futuro (año 2050)?",
+            "¿Qué elementos de juegos podrían hacer esto más atractivo?",
+            "¿Cómo convertir este problema en una oportunidad?"
+        };
+
+        inspirationText = inspirations[new Random().Next(inspirations.Length)];
+        StateHasChanged();
+
+        Task.Delay(8000).ContinueWith(_ => InvokeAsync(() =>
+        {
+            inspirationText = "";
+            StateHasChanged();
+        }));
+    }
+
+    private void NextPhase()
+    {
+        if (currentPhase == "Ideación")
+        {
+            if (generatedIdeas.Count == 0) return;
+            if (string.IsNullOrEmpty(selectedIdea))
+            {
+                selectedIdea = generatedIdeas.First();
+            }
+            currentPhase = "Evaluación";
+            timeRemaining = 180; // 3 minutos
+        }
+        else if (currentPhase == "Evaluación")
+        {
+            currentPhase = "Presentación";
+            timeRemaining = 120; // 2 minutos
+        }
+        
+        StateHasChanged();
+    }
+
+    private void PreviousPhase()
+    {
+        if (currentPhase == "Evaluación")
+        {
+            currentPhase = "Ideación";
+            timeRemaining = 300;
+        }
+        else if (currentPhase == "Presentación")
+        {
+            currentPhase = "Evaluación";
+            timeRemaining = 180;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void CompleteChallenge()
+    {
+        phaseTimer?.Dispose();
+        
+        // Calcular puntuación
+        var totalRating = originalityRating + viabilityRating + impactRating + simplicityRating;
+        var baseScore = totalRating * 25; // Máximo 500 puntos
+        var ideaBonus = generatedIdeas.Count * 10; // Bonus por generar más ideas
+        
+        var challengeScore = baseScore + ideaBonus;
+        currentScore += challengeScore;
+        challengesCompleted++;
+
+        // Guardar innovación
+        var innovation = new InnovationResult
+        {
+            Title = currentChallengeData.Title,
+            Solution = selectedIdea,
+            TotalScore = challengeScore,
+            CreativityLabel = GetCreativityLabel(originalityRating),
+            ImpactLabel = GetImpactLabel(impactRating)
+        };
+        completedInnovations.Add(innovation);
+
+        // Actualizar puntuaciones
+        originalityScore = (originalityScore + originalityRating / 5.0) / 2;
+        viabilityScore = (viabilityScore + viabilityRating / 5.0) / 2;
+        creativityScore = (originalityScore + viabilityScore) / 2;
+
+        if (currentChallenge < totalChallenges)
+        {
+            currentChallenge++;
+            GenerateChallenge();
+            StartPhaseTimer();
+        }
+        else
+        {
+            FinishGame();
+        }
+        
+        StateHasChanged();
+    }
+
+    private void FinishGame()
+    {
+        phaseTimer?.Dispose();
+        gameFinished = true;
+        StateHasChanged();
+    }
+
+    private void RestartGame()
+    {
+        gameFinished = false;
+        gameStarted = false;
+        selectedDifficulty = null;
+        StateHasChanged();
+    }
+
+    private void GoBack()
+    {
+        phaseTimer?.Dispose();
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification", false);
+    }
+
+    private string GetChallengeIcon()
+    {
+        return currentChallengeData.Type switch
+        {
+            "Sostenibilidad" => "🌱",
+            "Tecnología" => "💻",
+            "Salud" => "🏥",
+            "Educación" => "📚",
+            "Transporte" => "🚗",
+            _ => "💡"
+        };
+    }
+
+    private string GetCriterionIcon(string criterion)
+    {
+        return criterion switch
+        {
+            "Originalidad" => "🎨",
+            "Viabilidad" => "🚀",
+            "Impacto" => "💥",
+            "Simplicidad" => "💰",
+            _ => "✅"
+        };
+    }
+
+    private string FormatTime(int seconds)
+    {
+        var minutes = seconds / 60;
+        var secs = seconds % 60;
+        return $"{minutes:D2}:{secs:D2}";
+    }
+
+    private string GetAIFeedback()
+    {
+        var score = CalculateAIScore();
+        return score switch
+        {
+            >= 80 => "¡Solución excepcional! Tu idea combina originalidad con viabilidad práctica. Esta innovación tiene potencial disruptivo.",
+            >= 60 => "Buena propuesta innovadora. La solución es sólida y muestra pensamiento creativo con enfoque práctico.",
+            >= 40 => "Idea promisoria con espacio de mejora. Considera fortalecer la originalidad o la viabilidad de implementación.",
+            _ => "Concepto inicial interesante. Necesita más desarrollo para alcanzar su potencial innovador."
+        };
+    }
+
+    private int CalculateAIScore()
+    {
+        var baseScore = (originalityRating + viabilityRating + impactRating + simplicityRating) * 5;
+        var ideaBonus = Math.Min(generatedIdeas.Count * 2, 20);
+        return Math.Min(100, baseScore + ideaBonus);
+    }
+
+    private string GetCreativityLabel(int rating)
+    {
+        return rating switch
+        {
+            5 => "Revolucionario",
+            4 => "Muy Creativo",
+            3 => "Creativo",
+            2 => "Convencional",
+            _ => "Básico"
+        };
+    }
+
+    private string GetImpactLabel(int rating)
+    {
+        return rating switch
+        {
+            5 => "Transformador",
+            4 => "Alto Impacto",
+            3 => "Impacto Medio",
+            2 => "Impacto Bajo",
+            _ => "Mínimo"
+        };
+    }
+
+    private string GetInnovationIcon()
+    {
+        return creativityScore switch
+        {
+            >= 0.8 => "🚀",
+            >= 0.6 => "💡",
+            >= 0.4 => "🎨",
+            _ => "💭"
+        };
+    }
+
+    private string GetInnovationRating()
+    {
+        return creativityScore switch
+        {
+            >= 0.8 => "Innovador Disruptivo",
+            >= 0.6 => "Creativo Avanzado",
+            >= 0.4 => "Innovador Emergente",
+            _ => "Aprendiz Creativo"
+        };
+    }
+
+    private string GetInnovationDescription()
+    {
+        return creativityScore switch
+        {
+            >= 0.8 => "Demuestras capacidad excepcional para generar soluciones disruptivas. Tu pensamiento lateral y habilidad para conectar conceptos diversos te posicionan como un innovador nato.",
+            >= 0.6 => "Tienes sólidas habilidades de innovación con buen balance entre creatividad y pragmatismo. Puedes desarrollar soluciones originales y viables.",
+            >= 0.4 => "Estás desarrollando tu capacidad innovadora. Enfócate en generar más ideas alternativas y en pensar fuera de los marcos convencionales.",
+            _ => "La innovación se desarrolla con práctica. Experimenta con técnicas de pensamiento lateral y busca inspiración en campos diversos."
+        };
+    }
+
+    private string GetInnovatorProfile()
+    {
+        if (originalityScore > viabilityScore)
+            return "Visionario";
+        else if (viabilityScore > originalityScore)
+            return "Pragmático";
+        else
+            return "Equilibrado";
+    }
+
+    public void Dispose()
+    {
+        phaseTimer?.Dispose();
+    }
+}
+
+<style>
+    .game-container {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        min-height: 100vh;
+        color: #ffffff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #ffffff;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        font-weight: 500;
+        font-size: 0.85rem;
+        padding: 0.3rem 0.8rem;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 20px;
+        white-space: nowrap;
+    }
+
+    .game-intro {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        animation: innovation-glow 2s ease-in-out infinite;
+    }
+
+    @@keyframes innovation-glow {
+        0%, 100% { transform: scale(1); filter: brightness(1); }
+        50% { transform: scale(1.05); filter: brightness(1.2); }
+    }
+
+    .game-intro h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ffffff 0%, #feca57 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .innovation-framework {
+        background: rgba(254, 202, 87, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid rgba(254, 202, 87, 0.3);
+        margin-top: 1rem;
+    }
+
+    .game-content {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+        min-height: calc(100vh - 140px);
+    }
+
+    .innovation-workspace {
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 16px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .challenge-brief {
+        margin-bottom: 2rem;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 12px;
+    }
+
+    .brief-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .challenge-type {
+        background: rgba(254, 202, 87, 0.2);
+        color: #feca57;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .problem-statement {
+        margin-bottom: 1.5rem;
+        background: rgba(255, 107, 107, 0.1);
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #ff6b6b;
+    }
+
+    .constraints-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .constraints-section h4 {
+        color: #feca57;
+        margin-bottom: 0.8rem;
+    }
+
+    .constraints-list {
+        list-style: none;
+        padding: 0;
+    }
+
+    .constraints-list li {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 0.6rem;
+        margin-bottom: 0.5rem;
+        border-radius: 6px;
+        border-left: 3px solid #ee5a24;
+    }
+
+    .success-criteria h4 {
+        color: #feca57;
+        margin-bottom: 1rem;
+    }
+
+    .criteria-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.8rem;
+    }
+
+    .criterion-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(46, 204, 113, 0.1);
+        padding: 0.6rem;
+        border-radius: 6px;
+        border: 1px solid rgba(46, 204, 113, 0.2);
+    }
+
+    .criterion-icon {
+        font-size: 1.1rem;
+    }
+
+    .ideation-phase, .evaluation-phase, .presentation-phase {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .phase-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .phase-header h3 {
+        color: #feca57;
+        margin: 0;
+    }
+
+    .timer-display {
+        background: rgba(254, 202, 87, 0.2);
+        color: #feca57;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-family: 'Courier New', monospace;
+    }
+
+    .ideas-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.8rem;
+        margin: 1rem 0;
+        min-height: 100px;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        border: 2px dashed rgba(255, 255, 255, 0.2);
+    }
+
+    .idea-bubble {
+        background: rgba(254, 202, 87, 0.2);
+        color: #feca57;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+
+    .idea-bubble:hover {
+        background: rgba(254, 202, 87, 0.3);
+        transform: translateY(-1px);
+    }
+
+    .idea-bubble.selected {
+        background: rgba(254, 202, 87, 0.4);
+        border-color: #feca57;
+    }
+
+    .idea-input {
+        display: flex;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .idea-text-input {
+        flex: 1;
+        padding: 0.8rem;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: white;
+        font-size: 1rem;
+    }
+
+    .idea-text-input:focus {
+        outline: none;
+        border-color: #feca57;
+    }
+
+    .btn-add-idea {
+        background: rgba(254, 202, 87, 0.3);
+        color: #feca57;
+        border: 2px solid #feca57;
+        padding: 0.8rem 1.2rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: all 0.2s;
+    }
+
+    .btn-add-idea:hover:not(:disabled) {
+        background: rgba(254, 202, 87, 0.5);
+    }
+
+    .brainstorm-stats {
+        display: flex;
+        justify-content: space-between;
+        color: #b0b0b0;
+        font-size: 0.9rem;
+    }
+
+    .selected-idea-card {
+        background: rgba(254, 202, 87, 0.1);
+        padding: 1.2rem;
+        border-radius: 8px;
+        border: 2px solid #feca57;
+        margin: 1rem 0;
+    }
+
+    .idea-content {
+        font-size: 1.1rem;
+        color: #feca57;
+        font-weight: 500;
+    }
+
+    .evaluation-criteria {
+        display: grid;
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+
+    .evaluation-item {
+        display: grid;
+        grid-template-columns: 150px 1fr 40px;
+        gap: 1rem;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    .rating-slider {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.2);
+        outline: none;
+        cursor: pointer;
+    }
+
+    .rating-value {
+        font-weight: 600;
+        color: #feca57;
+        text-align: center;
+    }
+
+    .innovation-summary {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+    }
+
+    .summary-item {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .summary-item:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .score-breakdown {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+
+    .score-breakdown span {
+        background: rgba(254, 202, 87, 0.2);
+        color: #feca57;
+        padding: 0.3rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+    }
+
+    .ai-feedback {
+        background: rgba(52, 152, 219, 0.1);
+        padding: 1.5rem;
+        border-radius: 8px;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        margin: 1rem 0;
+    }
+
+    .ai-feedback h4 {
+        color: #3498db;
+        margin-bottom: 1rem;
+    }
+
+    .ai-score {
+        background: rgba(52, 152, 219, 0.2);
+        color: #3498db;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        display: inline-block;
+        font-weight: 600;
+        margin-top: 1rem;
+    }
+
+    .phase-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 2rem 0;
+    }
+
+    .btn-next-phase, .btn-back-phase, .btn-complete-challenge, .btn-inspiration {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-next-phase, .btn-complete-challenge {
+        background: linear-gradient(45deg, #feca57 0%, #ff9ff3 100%);
+        color: white;
+    }
+
+    .btn-back-phase {
+        background: rgba(149, 165, 166, 0.2);
+        color: #95a5a6;
+        border: 1px solid rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-inspiration {
+        background: rgba(155, 89, 182, 0.2);
+        color: #9b59b6;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+    }
+
+    .inspiration-panel {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        background: rgba(155, 89, 182, 0.1);
+        padding: 1.2rem;
+        border-radius: 8px;
+        border: 1px solid rgba(155, 89, 182, 0.3);
+        margin-top: 1rem;
+    }
+
+    .inspiration-icon {
+        font-size: 1.5rem;
+        color: #9b59b6;
+        margin-top: 0.2rem;
+    }
+
+    .inspiration-content h5 {
+        color: #9b59b6;
+        margin: 0 0 0.5rem 0;
+    }
+
+    .inspiration-content p {
+        color: #9b59b6;
+        margin: 0;
+        line-height: 1.4;
+    }
+
+    .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-results h2 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #feca57 0%, #ff9ff3 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .innovation-assessment {
+        margin-bottom: 2rem;
+        max-width: 600px;
+    }
+
+    .innovation-assessment h3 {
+        color: #feca57;
+        margin-bottom: 0.5rem;
+    }
+
+    .results-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+        width: 100%;
+        max-width: 1000px;
+    }
+
+    .result-stat {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1.2rem;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .result-stat.highlight {
+        background: rgba(254, 202, 87, 0.1);
+        border-color: #feca57;
+    }
+
+    .result-label {
+        display: block;
+        color: #b0b0b0;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .result-value {
+        display: block;
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #feca57;
+    }
+
+    .innovation-portfolio {
+        margin-bottom: 2rem;
+        max-width: 800px;
+    }
+
+    .innovation-portfolio h4 {
+        color: #feca57;
+        margin-bottom: 1rem;
+    }
+
+    .portfolio-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .innovation-card {
+        background: rgba(0, 0, 0, 0.15);
+        padding: 1.2rem;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .innovation-title {
+        font-weight: 600;
+        color: #ffffff;
+    }
+
+    .innovation-score {
+        color: #feca57;
+        font-weight: 600;
+    }
+
+    .innovation-highlights {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        grid-column: 1 / -1;
+    }
+
+    .highlight {
+        background: rgba(254, 202, 87, 0.2);
+        color: #feca57;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+    }
+
+    .results-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .btn-restart, .btn-gamification {
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        font-size: 1rem;
+    }
+
+    .btn-restart {
+        background: linear-gradient(45deg, #feca57 0%, #ff9ff3 100%);
+        color: white;
+    }
+
+    .btn-gamification {
+        background: transparent;
+        color: #e8e8e8;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+</style>

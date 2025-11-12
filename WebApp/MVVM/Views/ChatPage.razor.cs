@@ -27,6 +27,7 @@ namespace Ready4Hire.MVVM.Views
         [Inject]
         private NavigationManager Navigation { get; set; } = null!;
 
+
         // Id chat
         [Parameter]
         public int chatId { get; set; }
@@ -55,22 +56,57 @@ namespace Ready4Hire.MVVM.Views
         /// Indica si se muestra el modal de configuración.
         public bool ShowConfig { get; set; } = false;
 
-        /// Tipo de entrevista seleccionado ("technical" o "soft_skills").
-        public string SelectedInterviewType { get; set; } = "technical";
+        // Referencias a elementos del DOM
+    private ElementReference chatMessagesContainer;
+    private ElementReference inputTextArea;
+    
+    // Usuario actual para el saludo personalizado
+    private User? currentUser;
 
-        /// Rol seleccionado (ej: "Backend Developer", "Frontend Developer").
-        public string SelectedRole { get; set; } = "Backend Developer";
+        // Configuración de la entrevista
+        private string SelectedRole { get; set; } = "";
+        private string SelectedInterviewType { get; set; } = "technical";
+        private string SelectedDifficulty { get; set; } = "mid";
 
-        /// Dificultad seleccionada ("junior", "mid", "senior").
-        public string SelectedDifficulty { get; set; } = "junior";
+        // Propiedades calculadas
+        private bool IsConfigured => !string.IsNullOrEmpty(SelectedRole);
+        private bool CanSendMessage => !string.IsNullOrWhiteSpace(UserInput) && started;
+
+        private string FormatTime(int seconds)
+        {
+            var minutes = seconds / 60;
+            var secs = seconds % 60;
+            return $"{minutes:00}:{secs:00}";
+        }
 
         /// Modo de entrevista seleccionado ("practice" o "exam").
         public string SelectedMode { get; set; } = "practice";
 
         /// Indica si la configuración fue guardada y es válida.
-        public bool IsConfigured { get; set; } = false;
+        public bool IsConfiguredLegacy { get; set; } = false;
+
+        // Métodos necesarios para el .razor
+        private string FormatMessageMethod(string message)
+        {
+            // Conversión básica de markdown/texto
+            return message.Replace("\n", "<br/>");
+        }
+
+        private async Task HandleKeyPressMethod(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+        {
+            if (e.Key == "Enter" && !e.ShiftKey && CanSendMessage)
+            {
+                await SendMessage();
+            }
+        }
 
         private bool isAuthenticated = false;
+
+        // Variables para STT/TTS
+        private bool isRecording = false;
+        private bool isPlayingTTS = false;
+        private DotNetObjectReference<ChatPage>? dotNetRef;
+        private IJSObjectReference? mediaRecorder;
 
         protected override async Task OnInitializedAsync()
         {
@@ -79,8 +115,40 @@ namespace Ready4Hire.MVVM.Views
             vm = new ChatViewModel(currentDb, chatId);
             await vm.LoadDataAsync(chatId);
 
-            if (chatId != 0 && vm.Messages != null)
+            // Cargar el estado existente de la entrevista si existe
+            await LoadExistingInterviewState();
+            
+            // Cargar datos del usuario actual para el saludo
+            await LoadCurrentUser();
+
+            // Inicializar la referencia para JavaScript
+            dotNetRef = DotNetObjectReference.Create(this);
+        }
+
+        /// <summary>
+        /// Carga el estado existente de una entrevista si ya hay datos guardados
+        /// </summary>
+        private async Task LoadExistingInterviewState()
+        {
+            if (chatId != 0 && vm?.Messages != null && vm.Messages.Any())
+            {
                 Messages = vm.Messages;
+                
+                // Si ya hay mensajes, significa que la entrevista ya comenzó
+                started = true;
+                currentPhase = "context"; // Asumir que está en progreso
+                
+                // Contar preguntas de contexto respondidas aproximadamente
+                contextQuestionsAnswered = Messages.Count(m => m.IsUser) / 2; // Estimación
+                questionCount = Messages.Count(m => m.IsUser);
+                
+                StateHasChanged();
+            }
+            else if (chatId != 0)
+            {
+                // Si existe el chat pero no tiene mensajes, mostrar configuración
+                started = false;
+            }
         }
 
         protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -110,11 +178,6 @@ namespace Ready4Hire.MVVM.Views
             await ScrollToBottomAsync();
         }
 
-        public void Dispose()
-        {
-            // Liberar el DbContext cuando el componente se destruye
-            currentDb?.Dispose();
-        }
 
         /// Muestra el modal de configuración de entrevista.
         private void ShowSetup()
@@ -133,7 +196,7 @@ namespace Ready4Hire.MVVM.Views
         {
             interviewType = SelectedInterviewType;
             mode = SelectedMode;
-            IsConfigured = true;
+                IsConfiguredLegacy = true;
             ShowConfig = false;
             isExamMode = (mode == "exam");
             StateHasChanged();
@@ -192,9 +255,32 @@ namespace Ready4Hire.MVVM.Views
 
                 StateHasChanged();
             }
+            catch (TimeoutException ex)
+            {
+                errorMessage = "⏱️ Tiempo de espera agotado. Verifica que el servidor backend esté ejecutándose.";
+                StartOfflineMode();
+            }
+            catch (HttpRequestException ex)
+            {
+                errorMessage = $"🌐 Error de conexión: No se puede conectar al servidor. {ex.Message}";
+                StartOfflineMode();
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (ex.Message.Contains("métricas de Prometheus"))
+                {
+                    errorMessage = "🔧 El backend está ejecutándose en el puerto incorrecto o hay un problema de configuración de rutas. Activando modo offline.";
+                }
+                else
+                {
+                    errorMessage = $"⚠️ {ex.Message}";
+                }
+                StartOfflineMode();
+            }
             catch (Exception ex)
             {
-                errorMessage = $"Error al iniciar la entrevista: {ex.Message}";
+                errorMessage = $"❌ Error inesperado: {ex.Message}";
+                StartOfflineMode();
             }
 
             await ScrollToBottomAsync();
@@ -317,23 +403,145 @@ namespace Ready4Hire.MVVM.Views
         /// <summary>
         /// Finaliza la entrevista y muestra el resumen devuelto por la API.
         /// </summary>
+        /// <summary>
+        /// Inicia el modo offline cuando el backend no está disponible
+        /// </summary>
+        private void StartOfflineMode()
+        {
+            Messages.Add(new Message 
+            { 
+                Text = "🔄 Modo offline activado. Simulando entrevista para demostración.", 
+                IsUser = false 
+            });
+            
+            Messages.Add(new Message 
+            { 
+                Text = "📝 ¿Puedes contarme sobre tu experiencia profesional y qué te motiva en tu carrera?", 
+                IsUser = false 
+            });
+            
+            interviewId = "offline_" + Guid.NewGuid().ToString("N")[..8];
+            currentPhase = "context";
+            StateHasChanged();
+        }
+
+        /// <summary>
+        /// Limpia el mensaje de error y permite continuar
+        /// </summary>
+        private void ClearError()
+        {
+            errorMessage = null;
+            StateHasChanged();
+        }
+
+        private void ToggleExamMode()
+        {
+            isExamMode = !isExamMode;
+            StateHasChanged();
+        }
+
+        /// <summary>
+        /// Carga los datos del usuario actual
+        /// </summary>
+        private async Task LoadCurrentUser()
+        {
+            try
+            {
+                var email = await AuthService.GetCurrentUserEmailAsync();
+                if (!string.IsNullOrEmpty(email) && currentDb != null)
+                {
+                    currentUser = await currentDb.Users
+                        .FirstOrDefaultAsync(u => u.Email == email);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading current user: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Obtiene el nombre del usuario para mostrar en el saludo
+        /// </summary>
+        private string GetUserName()
+        {
+            return currentUser?.Name ?? "Usuario";
+        }
+
+        /// <summary>
+        /// Guarda un mensaje en la base de datos para persistir el historial
+        /// </summary>
+        private async Task SaveMessageToDatabase(string messageText, bool isUser)
+        {
+            try
+            {
+                if (currentDb != null && chatId != 0)
+                {
+                    var message = new Message
+                    {
+                        ChatId = chatId,
+                        Text = messageText,
+                        IsUser = isUser,
+                        Timestamp = DateTime.UtcNow
+                    };
+
+                    currentDb.Messages.Add(message);
+                    await currentDb.SaveChangesAsync();
+
+                    // Actualizar también la lista en memoria
+                    Messages.Add(new Message 
+                    { 
+                        Text = messageText, 
+                        IsUser = isUser 
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error saving message to database: {ex.Message}");
+                // Si falla el guardado en DB, al menos mantener en memoria
+                Messages.Add(new Message 
+                { 
+                    Text = messageText, 
+                    IsUser = isUser 
+                });
+            }
+        }
+
         private async Task EndInterview()
         {
             StopExamTimer();
             try
             {
-                var result = await InterviewApi.EndInterviewAsync(userId);
-                if (result.TryGetProperty("summary", out var summary))
+                if (interviewId?.StartsWith("offline_") == true)
                 {
-                    var summaryText = summary.GetString() ?? "";
-                    // Gamificación: si contiene el bloque especial, mostrarlo resaltado
-                    if (summaryText.Contains("🎮 Sistema de Gamificación Avanzada 🎮"))
+                    // Modo offline
+                    Messages.Add(new Message 
+                    { 
+                        Text = "🎯 Resumen de entrevista (Modo Demo):\n\n" +
+                               "✅ Participación activa demostrada\n" +
+                               "💡 Respuestas reflexivas y coherentes\n" +
+                               "🚀 Potencial para crecimiento profesional\n\n" +
+                               "🎮 ¡Obtuviste 150 puntos de experiencia!\n" +
+                               "🏆 Insignia desbloqueada: 'Primer Paso'", 
+                        IsUser = false 
+                    });
+                }
+                else
+                {
+                    var result = await InterviewApi.EndInterviewAsync(userId);
+                    if (result.TryGetProperty("summary", out var summary))
                     {
-                        Messages.Add(new Message { Text = summaryText, IsUser = false });
-                    }
-                    else
-                    {
-                        Messages.Add(new Message { Text = summaryText, IsUser = false });
+                        var summaryText = summary.GetString() ?? "";
+                        // Gamificación: si contiene el bloque especial, mostrarlo resaltado
+                        if (summaryText.Contains("🎮 Sistema de Gamificación Avanzada 🎮"))
+                        {
+                            Messages.Add(new Message { Text = summaryText, IsUser = false });
+                        }
+                        else
+                        {
+                            Messages.Add(new Message { Text = summaryText, IsUser = false });
+                        }
                     }
                 }
             }
@@ -345,6 +553,56 @@ namespace Ready4Hire.MVVM.Views
             StateHasChanged();
             await ScrollToBottomAsync();
         }
+        /// <summary>
+        /// Procesa respuestas en modo offline para demostración
+        /// </summary>
+        private void ProcessOfflineAnswer(string answer)
+        {
+            contextQuestionsAnswered++;
+            questionCount++;
+
+            // Respuestas simuladas inteligentes
+            var feedbackResponses = new[]
+            {
+                "💡 Excelente respuesta. Me parece que tienes una perspectiva muy clara.",
+                "👏 Interesante enfoque. Eso demuestra tu capacidad analítica.",
+                "✨ Muy bien explicado. Tu experiencia se nota en la respuesta.",
+                "🎯 Perfecto. Esa actitud es exactamente lo que buscamos.",
+                "🚀 Impresionante. Tu pasión por la tecnología es evidente."
+            };
+
+            var questions = new[]
+            {
+                "🔧 ¿Qué herramientas o tecnologías prefieres usar en tu trabajo y por qué?",
+                "📚 ¿Cómo te mantienes actualizado con las últimas tendencias en tu campo?",
+                "🤝 Cuéntame sobre una vez que tuviste que trabajar en equipo para resolver un problema difícil.",
+                "🎯 ¿Cuáles son tus objetivos profesionales a largo plazo?",
+                "💡 ¿Puedes describir un proyecto del que te sientes especialmente orgulloso?"
+            };
+
+            // Feedback simulado
+            var randomFeedback = feedbackResponses[Random.Shared.Next(feedbackResponses.Length)];
+            Messages.Add(new Message { Text = randomFeedback, IsUser = false });
+
+            // Siguiente pregunta si no hemos terminado
+            if (contextQuestionsAnswered < 5)
+            {
+                var nextQuestion = questions[Math.Min(contextQuestionsAnswered, questions.Length - 1)];
+                Messages.Add(new Message { Text = nextQuestion, IsUser = false });
+            }
+            else
+            {
+                currentPhase = "completed";
+                Messages.Add(new Message 
+                { 
+                    Text = "🎉 ¡Excelente! Has completado todas las preguntas de contexto. " +
+                           "En una entrevista real, ahora pasaríamos a las preguntas técnicas específicas. " +
+                           "¿Te gustaría finalizar esta sesión de demostración?", 
+                    IsUser = false 
+                });
+            }
+        }
+
         // Sanitización similar a chat.js
         private string SanitizeInput(string text)
         {
@@ -394,19 +652,29 @@ namespace Ready4Hire.MVVM.Views
         /// Hace scroll automático al final del chat usando JS interop.
         private async Task ScrollToBottomAsync()
         {
-            await JS.InvokeVoidAsync("scrollToBottom");
+            try
+            {
+                // Scroll functionality - simplified for now
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error scrolling: {ex.Message}");
+            }
         }
 
         /// Redimensiona automáticamente el textarea según su contenido
         private async Task AutoResizeTextarea()
         {
-            await JS.InvokeVoidAsync("eval", @"
-                const textarea = document.getElementById('chatInput');
-                if (textarea) {
-                    textarea.style.height = 'auto';
-                    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
-                }
-            ");
+            try
+            {
+                // Auto-resize functionality - simplified for now
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error resizing: {ex.Message}");
+            }
         }
 
 
@@ -441,6 +709,243 @@ namespace Ready4Hire.MVVM.Views
         private string GetUserFirstName()
         {
             return vm?.User?.Name ?? "Usuario";
+        }
+
+        #region STT/TTS Methods
+
+        /// <summary>
+        /// Alterna entre iniciar y detener la grabación de audio (STT)
+        /// </summary>
+        private async Task ToggleRecording()
+        {
+            try
+            {
+                if (!isRecording)
+                {
+                    await StartRecording();
+                }
+                else
+                {
+                    await StopRecording();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error en ToggleRecording: {ex.Message}");
+                // Mostrar mensaje de error al usuario
+                errorMessage = "Error al acceder al micrófono. Verifica los permisos.";
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// Inicia la grabación de audio
+        /// </summary>
+        private async Task StartRecording()
+        {
+            try
+            {
+                // Verificar soporte del navegador
+                var isSupported = await JSRuntime.InvokeAsync<bool>("isMediaRecorderSupported");
+                if (!isSupported)
+                {
+                    errorMessage = "Tu navegador no soporta grabación de audio.";
+                    StateHasChanged();
+                    return;
+                }
+
+                // Solicitar permisos
+                var hasPermission = await JSRuntime.InvokeAsync<bool>("requestMicrophonePermission");
+                if (!hasPermission)
+                {
+                    errorMessage = "Se requieren permisos de micrófono para la grabación.";
+                    StateHasChanged();
+                    return;
+                }
+
+                // Inicializar MediaRecorder
+                mediaRecorder = await JSRuntime.InvokeAsync<IJSObjectReference>("initializeMediaRecorder");
+                
+                // Iniciar grabación
+                await JSRuntime.InvokeVoidAsync("startRecording", mediaRecorder);
+                
+                isRecording = true;
+                errorMessage = null;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error al iniciar grabación: {ex.Message}";
+                isRecording = false;
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// Detiene la grabación y procesa el audio con STT
+        /// </summary>
+        private async Task StopRecording()
+        {
+            try
+            {
+                if (mediaRecorder == null) return;
+
+                // Detener grabación y obtener el blob
+                var audioBlob = await JSRuntime.InvokeAsync<IJSObjectReference>("stopRecording", mediaRecorder);
+                
+                // Convertir a bytes
+                var audioBytes = await JSRuntime.InvokeAsync<byte[]>("blobToBytes", audioBlob);
+                
+                isRecording = false;
+                StateHasChanged();
+
+                // Procesar con STT
+                await ProcessSpeechToText(audioBytes);
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error al procesar audio: {ex.Message}";
+                isRecording = false;
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// Procesa el audio con el servicio STT
+        /// </summary>
+        private async Task ProcessSpeechToText(byte[] audioBytes)
+        {
+            try
+            {
+                // Llamar al servicio STT del backend
+                var result = await InterviewApi.SpeechToTextAsync(audioBytes, "es");
+                
+                // Extraer el texto transcrito
+                if (result.TryGetProperty("text", out var textElement))
+                {
+                    var transcribedText = textElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(transcribedText))
+                    {
+                        UserInput = transcribedText;
+                        StateHasChanged();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error en transcripción: {ex.Message}";
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// Alterna la reproducción de audio del último mensaje (TTS)
+        /// </summary>
+        private async Task ToggleTTS()
+        {
+            try
+            {
+                if (isPlayingTTS)
+                {
+                    await StopTTS();
+                }
+                else
+                {
+                    await StartTTS();
+                }
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error en TTS: {ex.Message}";
+                isPlayingTTS = false;
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// Inicia la reproducción TTS del último mensaje del asistente
+        /// </summary>
+        private async Task StartTTS()
+        {
+            try
+            {
+                // Obtener el último mensaje del asistente
+                var lastAssistantMessage = Messages.LastOrDefault(m => !m.IsUser);
+                if (lastAssistantMessage == null)
+                {
+                    errorMessage = "No hay mensajes para reproducir.";
+                    StateHasChanged();
+                    return;
+                }
+
+                // Llamar al servicio TTS
+                var audioBytes = await InterviewApi.TextToSpeechAsync(lastAssistantMessage.Text, "es");
+                
+                // Crear elemento audio y reproducir
+                var audioElement = await JSRuntime.InvokeAsync<IJSObjectReference>("createAudioFromBytes", audioBytes);
+                
+                // Configurar callback para cuando termine
+                await JSRuntime.InvokeVoidAsync("setupAudioEndCallback", audioElement, dotNetRef);
+                
+                // Reproducir
+                await JSRuntime.InvokeVoidAsync("playAudio", audioElement);
+                
+                isPlayingTTS = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Error al reproducir audio: {ex.Message}";
+                isPlayingTTS = false;
+                StateHasChanged();
+            }
+        }
+
+        /// <summary>
+        /// Detiene la reproducción TTS
+        /// </summary>
+        private async Task StopTTS()
+        {
+            try
+            {
+                // Esta funcionalidad se puede implementar si se necesita detener manualmente
+                isPlayingTTS = false;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al detener TTS: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Callback de JavaScript cuando termina la reproducción de audio
+        /// </summary>
+        [JSInvokable]
+        public void OnAudioEnded()
+        {
+            isPlayingTTS = false;
+            InvokeAsync(StateHasChanged);
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Libera los recursos utilizados
+        /// </summary>
+        public void Dispose()
+        {
+            try
+            {
+                dotNetRef?.Dispose();
+                mediaRecorder?.DisposeAsync();
+                currentDb?.Dispose();
+                examTimer?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error disposing resources: {ex.Message}");
+            }
         }
     }
 }

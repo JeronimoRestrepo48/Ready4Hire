@@ -20,6 +20,8 @@ import logging
 from app.infrastructure.llm.llm_service import OllamaLLMService
 from app.infrastructure.cache.evaluation_cache import EvaluationCache
 from app.infrastructure.ml.training_data_collector import TrainingDataCollector
+from app.infrastructure.llm.response_sanitizer import ResponseSanitizer
+from app.infrastructure.monitoring.metrics import get_metrics
 from app.domain.value_objects.score import Score
 
 logger = logging.getLogger(__name__)
@@ -92,6 +94,16 @@ class EvaluationService:
         else:
             self.prompt_engine = None
 
+        # Response sanitizer (Mejora v3.3)
+        self.sanitizer = ResponseSanitizer()
+
+        # Métricas avanzadas (Mejora v3.4)
+        try:
+            self.metrics = get_metrics(enabled=True)
+        except Exception as e:
+            logger.warning(f"⚠️ Métricas no disponibles: {e}")
+            self.metrics = None
+
         # Model warm-up (Mejora v2.1)
         self._warmup_model()
 
@@ -160,6 +172,17 @@ class EvaluationService:
             if cached_result:
                 cached_result["from_cache"] = True
                 logger.debug("Evaluación obtenida del caché (latencia <10ms)")
+                
+                # MEJORA v3.4: Registrar métricas de cache hit
+                if self.metrics:
+                    self.metrics.record_evaluation(
+                        success=True,
+                        latency_ms=5.0,  # Cache hit es muy rápido
+                        cached=True,
+                        score=cached_result.get("score", 0.0),
+                    )
+                    self.metrics.observe_histogram(f"evaluation_cache_hit_by_role_{role.lower().replace(' ', '_')}", 5.0)
+                
                 return cached_result
 
         # No está en caché, evaluar con LLM
@@ -196,16 +219,69 @@ class EvaluationService:
                 max_tokens=512,  # ⚡ Reducido de 1024 a 512 para respuestas más rápidas
             )
 
-            # Parsear respuesta JSON
-            result = self._parse_evaluation_response(response)
+            # Parsear respuesta JSON con retry automático si falla
+            try:
+                result = self._parse_evaluation_response(response, retry_on_fail=True)
+            except ValueError as e:
+                if "retry disponible" in str(e):
+                    # NUEVO: Retry con prompt más estricto
+                    logger.warning(f"⚠️ JSON inválido, reintentando con prompt más estricto...")
+                    strict_prompt = self._build_strict_json_prompt(
+                        question=question,
+                        answer=answer,
+                        expected_concepts=expected_concepts,
+                        keywords=keywords,
+                        category=category,
+                        difficulty=difficulty,
+                        role=role,
+                    )
+                    retry_response = self.llm_service.generate(
+                        prompt=strict_prompt,
+                        temperature=self.temperature * 0.5,  # Temperatura más baja para más consistencia
+                        max_tokens=512,
+                    )
+                    result = self._parse_evaluation_response(retry_response, retry_on_fail=False)
+                    logger.info("✅ Retry exitoso con prompt estricto")
+                    # MEJORA v3.4: Registrar métricas de retry
+                    if self.metrics:
+                        self.metrics.inc_counter("evaluation_retries_total")
+                else:
+                    raise
 
             # Validar estructura
             validated_result = self._validate_evaluation_result(result)
+            
+            # MEJORA v3.3: Sanitizar respuesta para que parezca de agente especializado
+            validated_result = self.sanitizer.sanitize_evaluation_response(validated_result)
+            validated_result["role"] = role
+            validated_result["category"] = category
 
             # MEJORA v2.1: Guardar en caché para futuras consultas
             elapsed = (datetime.now() - start_time).total_seconds()
+            elapsed_ms = elapsed * 1000
             validated_result["evaluation_time_seconds"] = round(elapsed, 2)
             validated_result["from_cache"] = False
+
+            # MEJORA v3.4: Registrar métricas avanzadas
+            if self.metrics:
+                self.metrics.record_evaluation(
+                    success=True,
+                    latency_ms=elapsed_ms,
+                    cached=False,
+                )
+                # Métricas por rol
+                self.metrics.observe_histogram(f"evaluation_duration_by_role_{role.lower().replace(' ', '_')}", elapsed_ms)
+                # Métricas por categoría
+                self.metrics.observe_histogram(f"evaluation_duration_by_category_{category}", elapsed_ms)
+                # Métricas por score
+                self.metrics.observe_histogram("evaluation_score_distribution", validated_result["score"])
+                # Registrar con score completo
+                self.metrics.record_evaluation(
+                    success=True,
+                    latency_ms=elapsed_ms,
+                    cached=False,
+                    score=validated_result["score"],
+                )
 
             if self.enable_cache and self.cache:
                 self.cache.set(
@@ -239,11 +315,69 @@ class EvaluationService:
             return validated_result
 
         except Exception as e:
-            logger.error(f"Error en evaluación LLM: {str(e)}, usando fallback heurístico")
+            error_type = type(e).__name__
+            if "Timeout" in error_type or "timeout" in str(e).lower():
+                logger.warning(f"⚠️ Timeout en evaluación LLM después de 45s, usando fallback heurístico")
+            else:
+                logger.error(f"Error en evaluación LLM ({error_type}): {str(e)}, usando fallback heurístico")
+            
             # Fallback a evaluación heurística
+            elapsed = (datetime.now() - start_time).total_seconds() if 'start_time' in locals() else 0
+            elapsed_ms = elapsed * 1000
+            
+            # MEJORA v3.4: Registrar métricas de fallback
+            if self.metrics:
+                self.metrics.record_evaluation(
+                    success=False,
+                    latency_ms=elapsed_ms,
+                    cached=False,
+                )
+                self.metrics.inc_counter("evaluation_fallbacks_total")
+                self.metrics.observe_histogram(f"evaluation_fallback_duration_by_role_{role.lower().replace(' ', '_')}", elapsed_ms)
+            
             fallback_result = self._heuristic_evaluation(answer, expected_concepts, keywords)
             fallback_result["from_cache"] = False
+            fallback_result["fallback"] = True
+            # Sanitizar también el fallback
+            fallback_result = self.sanitizer.sanitize_evaluation_response(fallback_result)
+            fallback_result["role"] = role
+            fallback_result["category"] = category
             return fallback_result
+
+    def evaluate_answer_sync(
+        self,
+        question_text: str,
+        answer_text: str,
+        expected_concepts: Optional[List[str]] = None,
+        category: str = "technical",
+        difficulty: str = "mid",
+        role: str = "Software Engineer",
+        keywords: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Wrapper síncrono mantenido por compatibilidad con tareas async (Celery).
+
+        Args:
+            question_text: Texto de la pregunta.
+            answer_text: Respuesta proporcionada por el candidato.
+            expected_concepts: Lista de conceptos esperados en la respuesta.
+            category: Categoría de la pregunta (technical, soft_skills, etc.).
+            difficulty: Nivel de dificultad (junior, mid, senior).
+            role: Rol objetivo de la entrevista.
+            keywords: Palabras clave relevantes para la evaluación.
+
+        Returns:
+            Resultado de evaluación con score y desglose.
+        """
+        return self.evaluate_answer(
+            question=question_text,
+            answer=answer_text,
+            expected_concepts=expected_concepts or [],
+            keywords=keywords or [],
+            category=category,
+            difficulty=difficulty,
+            role=role,
+        )
 
     def _build_evaluation_prompt(
         self,
@@ -277,59 +411,123 @@ CRITERIOS SOFT SKILLS:
 - Claridad: Estructura clara (situación-acción-resultado)
 - Conceptos: Demuestra competencia comportamental"""
 
-        return f"""Eres un evaluador experto en entrevistas para {role} a nivel {difficulty}.
-Evalúa esta respuesta {context_type} con criterios profesionales.
+        return f"""Evalúa respuesta de entrevista para {role} ({difficulty}).
 
-PREGUNTA: {question}
+P: {question}
+R: {answer}
+Conceptos: {', '.join(expected_concepts[:5]) if expected_concepts else 'Variados'}
 
-RESPUESTA DEL CANDIDATO: {answer}
-
-CONCEPTOS CLAVE ESPERADOS: {', '.join(expected_concepts) if expected_concepts else 'Variados'}
 {criteria_guide}
 
-EVALÚA OBJETIVAMENTE (0-10):
-1. Completitud (0-3 puntos)
-2. Profundidad técnica/comportamental (0-3 puntos)  
-3. Claridad y estructura (0-2 puntos)
-4. Uso de conceptos clave (0-2 puntos)
+Evalúa (0-10):
+- Completitud (0-3): ¿Responde todo?
+- Profundidad (0-3): ¿Comprensión profunda?
+- Claridad (0-2): ¿Bien explicado?
+- Conceptos (0-2): ¿Usa términos clave?
 
-RESPONDE SOLO EN FORMATO JSON (sin texto adicional):
+JSON (sin texto extra):
 {{
-  "score": <número 0-10>,
-  "breakdown": {{
-    "completeness": <0-3>,
-    "technical_depth": <0-3>,
-    "clarity": <0-2>,
-    "key_concepts": <0-2>
-  }},
+  "score": <0-10>,
+  "breakdown": {{"completeness": <0-3>, "technical_depth": <0-3>, "clarity": <0-2>, "key_concepts": <0-2>}},
   "justification": "<2 oraciones>",
-  "strengths": ["<fortaleza 1>", "<fortaleza 2>"],
-  "improvements": ["<mejora 1>", "<mejora 2>"],
-  "concepts_covered": ["<concepto 1>", "<concepto 2>"],
-  "missing_concepts": ["<falta 1>", "<falta 2>"]
+  "strengths": ["<1>", "<2>"],
+  "improvements": ["<1>", "<2>"],
+  "concepts_covered": ["<1>", "<2>"],
+  "missing_concepts": ["<1>", "<2>"]
+}}"""
+    
+    def _build_strict_json_prompt(
+        self,
+        question: str,
+        answer: str,
+        expected_concepts: List[str],
+        keywords: List[str],
+        category: str,
+        difficulty: str,
+        role: str,
+    ) -> str:
+        """
+        Construye un prompt más estricto que fuerza JSON válido.
+        Usado cuando el primer intento falla.
+        """
+        context_type = "técnica" if category == "technical" else "de habilidades blandas"
+        
+        return f"""Evalúa para {role}.
+
+P: {question}
+R: {answer}
+Conceptos: {', '.join(expected_concepts[:3]) if expected_concepts else 'Variados'}
+
+RESPONDE SOLO JSON (sin texto):
+{{
+  "score": <0-10>,
+  "breakdown": {{"completeness": <0-3>, "technical_depth": <0-3>, "clarity": <0-2>, "key_concepts": <0-2>}},
+  "justification": "<2 oraciones>",
+  "strengths": ["<1>", "<2>"],
+  "improvements": ["<1>", "<2>"],
+  "concepts_covered": ["<1>"],
+  "missing_concepts": ["<1>"]
 }}"""
 
-    def _parse_evaluation_response(self, response: str) -> Dict[str, Any]:
+    def _parse_evaluation_response(self, response: str, retry_on_fail: bool = True) -> Dict[str, Any]:
         """
         Parsea la respuesta del LLM extrayendo el JSON.
         Maneja casos donde el LLM añade texto extra.
+        
+        NUEVO: Soporte para retry automático con prompt más estricto.
+        
+        Args:
+            response: Respuesta del LLM
+            retry_on_fail: Si True, intenta retry con prompt más estricto si falla
+            
+        Returns:
+            Dict con la evaluación parseada
+            
+        Raises:
+            ValueError: Si no se puede parsear y no hay retry disponible
         """
         # Intentar parsear directamente
         try:
-            return json.loads(response)
+            parsed = json.loads(response)
+            # Validar que tenga campos mínimos requeridos
+            if "score" in parsed:
+                return parsed
         except json.JSONDecodeError:
             pass
 
-        # Intentar extraer JSON con regex
-        json_match = re.search(r"\{.*\}", response, re.DOTALL)
+        # Intentar extraer JSON con regex (más robusto)
+        json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", response, re.DOTALL)
         if json_match:
             try:
-                return json.loads(json_match.group(0))
+                parsed = json.loads(json_match.group(0))
+                if "score" in parsed:
+                    return parsed
             except json.JSONDecodeError:
                 pass
 
-        # Si falla todo, lanzar excepción para usar fallback
-        raise ValueError("No se pudo parsear respuesta JSON del LLM")
+        # NUEVO: Intentar múltiples patrones de extracción
+        patterns = [
+            r'\{[^{}]*"score"[^{}]*\}',  # Buscar JSON con "score"
+            r'\{.*?"score".*?\}',  # Patrón más flexible
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+            if match:
+                try:
+                    parsed = json.loads(match.group(0))
+                    if "score" in parsed:
+                        logger.warning(f"⚠️ JSON parseado con patrón alternativo para respuesta inválida")
+                        return parsed
+                except json.JSONDecodeError:
+                    continue
+
+        # Si falla todo y no hay retry, lanzar excepción
+        if not retry_on_fail:
+            raise ValueError("No se pudo parsear respuesta JSON del LLM")
+        
+        # Si retry está habilitado, la excepción se manejará en el caller
+        raise ValueError("No se pudo parsear respuesta JSON del LLM - retry disponible")
 
     def _validate_evaluation_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -444,32 +642,69 @@ RESPONDE SOLO EN FORMATO JSON (sin texto adicional):
             "model": "heuristic",
         }
 
-    def batch_evaluate(self, evaluations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def batch_evaluate(self, evaluations: List[Dict[str, Any]], max_concurrent: int = 3) -> List[Dict[str, Any]]:
         """
-        Evalúa múltiples respuestas en batch (útil para optimización futura).
+        Evalúa múltiples respuestas en batch con procesamiento paralelo.
+        
+        NUEVO: Procesamiento asíncrono optimizado para mejor rendimiento.
 
         Args:
             evaluations: Lista de dicts con question, answer, expected_concepts, etc.
+            max_concurrent: Número máximo de evaluaciones concurrentes (default: 3)
 
         Returns:
-            Lista de resultados de evaluación
+            Lista de resultados de evaluación en el mismo orden que las entradas
         """
-        results = []
-        for eval_data in evaluations:
-            try:
-                result = self.evaluate_answer(**eval_data)
-                results.append(result)
-            except Exception as e:
-                logger.error(f"Error en batch evaluation: {str(e)}")
-                results.append(
-                    self._heuristic_evaluation(
+        import asyncio
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        results = [None] * len(evaluations)  # Pre-allocar para mantener orden
+        
+        # Usar ThreadPoolExecutor para procesamiento paralelo
+        with ThreadPoolExecutor(max_workers=max_concurrent) as executor:
+            # Enviar todas las tareas
+            future_to_index = {
+                executor.submit(self._evaluate_single, eval_data): i
+                for i, eval_data in enumerate(evaluations)
+            }
+            
+            # Procesar resultados conforme completan
+            for future in as_completed(future_to_index):
+                index = future_to_index[future]
+                try:
+                    results[index] = future.result()
+                except Exception as e:
+                    logger.error(f"Error en batch evaluation [{index}]: {str(e)}")
+                    # Fallback heurístico
+                    eval_data = evaluations[index]
+                    results[index] = self._heuristic_evaluation(
                         answer=eval_data.get("answer", ""),
                         expected_concepts=eval_data.get("expected_concepts", []),
                         keywords=eval_data.get("keywords", []),
                     )
-                )
+                    results[index]["fallback"] = True
 
         return results
+    
+    def _evaluate_single(self, eval_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Evalúa una sola respuesta (usado por batch_evaluate).
+        
+        Args:
+            eval_data: Dict con question, answer, expected_concepts, etc.
+            
+        Returns:
+            Resultado de evaluación
+        """
+        return self.evaluate_answer(
+            question=eval_data.get("question", ""),
+            answer=eval_data.get("answer", ""),
+            expected_concepts=eval_data.get("expected_concepts", []),
+            keywords=eval_data.get("keywords", []),
+            category=eval_data.get("category", "technical"),
+            difficulty=eval_data.get("difficulty", "mid"),
+            role=eval_data.get("role", ""),
+        )
 
     def get_cache_stats(self) -> Dict[str, Any]:
         """

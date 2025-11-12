@@ -30,10 +30,10 @@ class TestJsonQuestionRepository:
 
     def test_technical_questions_count(self, repository):
         """Test that correct number of technical questions are loaded"""
-        # Should have ~810 technical questions
+        # Dataset puede superar las 4K preguntas técnicas conforme se agregan profesiones
         tech_count = len(repository._tech_cache)
         assert tech_count >= 800, f"Expected at least 800 technical questions, got {tech_count}"
-        assert tech_count <= 900, f"Expected at most 900 technical questions, got {tech_count}"
+        assert tech_count <= 6000, f"Expected at most 6000 technical questions, got {tech_count}"
 
     def test_soft_skills_questions_count(self, repository):
         """Test that correct number of soft skills questions are loaded"""

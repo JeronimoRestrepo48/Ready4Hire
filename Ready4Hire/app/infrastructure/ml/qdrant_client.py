@@ -5,16 +5,24 @@ Indexa y busca preguntas usando embeddings vectoriales.
 
 import logging
 from typing import List, Dict, Any, Optional
-from qdrant_client import QdrantClient
-from qdrant_client.models import (
-    Distance,
-    VectorParams,
-    PointStruct,
-    Filter,
-    FieldCondition,
-    MatchValue,
-    SearchRequest
-)
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import (
+        Distance,
+        VectorParams,
+        PointStruct,
+        Filter,
+        FieldCondition,
+        MatchValue,
+        SearchRequest
+    )
+    QDRANT_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Qdrant not available: {e}")
+    QdrantClient = None
+    Distance = VectorParams = PointStruct = None
+    Filter = FieldCondition = MatchValue = SearchRequest = None
+    QDRANT_AVAILABLE = False
 from sentence_transformers import SentenceTransformer
 import hashlib
 

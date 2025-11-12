@@ -16,7 +16,7 @@ from .interview_dto import (
     ProgressDTO,
 )
 from .health_dto import HealthResponse, ComponentHealth
-from .auth_dto import LoginRequest, TokenResponse, UserDTO
+from .auth_dto import LoginRequest, TokenResponse, RefreshTokenRequest, UserDTO
 from .gamification_dto import *
 
 __all__ = [
@@ -37,5 +37,6 @@ __all__ = [
     # Auth DTOs
     "LoginRequest",
     "TokenResponse",
+    "RefreshTokenRequest",
     "UserDTO",
 ]

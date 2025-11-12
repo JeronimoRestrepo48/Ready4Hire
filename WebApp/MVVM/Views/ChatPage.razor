@@ -1,282 +1,1131 @@
-﻿@page "/chat/{chatId:int}"
-@using System.Collections.Generic
+@page "/chat/{chatId:int}"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@using System.Text.Json
+@rendermode InteractiveServer
+@attribute [StreamRendering(false)]
+@inject IJSRuntime JSRuntime
 
-@inject IJSRuntime JS
+<script src="~/js/audio-utils.js"></script>
 
-<script>
-    window.scrollToBottom = () => {
-        const chatBody = document.querySelector('.chat-messages-container');
-        if (chatBody) {
-            chatBody.scrollTop = chatBody.scrollHeight;
-        }
-    };
-</script>
+<PageTitle>Chat @chatId - Ready4Hire</PageTitle>
 
-<div class="modern-chat-container">
-    
-    <!-- Welcome Message (solo cuando no hay mensajes) -->
-    @if (!Messages.Any() && !started)
-    {
-        <div class="chat-welcome">
-            <div class="welcome-content">
-                <div class="welcome-icon">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M21 15C21 15.5304 20.7893 16.0391 20.4142 16.4142C20.0391 16.7893 19.5304 17 19 17H7L3 21V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H19C19.5304 3 20.0391 3.21071 20.4142 3.58579C20.7893 3.96086 21 4.46957 21 5V15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </div>
-                <h1 class="welcome-title">Hola, @GetUserFirstName() 👋</h1>
-                <p class="welcome-subtitle">Bienvenido a tu entrevista personalizada con IA</p>
-                <p class="welcome-description">
-                    Configura tu entrevista para comenzar. Selecciona el tipo, rol y dificultad que desees practicar.
+<div class="modern-chat-container-full">
+    <!-- Header del Chat -->
+    <div class="chat-header">
+        <div class="header-left">
+            <div class="agent-avatar">
+                <div class="avatar-icon">🤖</div>
+                <div class="status-indicator"></div>
+            </div>
+            <div class="agent-info">
+                <h3 class="greeting-centered">Hola, @GetUserName()! 👋</h3>
+                <p class="status-text">
+                    @if (started)
+                    {
+                        <span class="status-active">🟢 Entrevista en progreso</span>
+                    }
+                    else
+                    {
+                        <span class="status-idle">⚫ Configurando entrevista</span>
+                    }
                 </p>
-                
-                <div class="welcome-actions">
-                    <button class="btn-primary-modern" @onclick="ShowSetup">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="2"/>
-                            <path d="M19.4 15C19.2669 15.3016 19.2272 15.6362 19.286 15.9606C19.3448 16.285 19.4995 16.5843 19.73 16.82L19.79 16.88C19.976 17.0657 20.1235 17.2863 20.2241 17.5291C20.3248 17.7719 20.3766 18.0322 20.3766 18.295C20.3766 18.5578 20.3248 18.8181 20.2241 19.0609C20.1235 19.3037 19.976 19.5243 19.79 19.71C19.6043 19.896 19.3837 20.0435 19.1409 20.1441C18.8981 20.2448 18.6378 20.2966 18.375 20.2966C18.1122 20.2966 17.8519 20.2448 17.6091 20.1441C17.3663 20.0435 17.1457 19.896 16.96 19.71L16.9 19.65C16.6643 19.4195 16.365 19.2648 16.0406 19.206C15.7162 19.1472 15.3816 19.1869 15.08 19.32C14.7842 19.4468 14.532 19.6572 14.3543 19.9255C14.1766 20.1938 14.0813 20.5082 14.08 20.83V21C14.08 21.5304 13.8693 22.0391 13.4942 22.4142C13.1191 22.7893 12.6104 23 12.08 23C11.5496 23 11.0409 22.7893 10.6658 22.4142C10.2907 22.0391 10.08 21.5304 10.08 21V20.91C10.0723 20.579 9.96512 20.258 9.77251 19.9887C9.5799 19.7194 9.31074 19.5143 9 19.4C8.69838 19.2669 8.36381 19.2272 8.03941 19.286C7.71502 19.3448 7.41568 19.4995 7.18 19.73L7.12 19.79C6.93425 19.976 6.71368 20.1235 6.47088 20.2241C6.22808 20.3248 5.96783 20.3766 5.705 20.3766C5.44217 20.3766 5.18192 20.3248 4.93912 20.2241C4.69632 20.1235 4.47575 19.976 4.29 19.79C4.10405 19.6043 3.95653 19.3837 3.85588 19.1409C3.75523 18.8981 3.70343 18.6378 3.70343 18.375C3.70343 18.1122 3.75523 17.8519 3.85588 17.6091C3.95653 17.3663 4.10405 17.1457 4.29 16.96L4.35 16.9C4.58054 16.6643 4.73519 16.365 4.794 16.0406C4.85282 15.7162 4.81312 15.3816 4.68 15.08C4.55324 14.7842 4.34276 14.532 4.07447 14.3543C3.80618 14.1766 3.49179 14.0813 3.17 14.08H3C2.46957 14.08 1.96086 13.8693 1.58579 13.4942C1.21071 13.1191 1 12.6104 1 12.08C1 11.5496 1.21071 11.0409 1.58579 10.6658C1.96086 10.2907 2.46957 10.08 3 10.08H3.09C3.42099 10.0723 3.742 9.96512 4.0113 9.77251C4.28059 9.5799 4.48572 9.31074 4.6 9C4.73312 8.69838 4.77282 8.36381 4.714 8.03941C4.65519 7.71502 4.50054 7.41568 4.27 7.18L4.21 7.12C4.02405 6.93425 3.87653 6.71368 3.77588 6.47088C3.67523 6.22808 3.62343 5.96783 3.62343 5.705C3.62343 5.44217 3.67523 5.18192 3.77588 4.93912C3.87653 4.69632 4.02405 4.47575 4.21 4.29C4.39575 4.10405 4.61632 3.95653 4.85912 3.85588C5.10192 3.75523 5.36217 3.70343 5.625 3.70343C5.88783 3.70343 6.14808 3.75523 6.39088 3.85588C6.63368 3.95653 6.85425 4.10405 7.04 4.29L7.1 4.35C7.33568 4.58054 7.63502 4.73519 7.95941 4.794C8.28381 4.85282 8.61838 4.81312 8.92 4.68H9C9.29577 4.55324 9.54802 4.34276 9.72569 4.07447C9.90337 3.80618 9.99872 3.49179 10 3.17V3C10 2.46957 10.2107 1.96086 10.5858 1.58579C10.9609 1.21071 11.4696 1 12 1C12.5304 1 13.0391 1.21071 13.4142 1.58579C13.7893 1.96086 14 2.46957 14 3V3.09C14.0013 3.41179 14.0966 3.72618 14.2743 3.99447C14.452 4.26276 14.7042 4.47324 15 4.6C15.3016 4.73312 15.6362 4.77282 15.9606 4.714C16.285 4.65519 16.5843 4.50054 16.82 4.27L16.88 4.21C17.0657 4.02405 17.2863 3.87653 17.5291 3.77588C17.7719 3.67523 18.0322 3.62343 18.295 3.62343C18.5578 3.62343 18.8181 3.67523 19.0609 3.77588C19.3037 3.87653 19.5243 4.02405 19.71 4.21C19.896 4.39575 20.0435 4.61632 20.1441 4.85912C20.2448 5.10192 20.2966 5.36217 20.2966 5.625C20.2966 5.88783 20.2448 6.14808 20.1441 6.39088C20.0435 6.63368 19.896 6.85425 19.71 7.04L19.65 7.1C19.4195 7.33568 19.2648 7.63502 19.206 7.95941C19.1472 8.28381 19.1869 8.61838 19.32 8.92V9C19.4468 9.29577 19.6572 9.54802 19.9255 9.72569C20.1938 9.90337 20.5082 9.99872 20.83 10H21C21.5304 10 22.0391 10.2107 22.4142 10.5858C22.7893 10.9609 23 11.4696 23 12C23 12.5304 22.7893 13.0391 22.4142 13.4142C22.0391 13.7893 21.5304 14 21 14H20.91C20.5882 14.0013 20.2738 14.0966 20.0055 14.2743C19.7372 14.452 19.5268 14.7042 19.4 15Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Configurar Entrevista
-                    </button>
+            </div>
+        </div>
+        
+        <div class="header-controls">
+            @if (isExamMode && started)
+            {
+                <div class="timer-display">
+                    <span class="timer-icon">⏱️</span>
+                    <span class="timer-text">@FormatTime(elapsedSeconds)</span>
                 </div>
+            }
+            
+            <div class="progress-indicator">
+                @if (currentPhase == "context")
+                {
+                    <span class="phase-badge context">📝 Contexto (@contextQuestionsAnswered/5)</span>
+                }
+                else if (currentPhase == "technical" || currentPhase == "soft_skills")
+                {
+                    <span class="phase-badge interview">🎯 Entrevista (@questionCount)</span>
+                }
+                else if (currentPhase == "completed")
+                {
+                    <span class="phase-badge completed">✅ Completada</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Configuración de la Entrevista -->
+    @if (!started)
+    {
+        <div class="interview-config">
+            <div class="config-header">
+                <h2>🚀 Configurar Entrevista</h2>
+                <p>Chat ID: <strong>@chatId</strong> - Configura tu entrevista personalizada.</p>
+            </div>
+
+            <!-- Información de Debug para Configuración -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-message-config">
+                    <div class="error-content">
+                        <span class="error-icon">⚠️</span>
+                        <div class="error-text">@errorMessage</div>
+                    </div>
+                    <div class="error-actions">
+                        <button class="btn-retry" @onclick="ClearError">Continuar en Modo Demo</button>
+                    </div>
+                </div>
+            }
+
+            <div class="config-grid">
+                <!-- Selección de Rol -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">💼</span>
+                        <span class="label-text">Rol o Posición</span>
+                    </label>
+                    <select @bind="SelectedRole" class="config-select">
+                        <option value="">Selecciona un rol...</option>
+                        
+                        <!-- TECNOLOGÍA E INFORMÁTICA -->
+                        <optgroup label="💻 Tecnología e Informática">
+                            <option value="Software Developer">👨‍💻 Desarrollador de Software</option>
+                            <option value="Frontend Developer">🎨 Desarrollador Frontend</option>
+                            <option value="Backend Developer">⚙️ Desarrollador Backend</option>
+                            <option value="Full Stack Developer">🔄 Desarrollador Full Stack</option>
+                            <option value="DevOps Engineer">🚀 Ingeniero DevOps</option>
+                            <option value="Data Scientist">📊 Científico de Datos</option>
+                            <option value="Product Manager">📋 Product Manager</option>
+                            <option value="UX/UI Designer">🎨 Diseñador UX/UI</option>
+                            <option value="QA Engineer">🧪 Ingeniero QA</option>
+                            <option value="Mobile Developer">📱 Desarrollador Móvil</option>
+                            <option value="Cloud Architect">☁️ Arquitecto Cloud</option>
+                            <option value="Cybersecurity Analyst">🔒 Analista de Ciberseguridad</option>
+                            <option value="AI/ML Engineer">🤖 Ingeniero IA/ML</option>
+                        </optgroup>
+
+                        <!-- SALUD Y MEDICINA -->
+                        <optgroup label="🏥 Salud y Medicina">
+                            <option value="Doctor">👨‍⚕️ Médico</option>
+                            <option value="Nurse">👩‍⚕️ Enfermero/a</option>
+                            <option value="Dentist">🦷 Dentista</option>
+                            <option value="Pharmacist">💊 Farmacéutico</option>
+                            <option value="Psychologist">🧠 Psicólogo</option>
+                            <option value="Physical Therapist">🏃‍♂️ Fisioterapeuta</option>
+                            <option value="Nutritionist">🥗 Nutricionista</option>
+                            <option value="Veterinarian">🐕 Veterinario</option>
+                        </optgroup>
+
+                        <!-- EDUCACIÓN -->
+                        <optgroup label="📚 Educación">
+                            <option value="Teacher">👨‍🏫 Profesor</option>
+                            <option value="Principal">🏫 Director Escolar</option>
+                            <option value="Tutor">📖 Tutor</option>
+                            <option value="Educational Counselor">🎯 Orientador Educativo</option>
+                            <option value="Librarian">📚 Bibliotecario</option>
+                            <option value="Training Specialist">🎓 Especialista en Capacitación</option>
+                        </optgroup>
+
+                        <!-- NEGOCIOS Y FINANZAS -->
+                        <optgroup label="💼 Negocios y Finanzas">
+                            <option value="Financial Analyst">📈 Analista Financiero</option>
+                            <option value="Accountant">🧮 Contador</option>
+                            <option value="Investment Advisor">💰 Asesor de Inversiones</option>
+                            <option value="Business Analyst">📊 Analista de Negocios</option>
+                            <option value="Operations Manager">⚙️ Gerente de Operaciones</option>
+                            <option value="Project Manager">📋 Gerente de Proyectos</option>
+                            <option value="Consultant">🤝 Consultor</option>
+                            <option value="Entrepreneur">🚀 Emprendedor</option>
+                        </optgroup>
+
+                        <!-- MARKETING Y VENTAS -->
+                        <optgroup label="📢 Marketing y Ventas">
+                            <option value="Marketing Manager">📱 Gerente de Marketing</option>
+                            <option value="Sales Representative">🤝 Representante de Ventas</option>
+                            <option value="Digital Marketing Specialist">💻 Especialista en Marketing Digital</option>
+                            <option value="Content Creator">✍️ Creador de Contenido</option>
+                            <option value="Social Media Manager">📸 Community Manager</option>
+                            <option value="Brand Manager">🎨 Gerente de Marca</option>
+                            <option value="PR Specialist">📰 Especialista en RRPP</option>
+                        </optgroup>
+
+                        <!-- LEGAL Y JURÍDICO -->
+                        <optgroup label="⚖️ Legal y Jurídico">
+                            <option value="Lawyer">👨‍💼 Abogado</option>
+                            <option value="Paralegal">📋 Asistente Legal</option>
+                            <option value="Judge">⚖️ Juez</option>
+                            <option value="Legal Advisor">📜 Asesor Legal</option>
+                            <option value="Notary">🏛️ Notario</option>
+                        </optgroup>
+
+                        <!-- INGENIERÍA Y CONSTRUCCIÓN -->
+                        <optgroup label="🏗️ Ingeniería y Construcción">
+                            <option value="Civil Engineer">🏗️ Ingeniero Civil</option>
+                            <option value="Mechanical Engineer">⚙️ Ingeniero Mecánico</option>
+                            <option value="Electrical Engineer">⚡ Ingeniero Eléctrico</option>
+                            <option value="Architect">🏛️ Arquitecto</option>
+                            <option value="Construction Manager">👷‍♂️ Gerente de Construcción</option>
+                            <option value="Urban Planner">🏙️ Planificador Urbano</option>
+                        </optgroup>
+
+                        <!-- RECURSOS HUMANOS -->
+                        <optgroup label="👥 Recursos Humanos">
+                            <option value="HR Manager">👥 Gerente de RRHH</option>
+                            <option value="Recruiter">🎯 Reclutador</option>
+                            <option value="HR Analyst">📊 Analista de RRHH</option>
+                            <option value="Training Coordinator">📚 Coordinador de Capacitación</option>
+                            <option value="Compensation Specialist">💰 Especialista en Compensaciones</option>
+                        </optgroup>
+
+                        <!-- COMUNICACIÓN Y MEDIOS -->
+                        <optgroup label="📺 Comunicación y Medios">
+                            <option value="Journalist">📰 Periodista</option>
+                            <option value="Editor">✍️ Editor</option>
+                            <option value="Photographer">📸 Fotógrafo</option>
+                            <option value="Video Producer">🎬 Productor de Video</option>
+                            <option value="Radio Host">🎙️ Locutor de Radio</option>
+                            <option value="Translator">🌍 Traductor</option>
+                        </optgroup>
+
+                        <!-- SERVICIOS Y ATENCIÓN AL CLIENTE -->
+                        <optgroup label="🤝 Servicios y Atención">
+                            <option value="Customer Service Representative">📞 Representante de Atención al Cliente</option>
+                            <option value="Hotel Manager">🏨 Gerente de Hotel</option>
+                            <option value="Travel Agent">✈️ Agente de Viajes</option>
+                            <option value="Event Coordinator">🎉 Coordinador de Eventos</option>
+                            <option value="Restaurant Manager">🍽️ Gerente de Restaurante</option>
+                        </optgroup>
+
+                        <!-- CIENCIAS E INVESTIGACIÓN -->
+                        <optgroup label="🔬 Ciencias e Investigación">
+                            <option value="Research Scientist">🔬 Científico Investigador</option>
+                            <option value="Laboratory Technician">🧪 Técnico de Laboratorio</option>
+                            <option value="Environmental Scientist">🌱 Científico Ambiental</option>
+                            <option value="Statistician">📊 Estadístico</option>
+                            <option value="Quality Control Analyst">✅ Analista de Control de Calidad</option>
+                        </optgroup>
+
+                        <!-- ARTE Y CREATIVIDAD -->
+                        <optgroup label="🎨 Arte y Creatividad">
+                            <option value="Graphic Designer">🎨 Diseñador Gráfico</option>
+                            <option value="Interior Designer">🏠 Diseñador de Interiores</option>
+                            <option value="Musician">🎵 Músico</option>
+                            <option value="Artist">🖼️ Artista</option>
+                            <option value="Fashion Designer">👗 Diseñador de Moda</option>
+                        </optgroup>
+
+                        <!-- LOGÍSTICA Y TRANSPORTE -->
+                        <optgroup label="🚚 Logística y Transporte">
+                            <option value="Logistics Coordinator">📦 Coordinador Logístico</option>
+                            <option value="Supply Chain Manager">🔗 Gerente de Cadena de Suministro</option>
+                            <option value="Truck Driver">🚛 Conductor de Camión</option>
+                            <option value="Pilot">✈️ Piloto</option>
+                            <option value="Warehouse Manager">🏬 Gerente de Almacén</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <!-- Tipo de Entrevista -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">🎯</span>
+                        <span class="label-text">Tipo de Entrevista</span>
+                    </label>
+                    <select @bind="SelectedInterviewType" class="config-select">
+                        <option value="technical">🔧 Técnica</option>
+                        <option value="soft_skills">💬 Habilidades Blandas</option>
+                    </select>
+                </div>
+
+                <!-- Nivel de Dificultad -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">📈</span>
+                        <span class="label-text">Nivel de Experiencia</span>
+                    </label>
+                    <select @bind="SelectedDifficulty" class="config-select">
+                        <option value="junior">🌱 Junior (0-2 años)</option>
+                        <option value="mid">🌳 Mid-Level (2-5 años)</option>
+                        <option value="senior">🦅 Senior (5+ años)</option>
+                    </select>
+                </div>
+
+                <!-- Modo de Entrevista -->
+                <div class="config-section">
+                    <label class="config-label">
+                        <span class="label-icon">⚡</span>
+                        <span class="label-text">Modo</span>
+                    </label>
+                    <div class="modern-toggle-container">
+                        <div class="toggle-labels">
+                            <span class="toggle-label left @(!isExamMode ? "active" : "")">
+                                <span class="label-icon">🎓</span>
+                                <span class="label-main">Práctica</span>
+                                <span class="label-sub">Sin límite de tiempo</span>
+                            </span>
+                            <span class="toggle-label right @(isExamMode ? "active" : "")">
+                                <span class="label-icon">⏱️</span>
+                                <span class="label-main">Examen</span>
+                                <span class="label-sub">Con cronómetro</span>
+                            </span>
+                        </div>
+                        <div class="modern-toggle-switch" @onclick="ToggleExamMode">
+                            <div class="toggle-track @(isExamMode ? "exam" : "practice")">
+                                <div class="toggle-thumb @(isExamMode ? "right" : "left")">
+                                    <span class="thumb-icon">@(isExamMode ? "⏱️" : "🎓")</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botón de Inicio -->
+            <div class="config-actions">
+                <button class="btn-start-interview @(IsConfigured ? "" : "disabled")" 
+                        @onclick="StartInterview" 
+                        disabled="@(!IsConfigured)">
+                    <span class="btn-icon">🚀</span>
+                    <span class="btn-text">Iniciar Entrevista</span>
+                </button>
+                
+                @if (!IsConfigured)
+                {
+                    <p class="config-warning">⚠️ Selecciona un rol para continuar</p>
+                }
             </div>
         </div>
     }
 
-    <!-- Messages Container -->
-    <div class="chat-messages-container" @ref="chatBodyRef">
+    <!-- Área de Mensajes -->
+    @if (started)
+    {
+        <div class="chat-messages @(Messages.Count > 3 ? "expanded" : "")" @ref="chatMessagesContainer">
         @foreach (var message in Messages)
         {
-            <div class="message-wrapper @(message.IsUser ? "message-user" : "message-assistant")">
-                <div class="message-content-wrapper">
-                    <!-- Avatar -->
+                <div class="message-wrapper @(message.IsUser ? "user" : "assistant")">
                     <div class="message-avatar">
                         @if (message.IsUser)
                         {
-                            <div class="avatar-initials user-avatar">
-                                @GetUserInitials()
-                            </div>
+                            <div class="user-avatar">@GetUserInitials()</div>
                         }
                         else
                         {
-                            <div class="avatar-initials ai-avatar">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                                    <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                            </div>
+                            <div class="ai-avatar">🤖</div>
                         }
                     </div>
 
-                    <!-- Message Text -->
-                    <div class="message-text">
-                        <div class="message-author">@(message.IsUser ? GetUserFirstName() : "Ready4Hire AI")</div>
-                        <div class="message-body">@message.Text</div>
-                        <div class="message-time">@message.Timestamp.ToString("HH:mm")</div>
+                    <div class="message-content">
+                        <div class="message-bubble">
+                            <div class="message-text">@((MarkupString)FormatMessageMethod(message.Text))</div>
+                        </div>
+                        <div class="message-timestamp">@DateTime.Now.ToString("HH:mm")</div>
                     </div>
-                </div>
-            </div>
-        }
-
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="error-message-container">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                    <path d="M12 8V12M12 16H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <span>@errorMessage</span>
             </div>
         }
     </div>
 
-    <!-- Input Area -->
+        <!-- Mensaje de Error -->
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-message">
+                <div class="error-content">
+                    <span class="error-icon">⚠️</span>
+                    <span class="error-text">@errorMessage</span>
+                    <button class="error-close" @onclick="() => errorMessage = null">×</button>
+                </div>
+            </div>
+        }
+
+        <!-- Área de Input -->
     <div class="chat-input-area">
         <div class="input-container">
-            <div class="input-wrapper">
-                <textarea 
-                    class="modern-chat-input"
+                <textarea @bind="UserInput" 
+                         @onkeypress="HandleKeyPressMethod"
+                         @ref="inputTextArea"
+                         class="chat-input" 
                     placeholder="Escribe tu respuesta aquí..."
-                    @bind="UserInput"
-                    @onkeydown="HandleKeyDown"
-                    @oninput="AutoResizeTextarea"
-                    rows="1"
-                    id="chatInput"
-                    disabled="@(!started && !IsConfigured)"></textarea>
+                         rows="1"></textarea>
                 
                 <div class="input-actions">
-                    @if (!started && IsConfigured)
-                    {
-                        <button class="btn-start-interview" @onclick="StartInterview" title="Comenzar entrevista">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 3L19 12L5 21V3Z" fill="currentColor"/>
+                    <!-- Botón STT (Speech-to-Text) -->
+                    <button class="btn-audio-stt @(isRecording ? "recording" : "")" 
+                            @onclick="ToggleRecording" 
+                            title="@(isRecording ? "Detener grabación" : "Grabar audio")">
+                        @if (isRecording)
+                        {
+                            <svg class="audio-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="6" width="12" height="12" rx="2"/>
                             </svg>
-                            <span>Comenzar</span>
-                        </button>
-                    }
-                    else if (started)
-                    {
-                        <button class="btn-send-message" @onclick="SendMessage" disabled="@string.IsNullOrWhiteSpace(UserInput)" title="Enviar mensaje">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                                <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        }
+                        else
+                        {
+                            <svg class="audio-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="m12 1-3 3h-3v8h3l3 3v-14z"/>
+                                <path d="m16 9 5 5-5 5"/>
                             </svg>
-                        </button>
-                    }
-                    
-                    <button class="btn-settings" @onclick="ShowSetup" title="Configuración">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-                            <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        }
+                    </button>
+
+                    <!-- Botón TTS (Text-to-Speech) -->
+                    <button class="btn-audio-tts @(isPlayingTTS ? "playing" : "")" 
+                            @onclick="ToggleTTS" 
+                            disabled="@(Messages.Count == 0 || isPlayingTTS)"
+                            title="@(isPlayingTTS ? "Reproduciendo..." : "Escuchar último mensaje")">
+                        @if (isPlayingTTS)
+                        {
+                            <svg class="audio-icon" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg class="audio-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                                <path d="m19.07 4.93-5.14 5.14M14 10.5l5.14 5.14"/>
+                            </svg>
+                        }
+                    </button>
+
+                    <!-- Botón Enviar -->
+                    <button class="btn-send @(CanSendMessage ? "" : "disabled")" 
+                            @onclick="SendMessage" 
+                            disabled="@(!CanSendMessage)">
+                        <svg class="send-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m22 2-7 20-4-9-9-4 20-7z"/>
                         </svg>
                     </button>
                 </div>
             </div>
             
-            @if (!IsConfigured)
+            @if (currentPhase == "completed")
             {
-                <div class="input-hint">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                        <path d="M12 16V12M12 8H12.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                    </svg>
-                    <span>Configura tu entrevista para comenzar</span>
-            </div>
-        }
-        </div>
-    </div>
-
-    <!-- Configuration Modal -->
-        @if (ShowConfig)
-        {
-        <div class="modern-modal-overlay" @onclick="HideSetup">
-            <div class="modern-modal" @onclick:stopPropagation>
-                <div class="modal-header">
-                    <h2>Configurar Entrevista</h2>
-                    <button class="modal-close" @onclick="HideSetup">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
+                <div class="completion-actions">
+                    <button class="btn-end-interview" @onclick="EndInterview">
+                        <span class="btn-icon">🎯</span>
+                        <span class="btn-text">Ver Resumen Final</span>
                     </button>
                 </div>
-                
-                <div class="modal-body">
-                    <div class="form-group-modern">
-                        <label class="form-label">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            Rol / Posición
-                        </label>
-                        <select class="form-select-modern" @bind="SelectedRole">
-                        <!-- Technology -->
-                        <optgroup label="💻 Technology">
-                            <option value="Software Engineer">Software Engineer</option>
-                            <option value="Frontend Developer">Frontend Developer</option>
-                            <option value="Backend Developer">Backend Developer</option>
-                            <option value="Full Stack Developer">Full Stack Developer</option>
-                            <option value="Android Developer">Android Developer</option>
-                            <option value="iOS Developer">iOS Developer</option>
-                            <option value="DevOps Engineer">DevOps Engineer</option>
-                            <option value="Cloud Architect">Cloud Architect</option>
-                            <option value="QA Engineer (Manual)">QA Engineer (Manual)</option>
-                            <option value="QA Engineer (Automation)">QA Engineer (Automation)</option>
-                            <option value="Security Analyst">Security Analyst</option>
-                            <option value="Technical Project Manager">Technical Project Manager</option>
-                            <option value="Scrum Master">Scrum Master</option>
-                        </optgroup>
-                        <!-- Data -->
-                        <optgroup label="📊 Data & Analytics">
-                            <option value="Data Scientist">Data Scientist</option>
-                            <option value="Data Engineer">Data Engineer</option>
-                            <option value="Data Analyst">Data Analyst</option>
-                        </optgroup>
-                        <!-- Design -->
-                        <optgroup label="🎨 Design">
-                            <option value="UX/UI Designer">UX/UI Designer</option>
-                            <option value="Graphic Designer">Graphic Designer</option>
-                        </optgroup>
-                        <!-- Business -->
-                        <optgroup label="💼 Business">
-                            <option value="Product Manager">Product Manager</option>
-                            <option value="Business Analyst">Business Analyst</option>
-                        </optgroup>
-                        <!-- Finance -->
-                        <optgroup label="💰 Finance">
-                            <option value="Financial Analyst">Financial Analyst</option>
-                            <option value="Accountant">Accountant</option>
-                        </optgroup>
-                        <!-- Marketing & Sales -->
-                        <optgroup label="📈 Marketing & Sales">
-                            <option value="Digital Marketing Specialist">Digital Marketing Specialist</option>
-                            <option value="Sales Representative">Sales Representative</option>
-                            <option value="Content Writer">Content Writer</option>
-                        </optgroup>
-                        <!-- HR & Support -->
-                        <optgroup label="👥 HR & Support">
-                            <option value="HR Specialist">HR Specialist</option>
-                            <option value="Customer Support Specialist">Customer Support Specialist</option>
-                        </optgroup>
-                    </select>
-                    </div>
-
-                    <div class="form-row-modern">
-                        <div class="form-group-modern">
-                            <label class="form-label">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                    <path d="M9 11L12 14L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M21 12V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Tipo
-                            </label>
-                            <select class="form-select-modern" @bind="SelectedInterviewType">
-                        <option value="technical">Técnica</option>
-                        <option value="soft_skills">Habilidades Blandas</option>
-                    </select>
-                        </div>
-
-                        <div class="form-group-modern">
-                            <label class="form-label">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                    <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Dificultad
-                            </label>
-                            <select class="form-select-modern" @bind="SelectedDifficulty">
-                        <option value="junior">Junior</option>
-                                <option value="mid">Mid-Level</option>
-                        <option value="senior">Senior</option>
-                    </select>
-                        </div>
-                    </div>
-
-                    <div class="form-group-modern">
-                        <label class="form-label">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-                                <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                            Modo
-                        </label>
-                        <select class="form-select-modern" @bind="SelectedMode">
-                            <option value="practice">Práctica (sin tiempo límite)</option>
-                            <option value="exam">Examen (cronometrado)</option>
-                    </select>
-                    </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button class="btn-secondary-modern" @onclick="HideSetup">Cancelar</button>
-                    <button class="btn-primary-modern" @onclick="SaveConfig">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                            <path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Guardar Configuración
-                    </button>
-                    </div>
-                </div>
+            }
             </div>
         }
-
 </div>
+
+<style>
+    /* CSS específico para esta página */
+    .modern-chat-container-full {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+        color: #e2e8f0;
+        overflow: hidden;
+    }
+
+    .chat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .agent-avatar {
+        position: relative;
+    }
+
+    .avatar-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .status-indicator {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        width: 12px;
+        height: 12px;
+        background: #10b981;
+        border-radius: 50%;
+        border: 2px solid #0a0e1a;
+    }
+
+    .interview-config {
+        padding: 2rem;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .config-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .config-header h2 {
+        margin-bottom: 0.5rem;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .config-grid {
+        display: grid;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .config-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .config-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 500;
+        color: #e2e8f0;
+    }
+
+    .config-select {
+        padding: 0.75rem;
+        border-radius: 8px;
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        background: rgba(30, 41, 59, 0.8);
+        color: #e2e8f0;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+    }
+
+    .config-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Modern Toggle Switch */
+    .modern-toggle-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        background: rgba(30, 41, 59, 0.3);
+        border-radius: 12px;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        width: fit-content;
+        margin: 0 auto;
+    }
+
+    /* Saludo centrado */
+    .greeting-centered {
+        text-align: center !important;
+        margin: 0 auto;
+        font-weight: 600;
+        color: #60a5fa;
+        font-size: 1.2rem;
+        padding: 0.5rem 0;
+    }
+
+    .toggle-labels {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .toggle-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        opacity: 0.6;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        padding: 0.5rem;
+        border-radius: 8px;
+    }
+
+    .toggle-label.active {
+        opacity: 1;
+        color: #60a5fa;
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .toggle-label .label-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .toggle-label .label-main {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.1rem;
+    }
+
+    .toggle-label .label-sub {
+        font-size: 0.75rem;
+        opacity: 0.8;
+        text-align: center;
+    }
+
+    .modern-toggle-switch {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .toggle-track {
+        width: 200px;
+        height: 50px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 25px;
+        position: relative;
+        border: 2px solid rgba(59, 130, 246, 0.3);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        margin: 0 auto;
+    }
+
+    .toggle-track.practice {
+        border-color: #10b981;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+    }
+
+    .toggle-track.exam {
+        border-color: #f59e0b;
+        box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);
+    }
+
+    .toggle-thumb {
+        width: 46px;
+        height: 46px;
+        background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+        border-radius: 50%;
+        position: absolute;
+        top: 2px;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .toggle-thumb.left {
+        left: 2px;
+    }
+
+    .toggle-thumb.right {
+        left: calc(200px - 50px);
+    }
+
+    .thumb-icon {
+        font-size: 1.2rem;
+        transition: all 0.3s ease;
+    }
+
+    .toggle-track.practice .toggle-thumb {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    .toggle-track.exam .toggle-thumb {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+
+    .toggle-track.practice .thumb-icon {
+        color: white;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    .toggle-track.exam .thumb-icon {
+        color: white;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    /* Hover Effects */
+    .modern-toggle-switch:hover .toggle-track {
+        transform: scale(1.02);
+    }
+
+    .modern-toggle-switch:hover .toggle-thumb {
+        transform: scale(1.05);
+    }
+
+    .toggle-label:hover {
+        opacity: 0.8;
+        transform: translateY(-2px);
+    }
+
+    /* Animation cuando cambia */
+    .toggle-track::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+        transform: translateX(-100%);
+        transition: transform 0.6s ease;
+    }
+
+    .modern-toggle-switch:active .toggle-track::before {
+        transform: translateX(100%);
+    }
+
+    .config-actions {
+        text-align: center;
+    }
+
+    .btn-start-interview {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 12px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+    }
+
+    .btn-start-interview:hover:not(.disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-start-interview.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .config-warning {
+        color: #fbbf24;
+        margin-top: 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .error-message-config {
+        background: linear-gradient(135deg, #dc2626 10%, #991b1b 90%);
+        border: 1px solid rgba(220, 38, 38, 0.3);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        animation: slideInDown 0.3s ease-out;
+    }
+
+    .error-content {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .error-icon {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .error-text {
+        flex: 1;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    .error-actions {
+        display: flex;
+        justify-content: flex-end;
+    }
+
+    .btn-retry {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .btn-retry:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+    }
+
+    @@keyframes slideInDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Área de mensajes y chat */
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        min-height: 300px;
+        max-height: calc(100vh - 250px);
+        transition: max-height 0.3s ease-in-out;
+    }
+
+    .chat-messages.expanded {
+        max-height: calc(100vh - 180px);
+    }
+
+    .message-wrapper {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-start;
+        max-width: 85%;
+    }
+
+    .message-wrapper.user {
+        flex-direction: row-reverse;
+        margin-left: auto;
+    }
+
+    .message-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .user-avatar {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .ai-avatar {
+        background: linear-gradient(135deg, #10b981, #059669);
+        font-size: 1.2rem;
+    }
+
+    .message-bubble {
+        background: rgba(30, 41, 59, 0.8);
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    .message-wrapper.user .message-bubble {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+    }
+
+    .message-text {
+        font-size: 1.1rem;
+        font-weight: 400;
+        line-height: 1.5;
+        text-align: left;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+    }
+
+    .message-timestamp {
+        font-size: 0.85rem;
+        opacity: 0.6;
+        margin-top: 0.25rem;
+    }
+
+    .chat-input-area {
+        padding: 1rem 2rem 1.5rem;
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-top: 1px solid rgba(51, 65, 85, 0.3);
+    }
+
+    .input-container {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-end;
+    }
+
+    .chat-input {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        border: 1px solid rgba(51, 65, 85, 0.5);
+        background: rgba(30, 41, 59, 0.8);
+        color: #e2e8f0;
+        resize: none;
+        min-height: 44px;
+        max-height: 120px;
+        font-family: inherit;
+        transition: all 0.2s ease;
+    }
+
+    .chat-input:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .btn-send {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        border: none;
+        padding: 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn-send:hover:not(.disabled) {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-send.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .send-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* Botones de Audio */
+    .btn-audio-stt, .btn-audio-tts {
+        background: rgba(71, 85, 105, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 50%;
+        width: 2.5rem;
+        height: 2.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+        color: #e2e8f0;
+        margin-right: 0.5rem;
+    }
+
+    .btn-audio-stt:hover, .btn-audio-tts:hover {
+        background: rgba(100, 116, 139, 0.9);
+        border-color: rgba(148, 163, 184, 0.5);
+        transform: scale(1.05);
+    }
+
+    .btn-audio-stt.recording {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border-color: rgba(239, 68, 68, 0.5);
+        animation: pulse-recording 1.5s infinite;
+    }
+
+    .btn-audio-tts.playing {
+        background: linear-gradient(135deg, #10b981, #059669);
+        border-color: rgba(16, 185, 129, 0.5);
+        animation: pulse-playing 1s infinite;
+    }
+
+    .btn-audio-stt:disabled, .btn-audio-tts:disabled {
+        background: rgba(71, 85, 105, 0.3);
+        border-color: rgba(148, 163, 184, 0.2);
+        cursor: not-allowed;
+        transform: none;
+        opacity: 0.5;
+    }
+
+    .audio-icon {
+        width: 1rem;
+        height: 1rem;
+        color: currentColor;
+    }
+
+    @@keyframes pulse-recording {
+        0%, 100% { 
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+        }
+        50% { 
+            box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+        }
+    }
+
+    @@keyframes pulse-playing {
+        0%, 100% { 
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        50% { 
+            box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+        }
+    }
+
+    .completion-actions {
+        margin-top: 1rem;
+        text-align: center;
+    }
+
+    .btn-end-interview {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-end-interview:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+    }
+
+    /* Progress indicators */
+    .phase-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .phase-badge.context {
+        background: rgba(251, 191, 36, 0.2);
+        color: #fbbf24;
+    }
+
+    .phase-badge.interview {
+        background: rgba(59, 130, 246, 0.2);
+        color: #60a5fa;
+    }
+
+    .phase-badge.completed {
+        background: rgba(16, 185, 129, 0.2);
+        color: #34d399;
+    }
+
+    .timer-display {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(30, 41, 59, 0.8);
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        font-weight: 600;
+        color: #fbbf24;
+    }
+
+    /* Mensaje de Error */
+    .error-message {
+        position: fixed;
+        top: 1rem;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        max-width: 500px;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    .error-content {
+        background: rgba(239, 68, 68, 0.95);
+        color: white;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .error-icon {
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+
+    .error-text {
+        flex: 1;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .error-close {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 0;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s ease;
+    }
+
+    .error-close:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    @@keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-1rem);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+</style>

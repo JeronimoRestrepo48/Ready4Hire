@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration for Ready4Hire Mobile App
+    This file configures SSL/TLS and network security settings for Android.
+    
+    For production, update the domains to match your actual API endpoints.
+-->
+<network-security-config>
+    <!-- Development: Allow cleartext traffic to localhost -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain> <!-- Android Emulator -->
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+
+    <!-- Production: Force HTTPS and trust system certificates -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.ready4hire.com</domain>
+        <domain includeSubdomains="true">ready4hire.com</domain>
+        <trust-anchors>
+            <!-- Trust system certificates (Let's Encrypt, etc.) -->
+            <certificates src="system" />
+            <!-- Uncomment to add custom CA certificates if needed -->
+            <!-- <certificates src="@raw/custom_ca" /> -->
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Base configuration: Use system certificates by default -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+

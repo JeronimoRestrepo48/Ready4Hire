@@ -68,11 +68,15 @@ class MultilingualEmotionDetector:
             detected_lang, _ = langid.classify(text)
             lang = "es" if detected_lang == "es" else "en"
 
+            # Truncar texto para evitar exceder límite del modelo (128 tokens ≈ 400-500 caracteres)
+            max_chars = 400  # Límite conservador para evitar el error de tokens
+            truncated_text = text[:max_chars] if len(text) > max_chars else text
+
             # Seleccionar y cargar modelo apropiado
             model = self._get_model(lang)
 
-            # Predecir
-            results = model(text)
+            # Predecir con texto truncado
+            results = model(truncated_text)
 
             # El pipeline con top_k=None retorna una lista de listas [[{...}, {...}]]
             # Si results es una lista de listas, tomar el primer elemento

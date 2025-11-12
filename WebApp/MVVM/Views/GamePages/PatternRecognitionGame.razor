@@ -1,0 +1,575 @@
+@page "/game/pattern-recognition"
+@using Microsoft.AspNetCore.Components
+@using Ready4Hire.Services
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>🔍 Reconocimiento de Patrones - Ready4Hire</PageTitle>
+
+<div class="game-container">
+    <div class="game-header">
+        <button class="btn-back" @onclick="GoBack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Volver
+        </button>
+        <div class="game-stats-bar">
+            <span class="stat-item">🔍 Patrón @currentPattern/@totalPatterns</span>
+            <span class="stat-item">🏆 @currentScore pts</span>
+            <span class="stat-item">⚡ Precisión: @((int)(accuracy * 100))%</span>
+        </div>
+    </div>
+
+    @if (!gameStarted)
+    {
+        <div class="game-intro">
+            <div class="intro-icon">🔍</div>
+            <h1>Reconocimiento de Patrones</h1>
+            <p>Identifica patrones ocultos y tendencias como un detective de datos</p>
+            <div class="game-rules">
+                <h3>🎯 Habilidades desarrolladas:</h3>
+                <ul>
+                    <li>🧠 <strong>Análisis visual:</strong> Detectar patrones en datos complejos</li>
+                    <li>🔢 <strong>Pensamiento matemático:</strong> Secuencias numéricas y algebraicas</li>
+                    <li>🎨 <strong>Reconocimiento espacial:</strong> Formas y disposiciones</li>
+                    <li>📊 <strong>Análisis de tendencias:</strong> Patrones en el tiempo</li>
+                    <li>⚡ <strong>Intuición rápida:</strong> Identificación instantánea</li>
+                </ul>
+            </div>
+            <button class="btn-start-game" @onclick="StartGame">
+                Comenzar Reconocimiento
+            </button>
+        </div>
+    }
+    else if (gameFinished)
+    {
+        <div class="game-results">
+            <div class="results-icon">@GetPerformanceIcon()</div>
+            <h1>¡Reconocimiento Completado!</h1>
+            <div class="results-info">
+                <h3>@GetPatternRating()</h3>
+                <p>@GetPatternDescription()</p>
+            </div>
+            <div class="results-stats">
+                <div class="result-stat">
+                    <div class="stat-value">@currentScore</div>
+                    <div class="stat-label">Puntos Totales</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@GetIntuitionLevel()</div>
+                    <div class="stat-label">Nivel de Intuición</div>
+                </div>
+                <div class="result-stat">
+                    <div class="stat-value">@GetBestPatternType()</div>
+                    <div class="stat-label">Mejor en</div>
+                </div>
+            </div>
+            <div class="analysis-section">
+                <h4>📊 Análisis Detallado</h4>
+                <div class="analysis-grid">
+                    <div class="analysis-item">
+                        <span class="analysis-label">Dificultad manejada:</span>
+                        <span class="analysis-value">@GetDifficultyRating()</span>
+                    </div>
+                </div>
+            </div>
+            <button class="btn-play-again" @onclick="RestartGame">Jugar de Nuevo</button>
+            <button class="btn-back-results" @onclick="GoToGamification">Ver Gamificación</button>
+        </div>
+    }
+    else
+    {
+        <div class="game-play">
+            <div class="pattern-container">
+                @if (currentPatternData != null)
+                {
+                    <h2>@currentPatternData.Question</h2>
+                    <div class="pattern-display">
+                        @if (currentPatternData.Type == "visual")
+                        {
+                            <div class="visual-pattern">
+                                @foreach (var item in currentPatternData.VisualItems)
+                                {
+                                    <div class="pattern-item">@item</div>
+                                }
+                                <div class="pattern-item question-mark">?</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-pattern">
+                                <span>@currentPatternData.PatternText</span>
+                            </div>
+                        }
+                    </div>
+                    <div class="pattern-options">
+                        @for (int i = 0; i < currentPatternData.Options.Count; i++)
+                        {
+                            var index = i;
+                            var option = currentPatternData.Options[index];
+                            var cssClass = "pattern-option";
+                            if (selectedAnswer == index)
+                            {
+                                cssClass += " selected";
+                            }
+                            
+                            <button class="@cssClass" 
+                                    @onclick="() => SelectAnswer(index)">
+                                @option
+                            </button>
+                        }
+                    </div>
+                    <button class="btn-submit" @onclick="SubmitAnswer" disabled="@(selectedAnswer == -1)">
+                        Confirmar Patrón
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .game-container {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        color: white;
+    }
+
+    .game-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 2rem;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .game-stats-bar {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .stat-item {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .game-intro, .game-results {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 70vh;
+        text-align: center;
+        padding: 2rem;
+    }
+
+    .intro-icon, .results-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    .game-rules {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 1.5rem 0;
+        text-align: left;
+        max-width: 600px;
+    }
+
+    .btn-start-game, .btn-play-again, .btn-back-results, .btn-submit {
+        background: linear-gradient(45deg, #f39c12, #e67e22);
+        border: none;
+        color: white;
+        padding: 1rem 2rem;
+        border-radius: 10px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        cursor: pointer;
+        margin: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-start-game:hover, .btn-play-again:hover, .btn-back-results:hover, .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-submit:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .pattern-container {
+        max-width: 900px;
+        margin: 2rem auto;
+        padding: 2rem;
+        text-align: center;
+    }
+
+    .pattern-display {
+        margin: 2rem 0;
+        padding: 2rem;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+    }
+
+    .visual-pattern {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .pattern-item {
+        width: 80px;
+        height: 80px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .pattern-item.question-mark {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px dashed rgba(255, 255, 255, 0.5);
+        font-size: 3rem;
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .text-pattern {
+        font-size: 1.5rem;
+        font-weight: bold;
+        letter-spacing: 2px;
+    }
+
+    .pattern-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin: 2rem 0;
+    }
+
+    .pattern-option {
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-size: 1.2rem;
+    }
+
+    .pattern-option:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+    }
+
+    .pattern-option.selected {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: #fff;
+    }
+
+    .results-info {
+        margin: 2rem 0;
+    }
+
+    .results-stats {
+        display: flex;
+        gap: 2rem;
+        margin: 2rem 0;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .result-stat {
+        text-align: center;
+        min-width: 120px;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #ffd700;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        opacity: 0.8;
+        margin-top: 0.5rem;
+    }
+
+    .analysis-section {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 1.5rem;
+        border-radius: 12px;
+        margin: 2rem 0;
+        max-width: 600px;
+    }
+
+    .analysis-grid {
+        display: grid;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .analysis-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .analysis-label {
+        font-weight: 600;
+    }
+
+    .analysis-value {
+        color: #ffd700;
+        font-weight: bold;
+    }
+</style>
+
+@code {
+    private bool gameStarted = false;
+    private bool gameFinished = false;
+    private int currentPattern = 1;
+    private int totalPatterns = 5;
+    private int currentScore = 0;
+    private int correctAnswers = 0;
+    private float accuracy = 1.0f;
+    private int selectedAnswer = -1;
+
+    private PatternData? currentPatternData;
+    private List<PatternData> patterns = new();
+
+    public class PatternData
+    {
+        public string Question { get; set; } = "";
+        public List<string> Options { get; set; } = new();
+        public int CorrectAnswer { get; set; }
+        public string Type { get; set; } = "";
+        public List<string> VisualItems { get; set; } = new();
+        public string PatternText { get; set; } = "";
+    }
+
+    protected override void OnInitialized()
+    {
+        InitializePatterns();
+    }
+
+    private void InitializePatterns()
+    {
+        patterns = new List<PatternData>
+        {
+            new() { 
+                Question = "¿Qué símbolo sigue en esta secuencia visual?", 
+                Options = new() {"⭐", "🔵", "🔺", "⬜"}, 
+                CorrectAnswer = 2, 
+                Type = "visual",
+                VisualItems = new() {"🔴", "🔵", "🔴", "🔵"}
+            },
+            new() { 
+                Question = "¿Cuál es el siguiente elemento en la secuencia de formas?", 
+                Options = new() {"🟩", "🟦", "🟨", "🟪"}, 
+                CorrectAnswer = 0, 
+                Type = "visual",
+                VisualItems = new() {"🟪", "🟨", "🟦", "🟩", "🟪", "🟨"}
+            },
+            new() { 
+                Question = "¿Qué número continúa la secuencia?", 
+                Options = new() {"13", "15", "17", "19"}, 
+                CorrectAnswer = 0, 
+                Type = "text",
+                PatternText = "1, 3, 5, 7, 9, 11, ?"
+            },
+            new() { 
+                Question = "¿Cuál es el patrón en esta serie?", 
+                Options = new() {"🔸", "🔹", "💠", "🔷"}, 
+                CorrectAnswer = 1, 
+                Type = "visual",
+                VisualItems = new() {"🔸", "🔹", "🔸", "🔹", "🔸"}
+            },
+            new() { 
+                Question = "¿Qué letra sigue en la secuencia?", 
+                Options = new() {"H", "I", "J", "K"}, 
+                CorrectAnswer = 2, 
+                Type = "text",
+                PatternText = "A, C, E, G, ?"
+            }
+        };
+    }
+
+    private void StartGame()
+    {
+        gameStarted = true;
+        gameFinished = false;
+        currentPattern = 1;
+        currentScore = 0;
+        correctAnswers = 0;
+        accuracy = 1.0f;
+        selectedAnswer = -1;
+        
+        LoadCurrentPattern();
+    }
+
+    private void LoadCurrentPattern()
+    {
+        if (currentPattern <= patterns.Count)
+        {
+            currentPatternData = patterns[currentPattern - 1];
+            selectedAnswer = -1;
+        }
+    }
+
+    private void SelectAnswer(int index)
+    {
+        selectedAnswer = index;
+    }
+
+    private void SubmitAnswer()
+    {
+        if (selectedAnswer == -1 || currentPatternData == null) return;
+
+        if (selectedAnswer == currentPatternData.CorrectAnswer)
+        {
+            correctAnswers++;
+            currentScore += 120;
+        }
+
+        currentPattern++;
+        
+        if (currentPattern > totalPatterns)
+        {
+            accuracy = (float)correctAnswers / totalPatterns;
+            EndGame();
+        }
+        else
+        {
+            LoadCurrentPattern();
+        }
+    }
+
+    private void EndGame()
+    {
+        gameFinished = true;
+    }
+
+    private void RestartGame()
+    {
+        StartGame();
+    }
+
+    private async Task GoBack()
+    {
+        if (await AuthService.IsAuthenticatedAsync())
+        {
+            Navigation.NavigateTo("/gamification");
+        }
+        else
+        {
+            Navigation.NavigateTo("/login");
+        }
+    }
+
+    private void GoToGamification()
+    {
+        Navigation.NavigateTo("/gamification");
+    }
+
+    private string GetPerformanceIcon()
+    {
+        return accuracy switch
+        {
+            >= 0.8f => "🏆",
+            >= 0.6f => "🥈",
+            >= 0.4f => "🥉",
+            _ => "📈"
+        };
+    }
+
+    private string GetPatternRating()
+    {
+        return accuracy switch
+        {
+            >= 0.9f => "🔍 Detective de Patrones Maestro",
+            >= 0.8f => "🎯 Analista Experto",
+            >= 0.6f => "📊 Reconocedor Competente",
+            >= 0.4f => "🔎 Observador en Desarrollo",
+            _ => "👁️ Aprendiz de Patrones"
+        };
+    }
+
+    private string GetPatternDescription()
+    {
+        return accuracy switch
+        {
+            >= 0.9f => "Tienes una capacidad excepcional para detectar patrones complejos y tendencias ocultas.",
+            >= 0.8f => "Excelente habilidad para el reconocimiento de patrones. Tu mente analítica es muy sharp.",
+            >= 0.6f => "Buena capacidad de reconocimiento. Con práctica puedes alcanzar el nivel experto.",
+            >= 0.4f => "Está desarrollando sus habilidades de reconocimiento. Sigue practicando.",
+            _ => "El reconocimiento de patrones requiere práctica. No te desanimes, sigue intentando."
+        };
+    }
+
+    private string GetIntuitionLevel()
+    {
+        return accuracy switch
+        {
+            >= 0.9f => "Superior",
+            >= 0.8f => "Alto",
+            >= 0.6f => "Medio-Alto",
+            >= 0.4f => "Medio",
+            _ => "En Desarrollo"
+        };
+    }
+
+    private string GetBestPatternType()
+    {
+        return "Visual"; // Simplificado para esta versión
+    }
+
+    private string GetDifficultyRating()
+    {
+        return accuracy switch
+        {
+            >= 0.8f => "Avanzado",
+            >= 0.6f => "Intermedio",
+            >= 0.4f => "Básico",
+            _ => "Principiante"
+        };
+    }
+
+    public void Dispose()
+    {
+        // No hay timers que limpiar en esta versión simplificada
+    }
+}
