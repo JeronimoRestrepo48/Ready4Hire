@@ -37,7 +37,7 @@ namespace Ready4Hire.MVVM.Views
         private List<Message> Messages = new();
 
         private string UserInput { get; set; } = "";
-        private string userId = $"user-{Guid.NewGuid().ToString().Substring(0, 8)}";
+        private string userId = ""; // Se inicializará desde el email del usuario autenticado
         private string interviewId = "";  // ID de la entrevista actual
         private string interviewType = "technical";
         private string mode = "practice";
@@ -45,6 +45,7 @@ namespace Ready4Hire.MVVM.Views
         private string currentPhase = "config";  // config | context | questions | completed
         private int questionCount = 0;
         private int contextQuestionsAnswered = 0;
+        private int totalTechnicalQuestions = 10; // Por defecto, se actualizará desde la API
         private bool started = false;
         private ElementReference chatBodyRef;
         private bool isExamMode = false;
@@ -92,14 +93,6 @@ namespace Ready4Hire.MVVM.Views
             return message.Replace("\n", "<br/>");
         }
 
-        private async Task HandleKeyPressMethod(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
-        {
-            if (e.Key == "Enter" && !e.ShiftKey && CanSendMessage)
-            {
-                await SendMessage();
-            }
-        }
-
         private bool isAuthenticated = false;
 
         // Variables para STT/TTS
@@ -115,6 +108,9 @@ namespace Ready4Hire.MVVM.Views
             vm = new ChatViewModel(currentDb, chatId);
             await vm.LoadDataAsync(chatId);
 
+            // Inicializar userId desde el email del usuario autenticado
+            await InitializeUserId();
+
             // Cargar el estado existente de la entrevista si existe
             await LoadExistingInterviewState();
             
@@ -126,28 +122,297 @@ namespace Ready4Hire.MVVM.Views
         }
 
         /// <summary>
-        /// Carga el estado existente de una entrevista si ya hay datos guardados
+        /// Inicializa el userId desde el email del usuario autenticado
+        /// </summary>
+        private async Task InitializeUserId()
+        {
+            try
+            {
+                var email = await AuthService.GetCurrentUserEmailAsync();
+                if (!string.IsNullOrEmpty(email))
+                {
+                    // Convertir email a user_id (formato del backend: user_email_at_domain)
+                    userId = $"user_{email.Replace("@", "_at_").Replace(".", "_")}";
+                }
+                else
+                {
+                    // Fallback: usar GUID si no hay email (modo offline/demo)
+                    userId = $"user-{Guid.NewGuid().ToString().Substring(0, 8)}";
+                }
+            }
+            catch
+            {
+                // Fallback en caso de error
+                userId = $"user-{Guid.NewGuid().ToString().Substring(0, 8)}";
+            }
+        }
+
+        /// <summary>
+        /// Carga el estado existente de una entrevista si ya hay datos guardados.
+        /// Primero intenta restaurar desde la base de datos local por chatId, luego desde el backend.
         /// </summary>
         private async Task LoadExistingInterviewState()
         {
-            if (chatId != 0 && vm?.Messages != null && vm.Messages.Any())
+            try
             {
-                Messages = vm.Messages;
+                // 1. Primero intentar restaurar desde la base de datos local por chatId
+                if (chatId != 0 && currentDb != null)
+                {
+                    var localInterview = await currentDb.Interviews
+                        .FirstOrDefaultAsync(i => i.ChatId == chatId && i.Status == "active");
+                    
+                    if (localInterview != null && !string.IsNullOrEmpty(localInterview.InterviewId))
+                    {
+                        // Usar la entrevista local asociada a este chat específico
+                        interviewId = localInterview.InterviewId;
+                        currentPhase = localInterview.CurrentPhase;
+                        started = true;
+                        contextQuestionsAnswered = localInterview.ContextQuestionIndex;
+                        questionCount = localInterview.TotalQuestions;
+                        
+                        // Intentar restaurar desde el backend usando el interviewId
+                        try
+                        {
+                            var backendInterview = await InterviewApi.GetActiveInterviewAsync(userId);
+                            if (backendInterview.ValueKind == System.Text.Json.JsonValueKind.Object && 
+                                backendInterview.TryGetProperty("interview_id", out var backendInterviewIdElement))
+                            {
+                                var backendInterviewId = backendInterviewIdElement.GetString();
+                                // Solo usar si coincide con el interviewId local
+                                if (backendInterviewId == interviewId)
+                                {
+                                    await RestoreInterviewFromBackend(backendInterview);
+                                    return;
+                                }
+                            }
+                        }
+                        catch
+                        {
+                            // Si falla el backend, restaurar desde mensajes locales
+                        }
+                        
+                        // Restaurar desde mensajes locales del chat
+                        if (vm?.Messages != null && vm.Messages.Any())
+                        {
+                            Messages = vm.Messages;
+                        }
+                        
+                        StateHasChanged();
+                        return;
+                    }
+                }
                 
-                // Si ya hay mensajes, significa que la entrevista ya comenzó
-                started = true;
-                currentPhase = "context"; // Asumir que está en progreso
+                // 2. Intentar restaurar desde el backend (entrevista activa) solo si no hay entrevista local
+                var activeInterview = await InterviewApi.GetActiveInterviewAsync(userId);
                 
-                // Contar preguntas de contexto respondidas aproximadamente
-                contextQuestionsAnswered = Messages.Count(m => m.IsUser) / 2; // Estimación
-                questionCount = Messages.Count(m => m.IsUser);
+                if (activeInterview.ValueKind == System.Text.Json.JsonValueKind.Object && 
+                    activeInterview.TryGetProperty("interview_id", out var interviewIdElement))
+                {
+                    var activeInterviewId = interviewIdElement.GetString();
+                    if (!string.IsNullOrEmpty(activeInterviewId))
+                    {
+                        // Verificar si esta entrevista ya está asociada con otro chat
+                        if (chatId != 0 && currentDb != null)
+                        {
+                            var existingInterview = await currentDb.Interviews
+                                .FirstOrDefaultAsync(i => i.InterviewId == activeInterviewId && i.ChatId != null && i.ChatId != chatId);
+                            
+                            if (existingInterview != null)
+                            {
+                                // Esta entrevista pertenece a otro chat, no restaurarla aquí
+                                // En su lugar, restaurar desde mensajes locales si existen
+                                if (vm?.Messages != null && vm.Messages.Any())
+                                {
+                                    Messages = vm.Messages;
+                                    started = true;
+                                    currentPhase = "context";
+                                }
+                                StateHasChanged();
+                                return;
+                            }
+                        }
+                        
+                        interviewId = activeInterviewId;
+                        await RestoreInterviewFromBackend(activeInterview);
+                        
+                        // Guardar la asociación con el chat actual en la base de datos local
+                        if (chatId != 0 && currentDb != null)
+                        {
+                            await SaveInterviewToLocalDatabase(activeInterviewId);
+                        }
+                        
+                        StateHasChanged();
+                        return;
+                    }
+                }
                 
-                StateHasChanged();
+                // 3. Fallback: restaurar desde mensajes locales del chat
+                if (chatId != 0 && vm?.Messages != null && vm.Messages.Any())
+                {
+                    Messages = vm.Messages;
+                    
+                    // Si ya hay mensajes, significa que la entrevista ya comenzó
+                    started = true;
+                    currentPhase = "context"; // Asumir que está en progreso
+                    
+                    // Contar preguntas de contexto respondidas aproximadamente
+                    contextQuestionsAnswered = Messages.Count(m => m.IsUser) / 2; // Estimación
+                    questionCount = Messages.Count(m => m.IsUser);
+                    
+                    StateHasChanged();
+                }
+                else if (chatId != 0)
+                {
+                    // Si existe el chat pero no tiene mensajes, mostrar configuración
+                    started = false;
+                }
             }
-            else if (chatId != 0)
+            catch (Exception ex)
             {
-                // Si existe el chat pero no tiene mensajes, mostrar configuración
-                started = false;
+                Console.WriteLine($"Error cargando estado de entrevista: {ex.Message}");
+                // Continuar con el flujo normal si hay error
+            }
+        }
+
+        /// <summary>
+        /// Restaura el estado de la entrevista desde la respuesta del backend
+        /// </summary>
+        private async Task RestoreInterviewFromBackend(System.Text.Json.JsonElement activeInterview)
+        {
+            currentPhase = activeInterview.TryGetProperty("current_phase", out var phaseElement) 
+                ? phaseElement.GetString() ?? "context" 
+                : "context";
+            
+            // Restaurar estado
+            started = true;
+            contextQuestionsAnswered = activeInterview.TryGetProperty("context_questions_answered", out var ctxAnswered)
+                ? ctxAnswered.GetInt32()
+                : 0;
+            questionCount = activeInterview.TryGetProperty("question_count", out var qCount)
+                ? qCount.GetInt32()
+                : 0;
+            
+            // Restaurar mensajes desde el historial
+            if (activeInterview.TryGetProperty("answers_history", out var answersHistory))
+            {
+                // Reconstruir mensajes desde el historial
+                Messages.Clear();
+                
+                // Agregar mensajes de contexto
+                if (activeInterview.TryGetProperty("context_answers", out var contextAnswers))
+                {
+                    foreach (var answer in contextAnswers.EnumerateArray())
+                    {
+                        Messages.Add(new Message { Text = answer.GetString() ?? "", IsUser = true });
+                    }
+                }
+                
+                // Agregar preguntas y respuestas técnicas
+                foreach (var answer in answersHistory.EnumerateArray())
+                {
+                    if (answer.TryGetProperty("question_text", out var qText))
+                    {
+                        Messages.Add(new Message { Text = qText.GetString() ?? "", IsUser = false });
+                    }
+                    if (answer.TryGetProperty("answer_text", out var aText))
+                    {
+                        Messages.Add(new Message { Text = aText.GetString() ?? "", IsUser = true });
+                    }
+                }
+                
+                // Agregar pregunta actual si existe
+                if (activeInterview.TryGetProperty("current_question", out var currentQ) && 
+                    currentQ.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    if (currentQ.TryGetProperty("text", out var currentQText))
+                    {
+                        Messages.Add(new Message { Text = currentQText.GetString() ?? "", IsUser = false });
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Guarda o actualiza la entrevista en la base de datos local asociándola con el chat actual
+        /// </summary>
+        private async Task SaveInterviewToLocalDatabase(string interviewIdToSave)
+        {
+            try
+            {
+                if (currentDb == null || chatId == 0) return;
+                
+                var currentUser = await AuthService.GetCurrentUserAsync();
+                if (currentUser == null) return;
+                
+                // Buscar si ya existe una entrevista con este interviewId
+                var existingInterview = await currentDb.Interviews
+                    .FirstOrDefaultAsync(i => i.InterviewId == interviewIdToSave);
+                
+                if (existingInterview != null)
+                {
+                    // Actualizar el ChatId si es diferente
+                    if (existingInterview.ChatId != chatId)
+                    {
+                        existingInterview.ChatId = chatId;
+                        existingInterview.Status = "active";
+                        await currentDb.SaveChangesAsync();
+                    }
+                }
+                else
+                {
+                    // Crear nueva entrada de entrevista asociada con este chat
+                    var newInterview = new Interview
+                    {
+                        InterviewId = interviewIdToSave,
+                        UserId = currentUser.Id,
+                        ChatId = chatId,
+                        Status = "active",
+                        CurrentPhase = currentPhase,
+                        Role = SelectedRole,
+                        InterviewType = SelectedInterviewType,
+                        Mode = mode,
+                        SkillLevel = SelectedDifficulty,
+                        CreatedAt = DateTime.UtcNow,
+                        StartedAt = DateTime.UtcNow,
+                        ContextQuestionIndex = contextQuestionsAnswered,
+                        TotalQuestions = questionCount
+                    };
+                    
+                    currentDb.Interviews.Add(newInterview);
+                    await currentDb.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error guardando entrevista en base de datos local: {ex.Message}");
+                // No fallar si hay error al guardar
+            }
+        }
+
+        /// <summary>
+        /// Actualiza la entrevista local con el estado actual
+        /// </summary>
+        private async Task UpdateLocalInterview()
+        {
+            try
+            {
+                if (currentDb == null || chatId == 0 || string.IsNullOrEmpty(interviewId)) return;
+                
+                var localInterview = await currentDb.Interviews
+                    .FirstOrDefaultAsync(i => i.InterviewId == interviewId && i.ChatId == chatId);
+                
+                if (localInterview != null)
+                {
+                    localInterview.CurrentPhase = currentPhase;
+                    localInterview.ContextQuestionIndex = contextQuestionsAnswered;
+                    localInterview.TotalQuestions = questionCount;
+                    await currentDb.SaveChangesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error actualizando entrevista local: {ex.Message}");
+                // No fallar si hay error al actualizar
             }
         }
 
@@ -213,6 +478,19 @@ namespace Ready4Hire.MVVM.Views
         {
             if (!IsConfigured) return;
 
+            // Cerrar cualquier entrevista activa anterior asociada con este chat
+            if (chatId != 0 && currentDb != null)
+            {
+                var previousActiveInterview = await currentDb.Interviews
+                    .FirstOrDefaultAsync(i => i.ChatId == chatId && i.Status == "active");
+                
+                if (previousActiveInterview != null)
+                {
+                    previousActiveInterview.Status = "cancelled";
+                    await currentDb.SaveChangesAsync();
+                }
+            }
+
             Messages.Clear();
             questionCount = 0;
             contextQuestionsAnswered = 0;
@@ -240,6 +518,9 @@ namespace Ready4Hire.MVVM.Views
 
                 interviewId = startResponse.GetProperty("interview_id").GetString();
                 currentPhase = startResponse.GetProperty("status").GetString(); // "context"
+
+                // Guardar la entrevista en la base de datos local asociada con este chat
+                await SaveInterviewToLocalDatabase(interviewId);
 
                 // Mostrar mensaje de bienvenida
                 Messages.Add(new Message 
@@ -343,7 +624,14 @@ namespace Ready4Hire.MVVM.Views
                 {
                     contextQuestionsAnswered = progress.GetProperty("context_completed").GetInt32();
                     questionCount = progress.GetProperty("questions_completed").GetInt32();
+                    if (progress.TryGetProperty("total_questions", out var totalQuestions))
+                    {
+                        totalTechnicalQuestions = totalQuestions.GetInt32();
+                    }
                 }
+                
+                // Actualizar la entrevista local con el progreso actual
+                await UpdateLocalInterview();
 
                 // Mostrar siguiente pregunta si existe (puede venir como "question" o "next_question")
                 var questionProperty = response.TryGetProperty("next_question", out var nextQuestion) 
@@ -654,12 +942,34 @@ namespace Ready4Hire.MVVM.Views
         {
             try
             {
-                // Scroll functionality - simplified for now
+                // Esperar a que el DOM se actualice
+                await Task.Delay(150);
+                
+                // Usar JavaScript para hacer scroll suave al final del contenedor
+                await JSRuntime.InvokeVoidAsync("eval", @"
+                    (function() {
+                        const container = document.querySelector('.chat-messages');
+                        if (container) {
+                            container.scrollTo({
+                                top: container.scrollHeight,
+                                behavior: 'smooth'
+                            });
+                        }
+                    })();
+                ");
+                
                 StateHasChanged();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error scrolling: {ex.Message}");
+                // Fallback: intentar scroll simple
+                try
+                {
+                    await Task.Delay(100);
+                    StateHasChanged();
+                }
+                catch { }
             }
         }
 

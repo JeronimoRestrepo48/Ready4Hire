@@ -347,39 +347,57 @@ Evalúas candidatos para posiciones de Software Engineer considerando:
 
 {mode_context}
 
-Industria: {template.industry_context}
-Nivel: {difficulty.upper()}
+**CONTEXTO PROFESIONAL:**
+- Industria: {template.industry_context}
+- Nivel esperado: {difficulty.upper()}
+- Rol específico: {role}
 
-P: {question}
-R: {answer}
-Conceptos: {', '.join(expected_concepts[:5])}
+**PREGUNTA EVALUADA:**
+{question}
 
-Criterios:
+**RESPUESTA DEL CANDIDATO:**
+{answer}
+
+**CONCEPTOS CLAVE ESPERADOS:**
+{', '.join(expected_concepts[:5]) if expected_concepts else 'Conceptos variados según la pregunta'}
+
+**CRITERIOS DE EVALUACIÓN (aplicar rigurosamente):**
 {template.evaluation_criteria}
 
-Instrucciones:
-- NO uses "como modelo de IA" ni "no puedo"
-- Sé directo y profesional
-- Usa terminología de {role}
+**INSTRUCCIONES CRÍTICAS - SÉ PRECISO Y DIRECTO:**
+1. **EVALÚA OBJETIVAMENTE**: Usa los criterios proporcionados, no impresiones subjetivas
+2. **SÉ ESPECÍFICO**: Identifica exactamente qué conceptos están presentes/faltantes
+3. **USA TERMINOLOGÍA PROFESIONAL**: Emplea el vocabulario técnico de {role}
+4. **NO GENERALICES**: Evita frases vagas como "buena respuesta" - sé concreto
+5. **VALORA LA PROFUNDIDAD**: Distingue entre conocimiento superficial y profundo
+6. **CONSIDERA EL CONTEXTO**: Ajusta expectativas según nivel {difficulty.upper()}
 
-Evalúa (0-10):
-- 9-10: Excelente, completa y profunda
-- 7-8: Buena, esencial cubierto
-- 5-6: Aceptable, básico pero falta profundidad
-- 3-4: Insuficiente, errores importantes
-- 0-2: Muy pobre, incorrecta
+**ESCALA DE PUNTUACIÓN (aplicar estrictamente):**
+- **9.0-10.0**: Respuesta EXCEPCIONAL - Completa, profunda, con ejemplos concretos, demuestra expertise avanzado
+- **7.5-8.9**: Respuesta EXCELENTE - Cubre lo esencial correctamente, muestra buen conocimiento práctico
+- **6.0-7.4**: Respuesta BUENA - Correcta en lo básico pero falta profundidad o ejemplos específicos
+- **4.0-5.9**: Respuesta ACEPTABLE - Parcialmente correcta pero con omisiones importantes o errores conceptuales
+- **2.0-3.9**: Respuesta INSUFICIENTE - Errores significativos, falta comprensión fundamental
+- **0.0-1.9**: Respuesta MUY POBRE - Incorrecta, muestra falta de conocimiento básico
 
-JSON solo:
+**FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):**
 {{
-  "score": <float>,
-  "is_correct": <boolean>,
-  "feedback": "<2-3 oraciones>",
-  "strengths": ["<1>", "<2>"],
-  "improvements": ["<1>", "<2>"],
-  "concepts_covered": ["<1>", "<2>"],
-  "missing_concepts": ["<1>", "<2>"],
-  "hint": "{'<1-2 oraciones si score<6>' if interview_mode == 'practice' else 'null'}"
-}}"""
+  "score": <float entre 0.0 y 10.0, con 1 decimal>,
+  "is_correct": <boolean: true si score >= 6.0>,
+  "feedback": "<2-3 oraciones específicas: qué hizo bien, qué falta, por qué ese score>",
+  "strengths": ["<fortaleza específica 1>", "<fortaleza específica 2>", "<fortaleza específica 3>"],
+  "improvements": ["<mejora específica 1>", "<mejora específica 2>"],
+  "concepts_covered": ["<concepto cubierto 1>", "<concepto cubierto 2>"],
+  "missing_concepts": ["<concepto faltante 1>", "<concepto faltante 2>"],
+  "hint": {"'<pista útil y específica (1-2 oraciones) si score < 6.0>' if interview_mode == 'practice' else 'null'}"}
+}}
+
+**IMPORTANTE:**
+- NO uses frases como "como modelo de IA", "no puedo", "en mi opinión"
+- Sé directo, profesional y técnico
+- El feedback debe ser ACCIONABLE - el candidato debe saber exactamente qué mejorar
+- Los conceptos listados deben ser ESPECÍFICOS y RELEVANTES para {role}
+- Responde SOLO con JSON válido, sin explicaciones adicionales"""
 
         return prompt
 
@@ -421,38 +439,63 @@ JSON solo:
 - Sin consejos extensos ni recursos (solo en resumen final)
 """
 
-        prompt = f"""Eres un {template.evaluation_system.split()[2]} experto actuando como mentor/entrevistador.
+        prompt = f"""Eres un {template.evaluation_system.split()[2]} experto actuando como mentor/entrevistador profesional.
 
 {mode_instruction}
 
-**EVALUACIÓN TÉCNICA:**
-- Score: {evaluation.get('score', 0)}/10
-- Conceptos cubiertos: {', '.join(evaluation.get('concepts_covered', []))}
-- Conceptos faltantes: {', '.join(evaluation.get('missing_concepts', []))}
+**CONTEXTO DE LA EVALUACIÓN:**
+- Score obtenido: {evaluation.get('score', 0)}/10
+- Conceptos cubiertos correctamente: {', '.join(evaluation.get('concepts_covered', [])[:3]) if evaluation.get('concepts_covered') else 'Ninguno identificado'}
+- Conceptos faltantes o incompletos: {', '.join(evaluation.get('missing_concepts', [])[:3]) if evaluation.get('missing_concepts') else 'Todos los conceptos básicos cubiertos'}
+- Fortalezas identificadas: {', '.join(evaluation.get('strengths', [])[:2]) if evaluation.get('strengths') else 'En desarrollo'}
 
-**EMOCIÓN DETECTADA:**
+**ESTADO EMOCIONAL DEL CANDIDATO:**
 {emotion_context}
 
 {history_context}
 
-**TU TAREA:**
-Genera un mensaje de feedback personalizado (2-4 oraciones) que:
+**TU TAREA - GENERA FEEDBACK VALIOSO Y ACCIONABLE:**
 
-1. **Reconozca el esfuerzo**: Valida la respuesta del candidato
-2. **Celebre los aciertos**: Destaca lo que hizo bien específicamente
-3. **Guíe las mejoras**: Sugiere cómo mejorar (sin dar la respuesta completa)
-4. **Motive**: Mantén un tono positivo y constructivo
-5. **Use emojis apropiados**: {' 🎯 💪 ⭐ 🚀 📚 ✨' if interview_mode == 'practice' else '✅ 📝 ⚠️'}
+Genera un mensaje de feedback personalizado (3-5 oraciones) que sea:
 
-{f"6. **Ofrezca recursos**: Menciona 1-2 recursos útiles para profundizar" if interview_mode == 'practice' else ''}
+1. **ESPECÍFICO Y DIRECTO**:
+   - Menciona exactamente qué aspectos de la respuesta fueron destacables
+   - Identifica con precisión qué conceptos faltaron o necesitan profundización
+   - Evita generalidades - sé concreto y técnico
 
-El feedback debe ser:
-- Específico y accionable
-- Empático con la emoción del candidato
-- Alineado con el nivel {template.industry_context}
+2. **VALIOSO Y ÚTIL**:
+   - Proporciona insights que el candidato pueda aplicar inmediatamente
+   - Sugiere enfoques específicos para mejorar (sin dar la respuesta completa)
+   - Menciona recursos o áreas de estudio relevantes si es modo práctica
+
+3. **INTERACTIVO Y DINÁMICO**:
+   - Adapta el tono según la emoción detectada
+   - {'Usa emojis estratégicamente para mantener engagement: 🎯 💪 ⭐ 🚀 📚 ✨' if interview_mode == 'practice' else 'Mantén un tono profesional: ✅ 📝 ⚠️'}
+   - Haz que el candidato se sienta guiado, no juzgado
+
+4. **ORIENTADO AL CRECIMIENTO**:
+   - Celebra los aciertos de forma genuina y específica
+   - Convierte los errores en oportunidades de aprendizaje
+   - Motiva a continuar mejorando
+
+**ESTILO Y TONO:**
 - {template.feedback_tone}
+- Alineado con el contexto de {template.industry_context}
+- Profesional pero cercano y empático
+- Directo pero constructivo
 
-Genera el feedback como texto directo (no JSON), listo para mostrar al candidato.
+**EJEMPLO DE ESTRUCTURA (adaptar según contexto):**
+"✅ [Reconocimiento específico de lo que hizo bien]. [Menciona concepto o aspecto destacable]. 
+💡 [Sugerencia específica de mejora o profundización]. [Recurso o enfoque recomendado si aplica].
+🚀 [Mensaje motivacional adaptado a la emoción y modo]."
+
+**IMPORTANTE:**
+- NO uses frases genéricas como "buen trabajo" o "sigue así"
+- NO repitas información que ya está en la evaluación técnica
+- SÉ ÚTIL: El candidato debe salir con una acción clara para mejorar
+- MANTÉN EL FOCO: Enfócate en 1-2 puntos clave, no intentes cubrir todo
+
+Genera SOLO el texto del feedback (sin JSON, sin etiquetas), listo para mostrar directamente al candidato.
 """
 
         return prompt
@@ -470,32 +513,55 @@ Genera el feedback como texto directo (no JSON), listo para mostrar al candidato
 
         hint_level = "hint básico" if attempts == 1 else "hint más directo" if attempts == 2 else "hint muy específico"
 
-        prompt = f"""Eres un mentor experto en {role} ayudando a un candidato a mejorar su respuesta.
+        prompt = f"""Eres un mentor experto en {role} ayudando a un candidato a descubrir la respuesta por sí mismo.
+
+**CONTEXTO:**
+- Pregunta de entrevista técnica para {role}
+- Intento #{attempts} del candidato
+- El candidato necesita orientación para mejorar su respuesta
 
 **PREGUNTA:**
 {question}
 
-**RESPUESTA DEL CANDIDATO (intento #{attempts}):**
+**RESPUESTA ACTUAL DEL CANDIDATO:**
 {answer}
 
-**CONCEPTOS QUE DEBERÍA MENCIONAR:**
-{', '.join(expected_concepts)}
+**CONCEPTOS CLAVE QUE DEBE INCLUIR LA RESPUESTA:**
+{', '.join(expected_concepts) if expected_concepts else 'Conceptos relacionados con la pregunta'}
 
-**TU TAREA:**
-Genera un {hint_level} que ayude al candidato a mejorar su respuesta.
+**TU TAREA - GENERA UNA PISTA PROGRESIVA Y ÚTIL:**
+
+Genera un {hint_level} que:
 
 **NIVEL DE PISTA #{attempts}:**
-{"- Da una pista general sobre qué dirección tomar" if attempts == 1 else ""}
-{"- Sé más específico, menciona un concepto clave que falta" if attempts == 2 else ""}
-{"- Da una pista muy directa, casi mostrando el camino" if attempts == 3 else ""}
+{"- Intento 1: Da una pista CONCEPTUAL general - orienta sobre qué área o tema debe explorar" if attempts == 1 else ""}
+{"- Intento 2: Sé más ESPECÍFICO - menciona un concepto clave que falta o un enfoque alternativo" if attempts == 2 else ""}
+{"- Intento 3: Da una pista MUY DIRECTA - casi muestra el camino pero sin dar la respuesta completa" if attempts == 3 else ""}
+
+**REQUISITOS CRÍTICOS:**
+1. **SÉ ÚTIL Y NECESARIO**: La pista debe ayudar genuinamente, no ser obvia ni inútil
+2. **MANTÉN EL APRENDIZAJE**: NO des la respuesta completa - guía hacia ella
+3. **SÉ ESPECÍFICO**: Evita pistas vagas como "piensa más" - da dirección concreta
+4. **USA TERMINOLOGÍA TÉCNICA**: Menciona conceptos específicos de {role} cuando sea apropiado
+5. **MANTÉN LA MOTIVACIÓN**: Usa un tono alentador y positivo
+
+**ESTRUCTURA SUGERIDA:**
+- Emoji contextual: 💡 (conceptual) / 🤔 (reflexión) / ⚡ (directo)
+- Pista específica (1-2 oraciones)
+- Tono motivador
+
+**EJEMPLOS DE BUENAS PISTAS:**
+- Intento 1: "💡 Considera los principios fundamentales de [concepto]. ¿Qué patrones o enfoques comunes se aplican aquí?"
+- Intento 2: "🤔 Estás cerca, pero falta mencionar [concepto específico]. ¿Cómo se relaciona esto con [otro concepto]?"
+- Intento 3: "⚡ La respuesta debe incluir [concepto clave]. Piensa en [ejemplo específico o enfoque concreto]."
 
 **IMPORTANTE:**
-- NO des la respuesta completa
-- Usa un emoji apropiado 💡 🤔 ⚡
-- Mantén un tono motivador
-- Sé conciso (1-2 oraciones)
+- NO repitas información que ya está en la pregunta
+- NO uses frases genéricas como "piensa mejor" o "estudia más"
+- SÉ DIRECTO pero mantén el desafío intelectual
+- La pista debe ser un paso hacia la respuesta, no la respuesta misma
 
-Genera solo el texto de la pista, sin JSON ni formato adicional.
+Genera SOLO el texto de la pista (sin JSON, sin etiquetas), listo para mostrar al candidato.
 """
 
         return prompt
@@ -583,29 +649,64 @@ Genera solo el texto del feedback motivacional, sin JSON ni formato adicional.
         """
         template = self._get_template_for_role(role)
         
-        prompt = f"""Eres un experto en {role} explicando la respuesta correcta a una pregunta de entrevista.
+        prompt = f"""Eres un experto en {role} explicando la respuesta correcta de forma educativa y completa.
+
+**CONTEXTO DE APRENDIZAJE:**
+- El candidato ha intentado 3 veces sin éxito
+- Necesita una explicación clara y completa para aprender
+- Esta es una oportunidad de enseñanza, no solo de corrección
 
 **PREGUNTA:**
 {question}
 
-**CONCEPTOS CLAVE QUE DEBE INCLUIR LA RESPUESTA:**
-{', '.join(expected_concepts)}
+**CONCEPTOS CLAVE QUE DEBE INCLUIR LA RESPUESTA CORRECTA:**
+{', '.join(expected_concepts) if expected_concepts else 'Conceptos relacionados con la pregunta'}
 
-**TU TAREA:**
-Genera una explicación completa y educativa de la respuesta correcta (3-5 oraciones) que:
+**TU TAREA - GENERA EXPLICACIÓN EDUCATIVA Y COMPLETA:**
 
-1. **Responda directamente la pregunta**: Da la respuesta completa y correcta
-2. **Explique los conceptos clave**: Menciona y explica cada concepto esperado
-3. **Sea educativa**: Ayuda al candidato a entender el "por qué"
-4. **Use terminología profesional**: Usa el vocabulario de {role}
-5. **Sea clara y estructurada**: Organiza la información de manera lógica
+Genera una explicación de la respuesta correcta (4-6 oraciones) que sea:
 
-**CONTEXTO:**
-- El candidato ya intentó 3 veces sin éxito
-- Necesita entender la respuesta para aprender
-- Mantén un tono educativo y constructivo
+1. **DIRECTA Y COMPLETA**:
+   - Responde directamente la pregunta de forma clara
+   - Cubre todos los conceptos clave esperados
+   - No dejes información importante fuera
 
-Genera solo el texto de la respuesta correcta, sin JSON ni formato adicional.
+2. **EDUCATIVA Y PROFUNDA**:
+   - Explica el "por qué" detrás de cada concepto, no solo el "qué"
+   - Muestra cómo se relacionan los conceptos entre sí
+   - Proporciona contexto profesional relevante para {role}
+
+3. **ESTRUCTURADA Y CLARA**:
+   - Organiza la información de manera lógica
+   - Usa terminología profesional de {role}
+   - Facilita la comprensión con ejemplos o analogías cuando sea útil
+
+4. **VALIOSA Y ACCIONABLE**:
+   - El candidato debe entender no solo la respuesta, sino cómo llegar a ella
+   - Menciona enfoques o metodologías que ayudan a resolver este tipo de preguntas
+   - Conecta con el contexto real de trabajo en {template.industry_context}
+
+**ESTRUCTURA SUGERIDA:**
+1. Respuesta directa y completa (1-2 oraciones)
+2. Explicación de conceptos clave y su relación (2-3 oraciones)
+3. Contexto profesional y aplicación práctica (1-2 oraciones)
+
+**ESTILO:**
+- Tono: Educativo, constructivo y profesional
+- Terminología: Usa vocabulario técnico de {role}
+- Claridad: Explica conceptos complejos de forma accesible
+- Contexto: Conecta con {template.industry_context}
+
+**EJEMPLO DE BUENA EXPLICACIÓN:**
+"La respuesta correcta es [respuesta directa]. Esto se debe a que [concepto clave 1] y [concepto clave 2] están relacionados de la siguiente manera: [explicación de relación]. En el contexto de {role}, esto es importante porque [aplicación práctica]. Un enfoque común para abordar esto es [metodología o enfoque]."
+
+**IMPORTANTE:**
+- NO uses frases condescendientes como "deberías saber esto"
+- NO simplifiques demasiado - respeta la inteligencia del candidato
+- SÉ COMPLETO - no dejes conceptos importantes sin explicar
+- MANTÉN EL FOCO - explica la respuesta, no divagues en temas relacionados
+
+Genera SOLO el texto de la explicación (sin JSON, sin etiquetas), listo para mostrar al candidato.
 """
         return prompt
 
@@ -630,33 +731,155 @@ Genera solo el texto de la respuesta correcta, sin JSON ni formato adicional.
         """
         template = self._get_template_for_role(role)
         
-        prompt = f"""Eres un mentor en {role} dando consejos de mejora a un candidato.
+        prompt = f"""Eres un mentor en {role} proporcionando consejos de mejora específicos y accionables.
+
+**CONTEXTO:**
+- El candidato acaba de ver la respuesta correcta después de 3 intentos
+- Necesita orientación clara sobre cómo mejorar para futuras preguntas similares
+- Esta es una oportunidad de aprendizaje, no de crítica
 
 **PREGUNTA:**
 {question}
 
-**RESPUESTA DEL CANDIDATO (incorrecta):**
+**RESPUESTA DEL CANDIDATO (lo que intentó):**
 {answer}
 
-**RESPUESTA CORRECTA:**
+**RESPUESTA CORRECTA (lo que debería haber dicho):**
 {correct_answer}
 
-**TU TAREA:**
-Genera consejos de mejora (2-3 oraciones) que:
+**TU TAREA - GENERA CONSEJOS VALIOSOS Y ACCIONABLES:**
 
-1. **Identifique el gap**: ¿Qué le faltó al candidato en su respuesta?
-2. **Sugiera estudio**: ¿Qué temas debería revisar o profundizar?
-3. **Dé recursos prácticos**: Menciona 1-2 recursos o enfoques de estudio
-4. **Sea accionable**: Consejos específicos que el candidato pueda seguir
-5. **Use emojis apropiados**: 📚 💡 🎯
+Genera consejos de mejora (3-4 oraciones) que sean:
+
+1. **ESPECÍFICOS Y DIRECTO AL PUNTO**:
+   - Identifica EXACTAMENTE qué le faltó al candidato (conceptos, enfoque, profundidad)
+   - Compara sutilmente su respuesta con la correcta para mostrar el gap
+   - Evita generalidades - sé concreto sobre el área de mejora
+
+2. **ORIENTADOS AL ESTUDIO Y PRÁCTICA**:
+   - Sugiere temas específicos que debería revisar o profundizar
+   - Menciona enfoques de estudio o práctica relevantes para {role}
+   - Conecta con el contexto profesional de {template.industry_context}
+
+3. **ACCIONABLES Y PRÁCTICOS**:
+   - Proporciona pasos concretos que el candidato pueda seguir
+   - Menciona recursos específicos (tipos de proyectos, áreas de práctica, conceptos clave)
+   - Da una ruta clara para mejorar en este aspecto
+
+4. **MOTIVADORES Y CONSTRUCTIVOS**:
+   - Mantén un tono positivo y alentador
+   - Reconoce que el aprendizaje es un proceso
+   - Usa emojis estratégicamente: 📚 💡 🎯 ⭐
+
+**ESTRUCTURA SUGERIDA:**
+"📚 [Identificación específica del gap - qué le faltó exactamente]. [Sugerencia de estudio o práctica específica]. 💡 [Recurso o enfoque concreto para mejorar]. 🎯 [Mensaje motivacional y próximo paso]."
+
+**EJEMPLOS DE BUENOS CONSEJOS:**
+- "📚 Tu respuesta se enfocó en [aspecto], pero faltó profundizar en [concepto específico]. Te recomiendo estudiar [tema específico] y practicar con [tipo de ejercicio o proyecto]. 💡 Un buen recurso es [recurso específico] que cubre estos conceptos en profundidad. 🎯 Con práctica enfocada, mejorarás rápidamente en este aspecto."
+- "📚 Identificaste [concepto 1] correctamente, pero no conectaste con [concepto 2]. Profundiza en cómo se relacionan estos conceptos en el contexto de {role}. 💡 Practica explicando [tipo de escenario] considerando ambos aspectos. 🎯 Este tipo de pensamiento integrado es clave para {role}."
 
 **IMPORTANTE:**
-- Sé específico y constructivo
-- No seas condescendiente
-- Enfócate en el aprendizaje futuro
-- Mantén un tono positivo y motivador
+- NO uses frases condescendientes o desalentadoras
+- NO sugieras recursos genéricos o obvios
+- SÉ ESPECÍFICO - menciona temas, conceptos o áreas concretas
+- MANTÉN EL FOCO - 1-2 áreas de mejora principales, no intentes cubrir todo
+- CONECTA CON EL CONTEXTO - relaciona los consejos con {role} y {template.industry_context}
 
-Genera solo el texto de los consejos, sin JSON ni formato adicional.
+Genera SOLO el texto de los consejos (sin JSON, sin etiquetas), listo para mostrar al candidato.
+"""
+        return prompt
+
+    def get_congratulatory_feedback_prompt(
+        self,
+        role: str,
+        question: str,
+        answer: str,
+        evaluation: Dict,
+    ) -> str:
+        """
+        Genera prompt para feedback de felicitación cuando la respuesta es correcta.
+        
+        Args:
+            role: Rol/profesión del candidato
+            question: Pregunta realizada
+            answer: Respuesta del candidato (correcta)
+            evaluation: Resultado de la evaluación
+            
+        Returns:
+            Prompt para generar feedback de felicitación
+        """
+        template = self._get_template_for_role(role)
+        
+        score = evaluation.get('score', 0)
+        strengths = evaluation.get('strengths', [])
+        concepts_covered = evaluation.get('concepts_covered', [])
+        
+        # Determinar nivel de felicitación según el score
+        if score >= 9.0:
+            celebration_level = "excepcional"
+            emoji_set = "🏆 💯 ⭐ 🌟"
+        elif score >= 8.0:
+            celebration_level = "excelente"
+            emoji_set = "🎉 ⭐ ✨ 🚀"
+        else:
+            celebration_level = "muy buena"
+            emoji_set = "🌟 💪 ✅ 🎯"
+        
+        prompt = f"""Eres un mentor experto en {role} celebrando genuinamente el éxito de un candidato.
+
+**CONTEXTO DEL LOGRO:**
+- Score obtenido: {score}/10 ({celebration_level})
+- El candidato demostró comprensión sólida de los conceptos clave
+
+**PREGUNTA RESPONDIDA:**
+{question}
+
+**RESPUESTA DEL CANDIDATO:**
+{answer}
+
+**ASPECTOS DESTACABLES IDENTIFICADOS:**
+- Fortalezas específicas: {', '.join(strengths[:3]) if strengths else 'Comprensión clara de los conceptos fundamentales'}
+- Conceptos cubiertos correctamente: {', '.join(concepts_covered[:3]) if concepts_covered else 'Todos los conceptos esenciales'}
+
+**TU TAREA - GENERA FELICITACIÓN GENUINA Y VALIOSA:**
+
+Genera un mensaje de felicitación (2-4 oraciones) que sea:
+
+1. **ESPECÍFICO Y GENUINO**:
+   - Reconoce EXACTAMENTE qué hizo bien (no generalices)
+   - Menciona los conceptos o aspectos técnicos que manejó correctamente
+   - Muestra entusiasmo real por el progreso, no felicitaciones vacías
+
+2. **VALIOSO Y EDUCATIVO**:
+   - Destaca por qué esa respuesta fue {celebration_level}
+   - Menciona qué habilidades o conocimientos demostró
+   - Refuerza el aprendizaje positivo
+
+3. **MOTIVADOR Y DINÁMICO**:
+   - Anima a mantener este nivel en las siguientes preguntas
+   - Usa emojis estratégicamente: {emoji_set}
+   - Crea momentum positivo para continuar
+
+**ESTILO:**
+- Tono: Positivo, entusiasta pero profesional
+- Contexto: {template.industry_context}
+- Longitud: 2-4 oraciones concisas pero completas
+
+**ESTRUCTURA SUGERIDA:**
+"[Emoji] [Reconocimiento específico del logro - menciona qué hizo bien exactamente]. [Destaca concepto o habilidad demostrada]. [Mensaje motivacional para continuar]."
+
+**EJEMPLOS DE BUENAS FELICITACIONES:**
+- Score 9-10: "🏆 ¡Excelente! Tu respuesta demuestra dominio profundo de [concepto específico]. La forma en que explicaste [aspecto técnico] muestra experiencia práctica real. ¡Mantén este nivel! 🚀"
+- Score 7-8: "⭐ ¡Muy bien! Cubriste correctamente [conceptos específicos] y mostraste buena comprensión de [aspecto]. Sigue profundizando en [área de mejora]. 💪"
+- Score 6-7: "✅ ¡Correcto! Identificaste los puntos clave: [conceptos]. Para llevar tu respuesta al siguiente nivel, considera [sugerencia específica]. ¡Vas por buen camino! 🎯"
+
+**IMPORTANTE:**
+- NO uses frases genéricas como "buen trabajo" o "bien hecho"
+- NO exageres - sé genuino y proporcional al score
+- SÉ ESPECÍFICO - menciona conceptos, habilidades o aspectos concretos
+- MANTÉN EL FOCO - celebra el logro pero también guía hacia la mejora continua
+
+Genera SOLO el texto de la felicitación (sin JSON, sin etiquetas), listo para mostrar al candidato.
 """
         return prompt
 

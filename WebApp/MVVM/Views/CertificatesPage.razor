@@ -1,12 +1,11 @@
 @page "/certificates"
-@using Microsoft.EntityFrameworkCore
-@using Ready4Hire.Data
 @using Ready4Hire.MVVM.Models
 @using Ready4Hire.Services
-@inject IDbContextFactory<AppDbContext> DbFactory
+@using System.Text.Json
 @inject NavigationManager Navigation
 @inject AuthService AuthService
-@inject HttpClient HttpClient
+@inject InterviewApiService InterviewApi
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Mis Certificados - Ready4Hire</PageTitle>
 
@@ -37,10 +36,10 @@
             Todos (@certificates.Count)
         </button>
         <button class="filter-btn @(selectedFilter == "2024" ? "active" : "")" @onclick="@(() => SetFilter("2024"))">
-            2024 (@certificates.Count(c => c.IssuedAt.Year == 2024))
+            2024 (@certificates.Count(c => c.CompletionDate.Year == 2024))
         </button>
         <button class="filter-btn @(selectedFilter == "2025" ? "active" : "")" @onclick="@(() => SetFilter("2025"))">
-            2025 (@certificates.Count(c => c.IssuedAt.Year == 2025))
+            2025 (@certificates.Count(c => c.CompletionDate.Year == 2025))
         </button>
     </div>
 
@@ -109,7 +108,7 @@
                                     <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
                                     <path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                 </svg>
-                                <span>@cert.IssuedAt.ToString("dd MMM yyyy")</span>
+                                <span>@cert.CompletionDate.ToString("dd MMM yyyy")</span>
                             </div>
                             <div class="meta-item">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -120,14 +119,14 @@
                         </div>
 
                         <div class="certificate-actions">
-                            <button class="btn-view" @onclick="@(() => ViewCertificate(cert.Id))">
+                            <button class="btn-view" @onclick="@(() => ViewCertificate(cert.InterviewId))">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                                     <path d="M1 12S5 4 12 4s11 8 11 8-4 8-11 8S1 12 1 12z" stroke="currentColor" stroke-width="2"/>
                                     <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
                                 </svg>
                                 Ver
                             </button>
-                            <button class="btn-download" @onclick="@(() => DownloadCertificate(cert.Id))">
+                            <button class="btn-download" @onclick="@(() => DownloadCertificate(cert.InterviewId, cert.CertificateId))">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                                     <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                     <path d="M7 10L12 15L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -135,7 +134,7 @@
                                 </svg>
                                 Descargar
                             </button>
-                            <button class="btn-share" @onclick="@(() => ShareCertificate(cert.Id))">
+                            <button class="btn-share" @onclick="@(() => ShareCertificate(cert.ValidationUrl))">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                                     <path d="M4 12V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                     <path d="M16 6L12 2L8 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -145,8 +144,6 @@
                             </button>
                         </div>
 
-                        @if (cert.IsValid)
-                        {
                             <div class="certificate-verified">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                                     <path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.7088 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -154,7 +151,6 @@
                                 </svg>
                                 Certificado Verificado
                             </div>
-                        }
                     </div>
                 </div>
             }
@@ -163,6 +159,17 @@
 </div>
 
 <style>
+    .certificates-container-full {
+        padding: 1.5rem;
+        width: 100%;
+        background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+        min-height: 100vh;
+        max-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        color: #fff;
+    }
+
     .certificates-container {
         max-width: 1400px;
         margin: 0 auto;
@@ -171,6 +178,24 @@
         max-height: 100vh;
         overflow-y: auto;
         overflow-x: hidden;
+    }
+
+    .certificates-container-full::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    .certificates-container-full::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .certificates-container-full::-webkit-scrollbar-thumb {
+        background: #333;
+        border-radius: 5px;
+        border: 2px solid #0a0a0a;
+    }
+
+    .certificates-container-full::-webkit-scrollbar-thumb:hover {
+        background: #444;
     }
 
     .certificates-container::-webkit-scrollbar {
@@ -598,44 +623,101 @@
 </style>
 
 @code {
-    private User? currentUser;
-    private List<Certificate> certificates = new();
-    private List<Certificate> filteredCertificates = new();
+    private List<CertificateData> certificates = new();
+    private List<CertificateData> filteredCertificates = new();
     private string selectedFilter = "all";
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadCertificates();
+    }
+
+    private async Task LoadCertificates()
+    {
         try
         {
+            isLoading = true;
+            StateHasChanged();
+
             var email = await AuthService.GetCurrentUserEmailAsync();
-            
-            if (!string.IsNullOrEmpty(email))
+            if (string.IsNullOrEmpty(email))
             {
-                using var db = await DbFactory.CreateDbContextAsync();
-                
-                currentUser = await db.Users
-                    .FirstOrDefaultAsync(u => u.Email == email);
-                
-                if (currentUser != null)
+                certificates = new List<CertificateData>();
+                filteredCertificates = new List<CertificateData>();
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Convertir email a user_id (formato del backend)
+            var userId = $"user_{email.Replace("@", "_at_").Replace(".", "_")}";
+            
+            // Obtener entrevistas completadas con certificados
+            var response = await InterviewApi.GetCompletedInterviewsAsync(userId, 50);
+            
+            certificates = new List<CertificateData>();
+            
+            if (response.TryGetProperty("interviews", out var interviewsElement))
+            {
+                foreach (var interview in interviewsElement.EnumerateArray())
                 {
-                    certificates = await db.Certificates
-                        .Where(c => c.CandidateName == $"{currentUser.Name} {currentUser.LastName}")
-                        .OrderByDescending(c => c.IssuedAt)
-                        .ToListAsync();
-                    
-                    filteredCertificates = certificates;
+                    var hasCertificate = interview.TryGetProperty("has_certificate", out var hasCert) && hasCert.GetBoolean();
+                    var certificateId = interview.TryGetProperty("certificate_id", out var certId) ? certId.GetString() : null;
+                
+                    if (hasCertificate && !string.IsNullOrEmpty(certificateId))
+                    {
+                        var interviewId = interview.TryGetProperty("interview_id", out var id) ? id.GetString() : "";
+                        
+                        // Obtener detalles del certificado
+                        try
+                        {
+                            var certResponse = await InterviewApi.GetInterviewCertificateAsync(interviewId, "json");
+                            
+                            var certData = new CertificateData
+                            {
+                                InterviewId = interviewId,
+                                CertificateId = certificateId,
+                                Role = interview.TryGetProperty("role", out var role) ? role.GetString() : "",
+                                CandidateName = certResponse.TryGetProperty("candidate_name", out var name) ? name.GetString() : "",
+                                Score = certResponse.TryGetProperty("score", out var score) ? score.GetDouble() : 0.0,
+                                Percentile = certResponse.TryGetProperty("percentile", out var percentile) ? percentile.GetInt32() : 50,
+                                CompletionDate = certResponse.TryGetProperty("completion_date", out var date) && DateTime.TryParse(date.GetString(), out var dateValue) ? dateValue : DateTime.Now,
+                                ValidationUrl = certResponse.TryGetProperty("validation_url", out var url) ? url.GetString() : "",
+                                CertificationLevel = GetCertificationLevel(certResponse.TryGetProperty("score", out var s) ? s.GetDouble() : 0.0)
+                            };
+                            
+                            certificates.Add(certData);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error loading certificate details: {ex.Message}");
+                        }
+                    }
                 }
             }
+                    
+            filteredCertificates = certificates.OrderByDescending(c => c.CompletionDate).ToList();
+            isLoading = false;
+            StateHasChanged();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading certificates: {ex.Message}");
-        }
-        finally
-        {
+            certificates = new List<CertificateData>();
+            filteredCertificates = new List<CertificateData>();
             isLoading = false;
+            StateHasChanged();
         }
+    }
+
+    private string GetCertificationLevel(double score)
+    {
+        if (score >= 9.0) return "EXCELENCIA";
+        if (score >= 8.5) return "SOBRESALIENTE";
+        if (score >= 8.0) return "DISTINGUIDO";
+        if (score >= 7.5) return "COMPETENTE";
+        return "APROBADO";
     }
 
     private void SetFilter(string filter)
@@ -648,59 +730,63 @@
         }
         else if (int.TryParse(filter, out int year))
         {
-            filteredCertificates = certificates.Where(c => c.IssuedAt.Year == year).ToList();
+            filteredCertificates = certificates.Where(c => c.CompletionDate.Year == year).ToList();
         }
     }
 
     private string GetCertificateClass(string level)
     {
-        return level.ToLower() switch
+        return level.ToUpper() switch
         {
-            "gold" => "gold",
-            "silver" => "silver",
-            "bronze" => "bronze",
-            "advanced" => "advanced",
+            "EXCELENCIA" => "gold",
+            "SOBRESALIENTE" => "gold",
+            "DISTINGUIDO" => "silver",
+            "COMPETENTE" => "bronze",
+            "APROBADO" => "advanced",
             _ => "advanced"
         };
     }
 
-    private void ViewCertificate(int certId)
+    private void ViewCertificate(string interviewId)
     {
-        // TODO: Open certificate in modal or new page
-        Console.WriteLine($"Viewing certificate {certId}");
+        Navigation.NavigateTo($"/certificates/{interviewId}");
     }
 
-    private async Task DownloadCertificate(int certId)
+    private async Task DownloadCertificate(string interviewId, string certificateId)
     {
         try
         {
-            var cert = certificates.FirstOrDefault(c => c.Id == certId);
-            if (cert != null)
-            {
-                // TODO: Call API to download PDF
-                var response = await HttpClient.GetAsync($"http://localhost:8001/certificates/{cert.CertificateId}/download");
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    // Download logic
-                    Console.WriteLine($"Downloading certificate {cert.CertificateId}");
-                }
-            }
+            var certificateBytes = await InterviewApi.DownloadCertificateAsync(interviewId, "svg");
+            var fileName = $"certificate_{certificateId}.svg";
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "image/svg+xml", certificateBytes);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error downloading certificate: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al descargar certificado: {ex.Message}");
         }
     }
 
-    private void ShareCertificate(int certId)
+    private async Task ShareCertificate(string validationUrl)
     {
-        var cert = certificates.FirstOrDefault(c => c.Id == certId);
-        if (cert != null && !string.IsNullOrEmpty(cert.ValidationUrl))
+        if (!string.IsNullOrEmpty(validationUrl))
         {
-            // Copy to clipboard or share
-            Console.WriteLine($"Sharing: {cert.ValidationUrl}");
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", validationUrl);
+            await JSRuntime.InvokeVoidAsync("alert", "URL de validación copiada al portapapeles");
         }
+    }
+
+    private class CertificateData
+    {
+        public string InterviewId { get; set; }
+        public string CertificateId { get; set; }
+        public string Role { get; set; }
+        public string CandidateName { get; set; }
+        public double Score { get; set; }
+        public int Percentile { get; set; }
+        public DateTime CompletionDate { get; set; }
+        public string ValidationUrl { get; set; }
+        public string CertificationLevel { get; set; }
     }
 
     private void StartExam()

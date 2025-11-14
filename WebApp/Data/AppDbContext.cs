@@ -13,6 +13,7 @@ namespace Ready4Hire.Data
         public DbSet<Message> Messages => Set<Message>();
         public DbSet<Badge> Badges => Set<Badge>();
         public DbSet<UserBadge> UserBadges => Set<UserBadge>();
+        public DbSet<UserSettings> UserSettings => Set<UserSettings>();
         
         // Nuevos modelos para persistencia completa
         public DbSet<Interview> Interviews => Set<Interview>();
@@ -96,6 +97,10 @@ namespace Ready4Hire.Data
                 .HasForeignKey(i => i.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             
+            // Relación opcional con Chat
+            modelBuilder.Entity<Interview>()
+                .HasIndex(i => new { i.ChatId, i.Status });
+            
             // InterviewQuestion
             modelBuilder.Entity<InterviewQuestion>()
                 .HasIndex(iq => iq.QuestionId);
@@ -160,6 +165,17 @@ namespace Ready4Hire.Data
             
             modelBuilder.Entity<Ready4Hire.Services.AuditLog>()
                 .HasIndex(a => new { a.EntityType, a.Severity });
+            
+            // UserSettings configuration
+            modelBuilder.Entity<UserSettings>()
+                .HasOne(us => us.User)
+                .WithMany()
+                .HasForeignKey(us => us.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            
+            modelBuilder.Entity<UserSettings>()
+                .HasIndex(us => us.UserId)
+                .IsUnique();
         }
     }
 }

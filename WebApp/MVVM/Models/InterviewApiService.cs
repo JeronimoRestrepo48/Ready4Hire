@@ -134,6 +134,23 @@ namespace Ready4Hire.MVVM.Models
         }
 
         /// <summary>
+        /// [V2] Obtiene el estado de la entrevista activa de un usuario.
+        /// Usado para restaurar el estado cuando el usuario vuelve a la página.
+        /// </summary>
+        /// <param name="userId">ID del usuario</param>
+        public async Task<JsonElement> GetActiveInterviewAsync(string userId)
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/interviews/active/{userId}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // No hay entrevista activa, retornar JSON vacío
+                return JsonSerializer.Deserialize<JsonElement>("{}");
+            }
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
         /// [V2] Health check del sistema.
         /// </summary>
         public async Task<JsonElement> HealthCheckV2Async()
@@ -141,6 +158,58 @@ namespace Ready4Hire.MVVM.Models
             var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/health");
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Obtiene todas las entrevistas completadas de un usuario.
+        /// Incluye información básica de reportes y certificados.
+        /// </summary>
+        /// <param name="userId">ID del usuario</param>
+        /// <param name="limit">Límite de resultados (por defecto 10)</param>
+        public async Task<JsonElement> GetCompletedInterviewsAsync(string userId, int limit = 10)
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/interviews/user/{userId}/completed?limit={limit}");
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return JsonSerializer.Deserialize<JsonElement>("{\"interviews\": [], \"total\": 0}");
+            }
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Obtiene el reporte completo de una entrevista completada.
+        /// </summary>
+        /// <param name="interviewId">ID de la entrevista</param>
+        public async Task<JsonElement> GetInterviewReportAsync(string interviewId)
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/interviews/{interviewId}/report");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Obtiene el certificado de una entrevista completada.
+        /// </summary>
+        /// <param name="interviewId">ID de la entrevista</param>
+        /// <param name="format">Formato: json, svg, o pdf (por defecto json)</param>
+        public async Task<JsonElement> GetInterviewCertificateAsync(string interviewId, string format = "json")
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/interviews/{interviewId}/certificate?format={format}");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadFromJsonAsync<JsonElement>();
+        }
+
+        /// <summary>
+        /// [V2] Descarga el certificado en formato SVG o PDF.
+        /// </summary>
+        /// <param name="interviewId">ID de la entrevista</param>
+        /// <param name="format">Formato: svg o pdf</param>
+        public async Task<byte[]> DownloadCertificateAsync(string interviewId, string format = "svg")
+        {
+            var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/interviews/{interviewId}/certificate?format={format}");
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsByteArrayAsync();
         }
 
         // ============================================================================
@@ -311,6 +380,28 @@ namespace Ready4Hire.MVVM.Models
             var response = await _httpClient.PostAsync($"{_baseUrl}/api/v2/audio/text-to-speech-bytes", jsonContent);
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsByteArrayAsync();
+        }
+
+        // ============================================================================
+        // USER SETTINGS & DATA EXPORT ENDPOINTS
+        // ============================================================================
+
+        /// <summary>
+        /// Obtiene todas las entrevistas completadas del usuario para exportación
+        /// </summary>
+        /// <param name="userId">ID del usuario</param>
+        public async Task<JsonElement> GetAllUserInterviewsAsync(string userId)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"{_baseUrl}/api/v2/interviews/user/{userId}/completed?limit=1000");
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadFromJsonAsync<JsonElement>();
+            }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Error al obtener entrevistas: {ex.Message}", ex);
+            }
         }
     }
 }

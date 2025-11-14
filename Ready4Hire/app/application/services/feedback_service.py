@@ -227,28 +227,29 @@ Feedback:"""
         return base_feedback + emotional_addon
 
     def generate_final_feedback(
-        self, role: str, category: str, all_answers: List[Dict[str, Any]], overall_score: float, accuracy: float
+        self, role: str, category: str, all_answers: List[Dict[str, Any]], overall_score: float, accuracy: float, mode: str = "practice"
     ) -> str:
         """
-        Genera feedback final al completar la entrevista.
+        Genera feedback final al completar la entrevista con MEMORIA CONVERSACIONAL COMPLETA.
 
         Args:
             role: Rol/posición
             category: Categoría
-            all_answers: Todas las respuestas de la entrevista
+            all_answers: Todas las respuestas de la entrevista (incluye contexto + técnicas)
             overall_score: Puntuación promedio general
             accuracy: Porcentaje de respuestas correctas
+            mode: Modo de entrevista (practice | exam)
 
         Returns:
-            Feedback final completo
+            Feedback final completo con análisis profundo
         """
         try:
             prompt = self._build_final_feedback_prompt(
-                role=role, category=category, all_answers=all_answers, overall_score=overall_score, accuracy=accuracy
+                role=role, category=category, all_answers=all_answers, overall_score=overall_score, accuracy=accuracy, mode=mode
             )
 
-            # Generar con Ollama
-            feedback = self.llm_service.generate(prompt=prompt, temperature=0.7, max_tokens=384)
+            # Generar con Ollama (más tokens para análisis completo)
+            feedback = self.llm_service.generate(prompt=prompt, temperature=0.7, max_tokens=500)
 
             return self._clean_feedback(feedback)
 
@@ -257,39 +258,128 @@ Feedback:"""
             return self._generate_fallback_final_feedback(overall_score, accuracy)
 
     def _build_final_feedback_prompt(
-        self, role: str, category: str, all_answers: List[Dict[str, Any]], overall_score: float, accuracy: float
+        self, role: str, category: str, all_answers: List[Dict[str, Any]], overall_score: float, accuracy: float, mode: str = "practice"
     ) -> str:
-        """Construye prompt para feedback final."""
-        return f"""Eres un mentor experto proporcionando feedback final de entrevista.
+        """Construye prompt para feedback final con MEMORIA CONVERSACIONAL COMPLETA."""
+        
+        # Separar respuestas de contexto y técnicas
+        context_answers = [a for a in all_answers if a.get("phase") == "context"]
+        technical_answers = [a for a in all_answers if a.get("phase") == "technical"]
+        
+        return f"""Eres un mentor experto proporcionando feedback final COMPLETO, VALIOSO y ACCIONABLE de una entrevista.
 
-**Contexto:**
-- Rol: {role}
-- Categoría: {category}
+**CONTEXTO DE LA ENTREVISTA:**
+- Rol/Profesión evaluada: {role}
+- Tipo de entrevista: {category}
+- Modo: {mode} ({'Modo práctica - aprendizaje interactivo' if mode == 'practice' else 'Modo examen - evaluación formal'})
 - Puntuación promedio: {overall_score:.1f}/10
-- Precisión: {accuracy:.1f}%
-- Total de preguntas: {len(all_answers)}
+- Precisión: {accuracy:.1f}% ({'Excelente' if accuracy >= 80 else 'Buena' if accuracy >= 60 else 'En desarrollo'})
+- Total preguntas técnicas respondidas: {len(technical_answers)}
+- Total preguntas de contexto: {len(context_answers)}
 
-**Rendimiento por pregunta:**
-{self._format_answer_history(all_answers)}
+**MEMORIA CONVERSACIONAL COMPLETA:**
 
-**Genera feedback final que:**
-1. Resume desempeño general (honesto y equilibrado)
-2. Identifica patrones (fortalezas y mejoras consistentes)
-3. Da recomendaciones concretas (próximos pasos)
-4. Motiva al candidato (mensaje positivo y realista)
+**1. PERFIL DEL CANDIDATO (preguntas de contexto):**
+{self._format_context_history(context_answers)}
 
-**Longitud:** 5-7 oraciones (150-200 palabras)
+**2. RENDIMIENTO TÉCNICO (preguntas principales):**
+{self._format_answer_history(technical_answers)}
 
-Responde SOLO el feedback en español, sin etiquetas."""
+**TU TAREA - GENERA FEEDBACK FINAL COMPLETO Y VALIOSO:**
+
+Genera un feedback final estructurado (10-15 oraciones, 300-450 palabras) que sea:
+
+**1. RESUMEN EJECUTIVO (2-3 oraciones) - SÉ DIRECTO Y HONESTO:**
+   - Evalúa el desempeño general de forma equilibrada y realista
+   - Menciona cómo el modo {mode} impactó en el proceso de evaluación
+   - Proporciona una visión general clara del nivel del candidato
+
+**2. ANÁLISIS PROFUNDO (4-5 oraciones) - SÉ ESPECÍFICO Y VALIOSO:**
+   - Identifica PATRONES claros en las respuestas:
+     * ¿Qué fortalezas fueron CONSISTENTES a lo largo de la entrevista?
+     * ¿Qué áreas de mejora aparecieron REPETIDAMENTE?
+   - RELACIONA el perfil de contexto con el rendimiento técnico:
+     * ¿Cómo se reflejaron las habilidades mencionadas en las respuestas técnicas?
+     * ¿Hay desconexiones entre lo que dijo y lo que demostró?
+   - DESTACA insights específicos:
+     * Menciona ejemplos concretos de respuestas destacables o problemáticas
+     * Identifica temas o conceptos donde el candidato mostró mayor/menor dominio
+
+**3. RECOMENDACIONES CONCRETAS (3-4 oraciones) - SÉ ACCIONABLE:**
+   - Prioriza 2-3 áreas de mejora MÁS IMPORTANTES para {role}
+   - Proporciona pasos ESPECÍFICOS y ACCIONABLES:
+     * "Estudia [tema específico] enfocándote en [aspecto concreto]"
+     * "Practica [tipo de ejercicio o proyecto] para mejorar [habilidad específica]"
+   - Sugiere recursos o enfoques de estudio RELEVANTES:
+     * Menciona tipos de proyectos, áreas de práctica, o recursos específicos
+     * Conecta con el contexto de {role} y la industria
+
+**4. MENSAJE MOTIVACIONAL (2-3 oraciones) - SÉ GENUINO Y DINÁMICO:**
+   - Reconoce el esfuerzo y el aprendizaje logrado de forma específica
+   - Motiva con un mensaje positivo pero realista
+   - Proporciona perspectiva sobre el progreso y próximos pasos
+   - Usa emojis estratégicamente: 🏆 💪 📈 🎯 ⭐ 🚀
+
+**ESTILO Y TONO:**
+- Profesional pero cercano y empático
+- Específico y concreto - evita generalidades
+- Valioso - el candidato debe sentir que aprendió algo útil
+- Dinámico - mantén el engagement con estructura clara y lenguaje vivo
+- Adaptado al contexto de {role} y la industria
+
+**ESTRUCTURA SUGERIDA:**
+"[Resumen ejecutivo con evaluación general]. [Análisis profundo con patrones identificados y relación contexto-rendimiento]. [Recomendaciones concretas priorizadas y accionables]. [Mensaje motivacional genuino y orientado al futuro]."
+
+**IMPORTANTE:**
+- NO uses frases genéricas como "sigue practicando" o "estudia más"
+- NO repitas información que ya está en las respuestas individuales
+- SÉ ESPECÍFICO - menciona conceptos, temas o habilidades concretas
+- PROPORCIONA VALOR - el candidato debe salir con insights claros y acciones concretas
+- MANTÉN EL FOCO - prioriza lo más importante, no intentes cubrir todo
+
+Responde SOLO el feedback en español (sin JSON, sin etiquetas), listo para mostrar directamente al candidato."""
 
     def _format_answer_history(self, answers: List[Dict[str, Any]]) -> str:
-        """Formatea historial de respuestas."""
+        """Formatea historial de respuestas técnicas."""
         lines = []
         for i, answer in enumerate(answers, 1):
+            question = answer.get("question", "N/A")
+            answer_text = answer.get("answer", "N/A")
             score = answer.get("score", 0)
-            emotion = answer.get("emotion", "neutral")
-            lines.append(f"{i}. Score: {score:.1f}/10, Emoción: {emotion}")
-        return "\n".join(lines[:10])  # Máximo 10 para no saturar el prompt
+            is_correct = answer.get("is_correct", False)
+            evaluation = answer.get("evaluation_details", {})
+            
+            # Truncar textos largos
+            question_short = question[:100] + "..." if len(question) > 100 else question
+            answer_short = answer_text[:80] + "..." if len(answer_text) > 80 else answer_text
+            
+            status = "✅ Correcta" if is_correct else "❌ Incorrecta"
+            lines.append(
+                f"Pregunta {i}: {question_short}\n"
+                f"  Respuesta: {answer_short}\n"
+                f"  Score: {score:.1f}/10 | {status}"
+            )
+        return "\n\n".join(lines[:10])  # Máximo 10 para no saturar el prompt
+    
+    def _format_context_history(self, answers: List[Dict[str, Any]]) -> str:
+        """Formatea historial de respuestas de contexto."""
+        if not answers:
+            return "No hay preguntas de contexto registradas."
+        
+        lines = []
+        for i, answer in enumerate(answers, 1):
+            question = answer.get("question", "N/A")
+            answer_text = answer.get("answer", "N/A")
+            
+            # Truncar textos largos
+            question_short = question[:100] + "..." if len(question) > 100 else question
+            answer_short = answer_text[:120] + "..." if len(answer_text) > 120 else answer_text
+            
+            lines.append(
+                f"Pregunta Contexto {i}: {question_short}\n"
+                f"  Respuesta: {answer_short}"
+            )
+        return "\n\n".join(lines)
 
     def _generate_fallback_final_feedback(self, overall_score: float, accuracy: float) -> str:
         """Genera feedback final genérico."""

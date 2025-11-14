@@ -317,7 +317,7 @@ class EvaluationService:
         except Exception as e:
             error_type = type(e).__name__
             if "Timeout" in error_type or "timeout" in str(e).lower():
-                logger.warning(f"⚠️ Timeout en evaluación LLM después de 45s, usando fallback heurístico")
+                logger.warning(f"⚠️ Timeout en evaluación LLM después de 120s, usando fallback heurístico")
             else:
                 logger.error(f"Error en evaluación LLM ({error_type}): {str(e)}, usando fallback heurístico")
             
@@ -411,30 +411,57 @@ CRITERIOS SOFT SKILLS:
 - Claridad: Estructura clara (situación-acción-resultado)
 - Conceptos: Demuestra competencia comportamental"""
 
-        return f"""Evalúa respuesta de entrevista para {role} ({difficulty}).
+        return f"""Eres un evaluador experto de entrevistas técnicas. Evalúa esta respuesta de forma PRECISA, DIRECTA y VALIOSA.
 
-P: {question}
-R: {answer}
-Conceptos: {', '.join(expected_concepts[:5]) if expected_concepts else 'Variados'}
+**CONTEXTO:**
+- Rol: {role}
+- Nivel: {difficulty}
+- Tipo: {context_type}
+
+**PREGUNTA:**
+{question}
+
+**RESPUESTA DEL CANDIDATO:**
+{answer}
+
+**CONCEPTOS ESPERADOS:**
+{', '.join(expected_concepts[:5]) if expected_concepts else 'Conceptos relacionados con la pregunta'}
 
 {criteria_guide}
 
-Evalúa (0-10):
-- Completitud (0-3): ¿Responde todo?
-- Profundidad (0-3): ¿Comprensión profunda?
-- Claridad (0-2): ¿Bien explicado?
-- Conceptos (0-2): ¿Usa términos clave?
+**INSTRUCCIONES CRÍTICAS:**
+1. **SÉ PRECISO**: Evalúa objetivamente usando los criterios, no impresiones subjetivas
+2. **SÉ ESPECÍFICO**: Identifica exactamente qué conceptos están presentes/faltantes
+3. **SÉ DIRECTO**: Evita generalidades - sé concreto sobre fortalezas y debilidades
+4. **PROPORCIONA VALOR**: El feedback debe ser accionable y útil para el candidato
 
-JSON (sin texto extra):
+**ESCALA DE PUNTUACIÓN:**
+- Completitud (0-3): ¿Responde completamente la pregunta?
+- Profundidad (0-3): ¿Demuestra comprensión profunda o solo superficial?
+- Claridad (0-2): ¿Explica de forma clara y estructurada?
+- Conceptos (0-2): ¿Usa terminología técnica correcta y menciona conceptos clave?
+
+**FORMATO DE RESPUESTA (JSON estricto, sin texto adicional):**
 {{
-  "score": <0-10>,
-  "breakdown": {{"completeness": <0-3>, "technical_depth": <0-3>, "clarity": <0-2>, "key_concepts": <0-2>}},
-  "justification": "<2 oraciones>",
-  "strengths": ["<1>", "<2>"],
-  "improvements": ["<1>", "<2>"],
-  "concepts_covered": ["<1>", "<2>"],
-  "missing_concepts": ["<1>", "<2>"]
-}}"""
+  "score": <float 0.0-10.0 con 1 decimal>,
+  "breakdown": {{
+    "completeness": <0-3>,
+    "technical_depth": <0-3>,
+    "clarity": <0-2>,
+    "key_concepts": <0-2>
+  }},
+  "justification": "<2-3 oraciones específicas: qué hizo bien, qué falta, por qué ese score>",
+  "strengths": ["<fortaleza específica 1>", "<fortaleza específica 2>"],
+  "improvements": ["<mejora específica 1>", "<mejora específica 2>"],
+  "concepts_covered": ["<concepto cubierto 1>", "<concepto cubierto 2>"],
+  "missing_concepts": ["<concepto faltante 1>", "<concepto faltante 2>"]
+}}
+
+**IMPORTANTE:**
+- NO uses frases como "como modelo de IA" o "no puedo"
+- Sé directo, profesional y técnico
+- Los conceptos deben ser ESPECÍFICOS y RELEVANTES para {role}
+- Responde SOLO con JSON válido, sin explicaciones adicionales"""
     
     def _build_strict_json_prompt(
         self,

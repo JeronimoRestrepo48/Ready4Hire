@@ -25,6 +25,9 @@ namespace Ready4Hire.MVVM.Models
         public int UserId { get; set; }
         public User User { get; set; } = null!;
         
+        // Relación con Chat (opcional, para asociar entrevista con chat específico)
+        public int? ChatId { get; set; }
+        
         // Información básica
         [Required]
         [MaxLength(100)]

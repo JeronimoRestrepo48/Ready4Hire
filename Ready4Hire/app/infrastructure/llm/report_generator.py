@@ -105,37 +105,61 @@ class ReportGenerator:
         Returns:
             InterviewReport completo con métricas y recomendaciones
         """
-        # Calcular métricas
-        metrics = self._calculate_metrics(interview_data)
+        try:
+            # Validar datos de entrada
+            if not interview_data.get("answers_history"):
+                raise ValueError("No hay respuestas en la entrevista")
+            
+            # Calcular métricas
+            metrics = self._calculate_metrics(interview_data)
 
-        # Análisis de fortalezas y debilidades
-        strengths, improvements = self._analyze_performance(metrics, interview_data)
+            # Análisis de fortalezas y debilidades
+            strengths, improvements = self._analyze_performance(metrics, interview_data)
 
-        # Generar recomendaciones
-        resources = self._generate_recommendations(improvements, interview_data["role"])
+            # Generar recomendaciones
+            resources = self._generate_recommendations(improvements, interview_data.get("role", "Unknown"))
 
-        # Determinar elegibilidad para certificado
-        certificate_eligible, cert_id = self._check_certificate_eligibility(
-            interview_data["mode"], metrics.average_score, metrics.hints_used
-        )
+            # Determinar elegibilidad para certificado
+            mode = interview_data.get("mode", "practice")
+            certificate_eligible, cert_id = self._check_certificate_eligibility(
+                mode, metrics.average_score, metrics.hints_used
+            )
 
-        # Crear URL compartible
-        shareable_url = self._create_shareable_url(interview_data["id"])
+            # Crear URL compartible
+            shareable_url = self._create_shareable_url(interview_data["id"])
 
-        return InterviewReport(
-            interview_id=interview_data["id"],
-            candidate_name=user_data.get("name", "Candidato"),
-            role=interview_data["role"],
-            date=datetime.fromisoformat(interview_data["completed_at"]),
-            mode=interview_data["mode"],
-            metrics=metrics,
-            strengths=strengths,
-            improvements=improvements,
-            recommended_resources=resources,
-            shareable_url=shareable_url,
-            certificate_eligible=certificate_eligible,
-            certificate_id=cert_id,
-        )
+            # Parsear fecha de completación
+            completed_at = interview_data.get("completed_at")
+            if isinstance(completed_at, str):
+                # Manejar diferentes formatos de fecha ISO
+                try:
+                    date = datetime.fromisoformat(completed_at.replace('Z', '+00:00'))
+                except ValueError:
+                    # Intentar formato alternativo
+                    date = datetime.fromisoformat(completed_at)
+            elif isinstance(completed_at, datetime):
+                date = completed_at
+            else:
+                date = datetime.now()
+
+            return InterviewReport(
+                interview_id=interview_data["id"],
+                candidate_name=user_data.get("name", "Candidato"),
+                role=interview_data.get("role", "Unknown"),
+                date=date,
+                mode=mode,
+                metrics=metrics,
+                strengths=strengths,
+                improvements=improvements,
+                recommended_resources=resources,
+                shareable_url=shareable_url,
+                certificate_eligible=certificate_eligible,
+                certificate_id=cert_id,
+            )
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            raise RuntimeError(f"Error generando reporte: {str(e)}\n{error_details}")
 
     def _calculate_metrics(self, interview_data: Dict) -> InterviewMetrics:
         """Calcula todas las métricas de la entrevista"""
@@ -157,17 +181,25 @@ class ReportGenerator:
             )
 
         # Calcular score promedio
-        scores = [a.get("score", 0) for a in answers]
-        average_score = sum(scores) / len(scores) if scores else 0
+        scores = []
+        for a in answers:
+            score = a.get("score", 0)
+            # Asegurar que score sea numérico
+            if isinstance(score, (int, float)):
+                scores.append(float(score))
+            else:
+                scores.append(0.0)
+        
+        average_score = sum(scores) / len(scores) if scores else 0.0
 
         # Respuestas correctas (score >= 6.0)
         correct_answers = sum(1 for s in scores if s >= 6.0)
 
         # Hints usados
-        hints_used = sum(a.get("hints_used", 0) for a in answers)
+        hints_used = sum(int(a.get("hints_used", 0)) for a in answers)
 
         # Tiempo total
-        total_time = sum(a.get("time_taken", 0) for a in answers)
+        total_time = sum(int(a.get("time_taken", 0)) for a in answers)
 
         # Performance por topic
         performance_by_topic = self._calculate_topic_performance(answers, questions)
@@ -176,7 +208,7 @@ class ReportGenerator:
         concepts_mastered, concepts_weak = self._analyze_concepts(answers)
 
         # Tiempo por pregunta
-        time_per_question = [a.get("time_taken", 0) for a in answers]
+        time_per_question = [int(a.get("time_taken", 0)) for a in answers]
 
         return InterviewMetrics(
             average_score=round(average_score, 2),
@@ -200,9 +232,13 @@ class ReportGenerator:
             if i < len(questions):
                 topic = questions[i].get("topic", "General")
                 score = answer.get("score", 0)
+                # Asegurar que score sea numérico
+                if not isinstance(score, (int, float)):
+                    score = 0.0
+                score = float(score)
 
                 if topic not in topic_scores:
-                    topic_scores[topic] = 0
+                    topic_scores[topic] = 0.0
                     topic_counts[topic] = 0
 
                 topic_scores[topic] += score
@@ -217,19 +253,29 @@ class ReportGenerator:
 
         for answer in answers:
             eval_details = answer.get("evaluation_details", {})
+            if not isinstance(eval_details, dict):
+                eval_details = {}
             covered = eval_details.get("concepts_covered", [])
             missing = eval_details.get("missing_concepts", [])
             score = answer.get("score", 0)
+            # Asegurar que score sea numérico
+            if not isinstance(score, (int, float)):
+                score = 0.0
+            score = float(score)
 
             # Conceptos cubiertos con buen score
             if score >= 7.0:
                 for concept in covered:
-                    concept_scores[concept] = concept_scores.get(concept, []) + [score]
+                    if concept not in concept_scores:
+                        concept_scores[concept] = []
+                    concept_scores[concept].append(score)
 
             # Conceptos faltantes o mal explicados
             if score < 7.0:
                 for concept in missing:
-                    concept_scores[concept] = concept_scores.get(concept, []) + [score]
+                    if concept not in concept_scores:
+                        concept_scores[concept] = []
+                    concept_scores[concept].append(score)
 
         # Calcular promedios
         concept_avgs = {concept: sum(scores) / len(scores) for concept, scores in concept_scores.items()}
@@ -332,14 +378,20 @@ class ReportGenerator:
     ) -> Tuple[bool, Optional[str]]:
         """Determina si el candidato es elegible para certificado"""
         # Condiciones para certificación:
-        # 1. Modo examen (no práctica)
-        # 2. Score >= 7.5
-        # 3. Sin usar hints (en examen no debería haber)
+        # 1. Score >= 7.5 (en cualquier modo)
+        # 2. En modo examen: sin usar hints
+        # 3. En modo práctica: permitir hints pero con score más alto (>= 8.0)
 
-        if mode == "exam" and average_score >= 7.5 and hints_used == 0:
-            # Generar ID único de certificado
-            cert_id = self._generate_certificate_id(average_score)
-            return True, cert_id
+        if mode == "exam":
+            # En modo examen: score >= 7.5 y sin hints
+            if average_score >= 7.5 and hints_used == 0:
+                cert_id = self._generate_certificate_id(average_score)
+                return True, cert_id
+        elif mode == "practice":
+            # En modo práctica: score >= 8.0 (más estricto por permitir hints)
+            if average_score >= 8.0:
+                cert_id = self._generate_certificate_id(average_score)
+                return True, cert_id
 
         return False, None
 

@@ -50,7 +50,7 @@ class OllamaClient:
         base_url: str = "http://localhost:11434",
         default_model: str = "llama3.2:3b",
         fallback_models: Optional[List[str]] = None,
-        timeout: int = 45,  # ⚡ Timeout optimizado para evaluaciones (30s muy corto)
+        timeout: int = 120,  # ⚡ Timeout aumentado para feedback completo, hints y respuestas largas (120s)
         max_retries: int = 1,  # ⚡ 1 reintento para evitar múltiples delays
         retry_delay: float = 1.0,  # ⚡ Delay razonable entre reintentos
         circuit_breaker_enabled: bool = True,  # 🔌 Circuit breaker para resiliencia

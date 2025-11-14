@@ -2,6 +2,7 @@
 @using Ready4Hire.Data
 @using Ready4Hire.MVVM.ViewModels
 @using Ready4Hire.MVVM.Models
+@using Ready4Hire.Components.Layout
 @using Microsoft.EntityFrameworkCore
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
@@ -12,7 +13,7 @@
 <link href="~/css/main-professional.css" rel="stylesheet" />
 
 <!-- Enhanced Frontend Improvements -->
-<Components.Layout.EnhancedScripts />
+<EnhancedScripts />
 
 <div class="app-container @GetPageClass()">
     <!-- Professional Sidebar -->

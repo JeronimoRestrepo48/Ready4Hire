@@ -1,0 +1,484 @@
+@page "/reports/{InterviewId}"
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@using System.Text.Json
+@inject InterviewApiService InterviewApi
+@inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
+@attribute [StreamRendering(false)]
+
+<PageTitle>Reporte Detallado - Ready4Hire</PageTitle>
+
+<div class="report-detail-container">
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Cargando reporte...</p>
+        </div>
+    }
+    else if (reportData == null)
+    {
+        <div class="error-state">
+            <h2>Reporte no encontrado</h2>
+            <p>El reporte solicitado no está disponible.</p>
+            <button class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/reports"))">
+                Volver a Reportes
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="report-header">
+            <button class="btn-back" @onclick="@(() => Nav.NavigateTo("/reports"))">
+                ← Volver
+            </button>
+            <div class="header-info">
+                <h1>📊 Reporte Detallado</h1>
+                <p class="subtitle">@reportData.Role - @reportData.Mode</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" @onclick="ExportReport">
+                    📥 Exportar PDF
+                </button>
+                <button class="btn btn-primary" @onclick="ShareReport">
+                    🔗 Compartir
+                </button>
+            </div>
+        </div>
+
+        <!-- Métricas Principales -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon">⭐</div>
+                <div class="metric-content">
+                    <h3>@reportData.Metrics.AverageScore.ToString("F1")</h3>
+                    <p>Score Promedio</p>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">✅</div>
+                <div class="metric-content">
+                    <h3>@reportData.Metrics.SuccessRate.ToString("F1")%</h3>
+                    <p>Tasa de Éxito</p>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">📝</div>
+                <div class="metric-content">
+                    <h3>@reportData.Metrics.TotalQuestions</h3>
+                    <p>Preguntas Totales</p>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">🎯</div>
+                <div class="metric-content">
+                    <h3>Top @reportData.Metrics.Percentile%</h3>
+                    <p>Percentil</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fortalezas -->
+        @if (reportData.Strengths.Any())
+        {
+            <div class="section-card">
+                <h2>💪 Fortalezas</h2>
+                <ul class="strengths-list">
+                    @foreach (var strength in reportData.Strengths)
+                    {
+                        <li>@strength</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <!-- Áreas de Mejora -->
+        @if (reportData.Improvements.Any())
+        {
+            <div class="section-card">
+                <h2>📈 Áreas de Mejora</h2>
+                <ul class="improvements-list">
+                    @foreach (var improvement in reportData.Improvements)
+                    {
+                        <li>@improvement</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <!-- Recursos Recomendados -->
+        @if (reportData.RecommendedResources.Any())
+        {
+            <div class="section-card">
+                <h2>📚 Recursos Recomendados</h2>
+                <div class="resources-grid">
+                    @foreach (var resource in reportData.RecommendedResources)
+                    {
+                        <div class="resource-card">
+                            <div class="resource-icon">@GetResourceIcon(resource.Type)</div>
+                            <div class="resource-content">
+                                <h4>@resource.Title</h4>
+                                <p>@resource.Reason</p>
+                                @if (!string.IsNullOrEmpty(resource.Url))
+                                {
+                                    <a href="@resource.Url" target="_blank" class="resource-link">
+                                        Ver recurso →
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- Certificado -->
+        @if (reportData.Certificate != null && reportData.Certificate.Eligible)
+        {
+            <div class="section-card certificate-section">
+                <h2>🏆 Certificado</h2>
+                <div class="certificate-info">
+                    <p>¡Felicidades! Has obtenido un certificado por tu excelente desempeño.</p>
+                    <p><strong>ID del Certificado:</strong> @reportData.Certificate.Id</p>
+                    <button class="btn btn-success" @onclick="DownloadCertificate">
+                        📥 Descargar Certificado
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .report-detail-container {
+        padding: 2rem;
+        max-width: 1200px;
+        margin: 0 auto;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+        color: #fff;
+    }
+
+    .report-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-back {
+        background: transparent;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+        color: #a5b4fc;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(99, 102, 241, 0.1);
+        border-color: #6366f1;
+    }
+
+    .header-info h1 {
+        margin: 0;
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        color: #94a3b8;
+        margin-top: 0.5rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .metric-card {
+        background: rgba(30, 41, 59, 0.6);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .metric-icon {
+        font-size: 2.5rem;
+    }
+
+    .metric-content h3 {
+        margin: 0;
+        font-size: 2rem;
+    }
+
+    .metric-content p {
+        margin: 0.25rem 0 0 0;
+        color: #94a3b8;
+        font-size: 0.875rem;
+    }
+
+    .section-card {
+        background: rgba(30, 41, 59, 0.6);
+        border-radius: 12px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .section-card h2 {
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+    }
+
+    .strengths-list, .improvements-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .strengths-list li, .improvements-list li {
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 8px;
+        border-left: 3px solid #10b981;
+    }
+
+    .improvements-list li {
+        border-left-color: #f59e0b;
+    }
+
+    .resources-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+
+    .resource-card {
+        background: rgba(15, 23, 42, 0.6);
+        border-radius: 8px;
+        padding: 1rem;
+        display: flex;
+        gap: 1rem;
+    }
+
+    .resource-icon {
+        font-size: 2rem;
+    }
+
+    .resource-content h4 {
+        margin: 0 0 0.5rem 0;
+    }
+
+    .resource-content p {
+        color: #94a3b8;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .resource-link {
+        color: #6366f1;
+        text-decoration: none;
+    }
+
+    .certificate-section {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.15) 100%);
+        border-color: rgba(251, 191, 36, 0.4);
+    }
+
+    .certificate-info {
+        text-align: center;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: #334155;
+        color: white;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .loading-state, .error-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+
+    .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(99, 102, 241, 0.2);
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter] public string InterviewId { get; set; }
+
+    private ReportDetailData reportData;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadReport();
+    }
+
+    private async Task LoadReport()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var response = await InterviewApi.GetInterviewReportAsync(InterviewId);
+            
+            if (response.TryGetProperty("report", out var reportElement))
+            {
+                reportData = new ReportDetailData
+                {
+                    Role = reportElement.TryGetProperty("role", out var role) ? role.GetString() : "",
+                    Mode = reportElement.TryGetProperty("mode", out var mode) ? mode.GetString() : "",
+                    Metrics = new ReportMetrics
+                    {
+                        AverageScore = reportElement.TryGetProperty("metrics", out var metrics) && metrics.TryGetProperty("average_score", out var avgScore) ? avgScore.GetDouble() : 0.0,
+                        SuccessRate = reportElement.TryGetProperty("metrics", out var m) && m.TryGetProperty("success_rate", out var sr) ? sr.GetDouble() : 0.0,
+                        TotalQuestions = reportElement.TryGetProperty("metrics", out var mt) && mt.TryGetProperty("total_questions", out var tq) ? tq.GetInt32() : 0,
+                        Percentile = reportElement.TryGetProperty("metrics", out var mp) && mp.TryGetProperty("percentile", out var p) ? p.GetInt32() : 50
+                    },
+                    Strengths = reportElement.TryGetProperty("strengths", out var strengths) ? strengths.EnumerateArray().Select(s => s.GetString()).ToList() : new List<string>(),
+                    Improvements = reportElement.TryGetProperty("improvements", out var improvements) ? improvements.EnumerateArray().Select(i => i.GetString()).ToList() : new List<string>(),
+                    RecommendedResources = reportElement.TryGetProperty("recommended_resources", out var resources) ? resources.EnumerateArray().Select(r => new RecommendedResource
+                    {
+                        Title = r.TryGetProperty("title", out var title) ? title.GetString() : "",
+                        Type = r.TryGetProperty("type", out var type) ? type.GetString() : "",
+                        Reason = r.TryGetProperty("reason", out var reason) ? reason.GetString() : "",
+                        Url = r.TryGetProperty("url", out var url) ? url.GetString() : null
+                    }).ToList() : new List<RecommendedResource>(),
+                    Certificate = reportElement.TryGetProperty("certificate", out var cert) && cert.ValueKind != JsonValueKind.Null ? new CertificateInfo
+                    {
+                        Eligible = cert.TryGetProperty("eligible", out var eligible) && eligible.GetBoolean(),
+                        Id = cert.TryGetProperty("id", out var id) ? id.GetString() : null
+                    } : null
+                };
+            }
+
+            isLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading report: {ex.Message}");
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetResourceIcon(string type)
+    {
+        return type?.ToLower() switch
+        {
+            "book" => "📚",
+            "course" => "🎓",
+            "article" => "📄",
+            "video" => "🎥",
+            _ => "📖"
+        };
+    }
+
+    private async Task ExportReport()
+    {
+        await JSRuntime.InvokeVoidAsync("alert", "Exportación a PDF próximamente disponible");
+    }
+
+    private async Task ShareReport()
+    {
+        var shareUrl = $"{Nav.BaseUri}reports/{InterviewId}";
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareUrl);
+        await JSRuntime.InvokeVoidAsync("alert", "URL copiada al portapapeles");
+    }
+
+    private async Task DownloadCertificate()
+    {
+        try
+        {
+            var certificateBytes = await InterviewApi.DownloadCertificateAsync(InterviewId, "svg");
+            var fileName = $"certificate_{reportData.Certificate.Id}.svg";
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "image/svg+xml", certificateBytes);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al descargar certificado: {ex.Message}");
+        }
+    }
+
+    private class ReportDetailData
+    {
+        public string Role { get; set; }
+        public string Mode { get; set; }
+        public ReportMetrics Metrics { get; set; }
+        public List<string> Strengths { get; set; }
+        public List<string> Improvements { get; set; }
+        public List<RecommendedResource> RecommendedResources { get; set; }
+        public CertificateInfo Certificate { get; set; }
+    }
+
+    private class ReportMetrics
+    {
+        public double AverageScore { get; set; }
+        public double SuccessRate { get; set; }
+        public int TotalQuestions { get; set; }
+        public int Percentile { get; set; }
+    }
+
+    private class RecommendedResource
+    {
+        public string Title { get; set; }
+        public string Type { get; set; }
+        public string Reason { get; set; }
+        public string Url { get; set; }
+    }
+
+    private class CertificateInfo
+    {
+        public bool Eligible { get; set; }
+        public string Id { get; set; }
+    }
+}
+

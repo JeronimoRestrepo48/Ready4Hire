@@ -1,14 +1,22 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using Ready4Hire.MVVM.Models;
+using Ready4Hire.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Ready4Hire.MVVM.Views
 {
     public partial class ReportsPage
     {
+        [Inject] private InterviewApiService InterviewApi { get; set; }
+        [Inject] private AuthService AuthService { get; set; }
+        [Inject] private IJSRuntime JSRuntime { get; set; }
+        [Inject] private NavigationManager Nav { get; set; }
+        
         // State
         private List<InterviewReport> reports = new();
         private List<InterviewReport> filteredReports = new();
@@ -45,13 +53,73 @@ namespace Ready4Hire.MVVM.Views
                 isLoading = true;
                 StateHasChanged();
                 
-                // TODO: Implementar llamada real a API
-                // Datos vacíos por ahora - sin datos demo
+                // Obtener email del usuario actual
+                var email = await AuthService.GetCurrentUserEmailAsync();
+                if (string.IsNullOrEmpty(email))
+                {
+                    reports = new List<InterviewReport>();
+                    filteredReports = new List<InterviewReport>();
+                    isLoading = false;
+                    StateHasChanged();
+                    return;
+                }
+                
+                // Convertir email a user_id (formato del backend)
+                var userId = $"user_{email.Replace("@", "_at_").Replace(".", "_")}";
+                
+                // Llamar a la API para obtener entrevistas completadas
+                var response = await InterviewApi.GetCompletedInterviewsAsync(userId, 50);
+                
                 reports = new List<InterviewReport>();
-                
                 availableRoles = new List<string>();
-                filteredReports = new List<InterviewReport>();
                 
+                if (response.TryGetProperty("interviews", out var interviewsElement))
+                {
+                    foreach (var interview in interviewsElement.EnumerateArray())
+                    {
+                        var avgScore = interview.TryGetProperty("average_score", out var score) ? score.GetDouble() : 0.0;
+                        var totalQuestions = interview.TryGetProperty("total_questions", out var total) ? total.GetInt32() : 0;
+                        var correctAnswers = totalQuestions > 0 ? (int)Math.Round(avgScore / 10.0 * totalQuestions) : 0;
+                        
+                        var report = new InterviewReport
+                        {
+                            InterviewId = interview.TryGetProperty("interview_id", out var id) ? id.GetString() : "",
+                            Role = interview.TryGetProperty("role", out var role) ? role.GetString() : "",
+                            Mode = interview.TryGetProperty("mode", out var mode) ? mode.GetString() : "",
+                            AverageScore = avgScore,
+                            TotalQuestions = totalQuestions,
+                            CorrectAnswers = correctAnswers,
+                            TotalTimeSeconds = 0, // No disponible en la respuesta actual
+                            CertificateId = interview.TryGetProperty("certificate_id", out var certId) ? certId.GetString() : null
+                        };
+                        
+                        if (interview.TryGetProperty("completed_at", out var completedAt) && completedAt.ValueKind == JsonValueKind.String)
+                        {
+                            if (DateTime.TryParse(completedAt.GetString(), out var date))
+                            {
+                                report.CompletedAt = date;
+                            }
+                            else
+                            {
+                                report.CompletedAt = DateTime.Now;
+                            }
+                        }
+                        else
+                        {
+                            report.CompletedAt = DateTime.Now;
+                        }
+                        
+                        reports.Add(report);
+                        
+                        // Agregar rol a la lista de roles disponibles
+                        if (!string.IsNullOrEmpty(report.Role) && !availableRoles.Contains(report.Role))
+                        {
+                            availableRoles.Add(report.Role);
+                        }
+                    }
+                }
+                
+                filteredReports = reports.ToList();
                 CalculateMetrics();
                 
                 isLoading = false;
@@ -60,6 +128,8 @@ namespace Ready4Hire.MVVM.Views
             catch (Exception ex)
             {
                 Console.WriteLine($"Error loading reports: {ex.Message}");
+                reports = new List<InterviewReport>();
+                filteredReports = new List<InterviewReport>();
                 isLoading = false;
                 StateHasChanged();
             }
@@ -128,8 +198,28 @@ namespace Ready4Hire.MVVM.Views
         
         private async Task DownloadCertificate(string certificateId)
         {
-            // TODO: Implementar descarga de certificado
-            await JSRuntime.InvokeVoidAsync("alert", $"Descargando certificado {certificateId}... (Funcionalidad en desarrollo)");
+            try
+            {
+                // Buscar la entrevista asociada al certificado
+                var report = reports.FirstOrDefault(r => r.CertificateId == certificateId);
+                if (report == null)
+                {
+                    await JSRuntime.InvokeVoidAsync("alert", "No se encontró la entrevista asociada al certificado");
+                    return;
+                }
+                
+                // Descargar certificado en formato SVG
+                var certificateBytes = await InterviewApi.DownloadCertificateAsync(report.InterviewId, "svg");
+                
+                // Crear blob y descargar
+                var fileName = $"certificate_{certificateId}.svg";
+                await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "image/svg+xml", certificateBytes);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error downloading certificate: {ex.Message}");
+                await JSRuntime.InvokeVoidAsync("alert", $"Error al descargar certificado: {ex.Message}");
+            }
         }
         
         private async Task ShareReport(string interviewId)

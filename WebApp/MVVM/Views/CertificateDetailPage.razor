@@ -1,0 +1,490 @@
+@page "/certificates/{InterviewId}"
+@using Ready4Hire.MVVM.Models
+@using Ready4Hire.Services
+@using System.Text.Json
+@inject InterviewApiService InterviewApi
+@inject NavigationManager Nav
+@inject IJSRuntime JSRuntime
+@attribute [StreamRendering(false)]
+
+<PageTitle>Certificado - Ready4Hire</PageTitle>
+
+<div class="certificate-detail-container">
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Cargando certificado...</p>
+        </div>
+    }
+    else if (certificateData == null)
+    {
+        <div class="error-state">
+            <h2>Certificado no encontrado</h2>
+            <p>El certificado solicitado no está disponible.</p>
+            <button class="btn btn-primary" @onclick="@(() => Nav.NavigateTo("/certificates"))">
+                Volver a Certificados
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="certificate-header">
+            <button class="btn-back" @onclick="@(() => Nav.NavigateTo("/certificates"))">
+                ← Volver
+            </button>
+            <div class="header-info">
+                <h1>🏆 Certificado de Competencia</h1>
+                <p class="subtitle">Ready4Hire - @certificateData.Role</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-success" @onclick="DownloadCertificate">
+                    📥 Descargar SVG
+                </button>
+                <button class="btn btn-primary" @onclick="ShareCertificate">
+                    🔗 Compartir
+                </button>
+            </div>
+        </div>
+
+        <!-- Preview del Certificado -->
+        <div class="certificate-preview-container">
+            <div class="certificate-preview-wrapper">
+                @if (!string.IsNullOrEmpty(svgContent))
+                {
+                    <div class="certificate-svg-container" @ref="certificateContainer">
+                        @((MarkupString)svgContent)
+                    </div>
+                }
+                else
+                {
+                    <div class="certificate-placeholder">
+                        <div class="placeholder-icon">🏆</div>
+                        <h3>@certificateData.CandidateName</h3>
+                        <p>@certificateData.Role</p>
+                        <div class="score-display">
+                            <span class="score-value">@certificateData.Score.ToString("F1")</span>
+                            <span class="score-label">/ 10.0</span>
+                        </div>
+                        <p class="percentile">Top @certificateData.Percentile% de candidatos</p>
+                        <p class="cert-id">ID: @certificateData.CertificateId</p>
+                        <p class="date">@certificateData.CompletionDate.ToString("dd MMMM yyyy")</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Información del Certificado -->
+        <div class="certificate-info-section">
+            <div class="info-card">
+                <h3>📋 Detalles del Certificado</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>ID del Certificado:</label>
+                        <span>@certificateData.CertificateId</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Candidato:</label>
+                        <span>@certificateData.CandidateName</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Rol:</label>
+                        <span>@certificateData.Role</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Score:</label>
+                        <span>@certificateData.Score.ToString("F1") / 10.0</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Percentil:</label>
+                        <span>Top @certificateData.Percentile%</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Fecha de Emisión:</label>
+                        <span>@certificateData.CompletionDate.ToString("dd MMMM yyyy")</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Nivel de Certificación:</label>
+                        <span class="cert-level @GetCertLevelClass(certificateData.Score)">@GetCertificationLevel(certificateData.Score)</span>
+                    </div>
+                    <div class="info-item">
+                        <label>URL de Validación:</label>
+                        <a href="@certificateData.ValidationUrl" target="_blank" class="validation-link">
+                            @certificateData.ValidationUrl
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .certificate-detail-container {
+        padding: 2rem;
+        max-width: 1400px;
+        margin: 0 auto;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #0a0e1a 0%, #1e293b 100%);
+        color: #fff;
+    }
+
+    .certificate-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 2px solid rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-back {
+        background: transparent;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+        color: #a5b4fc;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background: rgba(99, 102, 241, 0.1);
+        border-color: #6366f1;
+    }
+
+    .header-info h1 {
+        margin: 0;
+        font-size: 2rem;
+    }
+
+    .subtitle {
+        color: #94a3b8;
+        margin-top: 0.5rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .certificate-preview-container {
+        margin-bottom: 2rem;
+    }
+
+    .certificate-preview-wrapper {
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 600px;
+    }
+
+    .certificate-svg-container {
+        width: 100%;
+        max-width: 1200px;
+    }
+
+    .certificate-svg-container svg {
+        width: 100%;
+        height: auto;
+    }
+
+    .certificate-placeholder {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #1e293b;
+    }
+
+    .placeholder-icon {
+        font-size: 5rem;
+        margin-bottom: 1rem;
+    }
+
+    .certificate-placeholder h3 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+        color: #1e293b;
+    }
+
+    .certificate-placeholder p {
+        color: #64748b;
+        margin-bottom: 1rem;
+    }
+
+    .score-display {
+        margin: 2rem 0;
+    }
+
+    .score-value {
+        font-size: 4rem;
+        font-weight: 700;
+        color: #6366f1;
+    }
+
+    .score-label {
+        font-size: 1.5rem;
+        color: #64748b;
+    }
+
+    .percentile {
+        font-size: 1.25rem;
+        color: #64748b;
+        margin-top: 1rem;
+    }
+
+    .cert-id {
+        font-family: monospace;
+        font-size: 0.875rem;
+        color: #94a3b8;
+        margin-top: 1rem;
+    }
+
+    .date {
+        font-size: 1rem;
+        color: #64748b;
+        margin-top: 0.5rem;
+    }
+
+    .certificate-info-section {
+        margin-top: 2rem;
+    }
+
+    .info-card {
+        background: rgba(30, 41, 59, 0.6);
+        border-radius: 12px;
+        padding: 2rem;
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+
+    .info-card h3 {
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .info-item label {
+        color: #94a3b8;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .info-item span {
+        color: #fff;
+        font-size: 1rem;
+    }
+
+    .cert-level {
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-weight: 700;
+        display: inline-block;
+    }
+
+    .cert-level.excelencia {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+    }
+
+    .cert-level.sobresaliente {
+        background: rgba(99, 102, 241, 0.2);
+        color: #6366f1;
+    }
+
+    .cert-level.distinguido {
+        background: rgba(139, 92, 246, 0.2);
+        color: #8b5cf6;
+    }
+
+    .cert-level.competente {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+    }
+
+    .cert-level.aprobado {
+        background: rgba(100, 116, 139, 0.2);
+        color: #64748b;
+    }
+
+    .validation-link {
+        color: #6366f1;
+        text-decoration: none;
+        word-break: break-all;
+    }
+
+    .validation-link:hover {
+        text-decoration: underline;
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        color: white;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+    }
+
+    .loading-state, .error-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
+
+    .spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(99, 102, 241, 0.2);
+        border-top-color: #6366f1;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 1rem;
+    }
+
+    @@keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+@code {
+    [Parameter] public string InterviewId { get; set; }
+
+    private CertificateDetailData certificateData;
+    private string svgContent = "";
+    private bool isLoading = true;
+    private ElementReference certificateContainer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCertificate();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrEmpty(svgContent))
+        {
+            // El SVG ya está renderizado en el HTML
+        }
+    }
+
+    private async Task LoadCertificate()
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            // Obtener certificado en formato JSON primero
+            var certResponse = await InterviewApi.GetInterviewCertificateAsync(InterviewId, "json");
+            
+            certificateData = new CertificateDetailData
+            {
+                CertificateId = certResponse.TryGetProperty("certificate_id", out var certId) ? certId.GetString() : "",
+                CandidateName = certResponse.TryGetProperty("candidate_name", out var name) ? name.GetString() : "",
+                Role = certResponse.TryGetProperty("role", out var role) ? role.GetString() : "",
+                Score = certResponse.TryGetProperty("score", out var score) ? score.GetDouble() : 0.0,
+                Percentile = certResponse.TryGetProperty("percentile", out var percentile) ? percentile.GetInt32() : 50,
+                CompletionDate = certResponse.TryGetProperty("completion_date", out var date) && DateTime.TryParse(date.GetString(), out var dateValue) ? dateValue : DateTime.Now,
+                ValidationUrl = certResponse.TryGetProperty("validation_url", out var url) ? url.GetString() : ""
+            };
+
+            // Obtener SVG del certificado
+            try
+            {
+                var svgBytes = await InterviewApi.DownloadCertificateAsync(InterviewId, "svg");
+                svgContent = System.Text.Encoding.UTF8.GetString(svgBytes);
+            }
+            catch
+            {
+                // Si falla, usar placeholder
+                svgContent = "";
+            }
+
+            isLoading = false;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading certificate: {ex.Message}");
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GetCertificationLevel(double score)
+    {
+        if (score >= 9.0) return "EXCELENCIA";
+        if (score >= 8.5) return "SOBRESALIENTE";
+        if (score >= 8.0) return "DISTINGUIDO";
+        if (score >= 7.5) return "COMPETENTE";
+        return "APROBADO";
+    }
+
+    private string GetCertLevelClass(double score)
+    {
+        if (score >= 9.0) return "excelencia";
+        if (score >= 8.5) return "sobresaliente";
+        if (score >= 8.0) return "distinguido";
+        if (score >= 7.5) return "competente";
+        return "aprobado";
+    }
+
+    private async Task DownloadCertificate()
+    {
+        try
+        {
+            var certificateBytes = await InterviewApi.DownloadCertificateAsync(InterviewId, "svg");
+            var fileName = $"certificate_{certificateData.CertificateId}.svg";
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "image/svg+xml", certificateBytes);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error al descargar certificado: {ex.Message}");
+        }
+    }
+
+    private async Task ShareCertificate()
+    {
+        if (!string.IsNullOrEmpty(certificateData.ValidationUrl))
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", certificateData.ValidationUrl);
+            await JSRuntime.InvokeVoidAsync("alert", "URL de validación copiada al portapapeles");
+        }
+    }
+
+    private class CertificateDetailData
+    {
+        public string CertificateId { get; set; }
+        public string CandidateName { get; set; }
+        public string Role { get; set; }
+        public double Score { get; set; }
+        public int Percentile { get; set; }
+        public DateTime CompletionDate { get; set; }
+        public string ValidationUrl { get; set; }
+    }
+}
+

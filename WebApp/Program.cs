@@ -3,21 +3,42 @@ using Ready4Hire.Components;
 using Ready4Hire.Data;
 using Ready4Hire.MVVM.Models;
 
-//obtener la cadena de conexi�n desde las variables de entorno
+// Obtener la cadena de conexión desde las variables de entorno
 DotNetEnv.Env.Load();
 var connectionString = Environment.GetEnvironmentVariable("POSTGRES_CONNECTION");
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Si no hay variable de entorno, usar la configuración de appsettings.json
-connectionString ??= builder.Configuration.GetConnectionString("DefaultConnection");
+// Si no hay variable de entorno, construir la cadena de conexión desde variables individuales o usar appsettings.json
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    // Intentar construir desde variables de entorno individuales
+    var dbHost = Environment.GetEnvironmentVariable("POSTGRES_HOST") ?? "localhost";
+    var dbPort = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5432";
+    var dbName = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "ready4hire_db";
+    var dbUser = Environment.GetEnvironmentVariable("POSTGRES_USER") ?? "ready4hire";
+    var dbPassword = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "password";
+    
+    // Si todas las variables están presentes, construir la cadena
+    if (!string.IsNullOrWhiteSpace(dbHost) && !string.IsNullOrWhiteSpace(dbName))
+    {
+        connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPassword};";
+    }
+    else
+    {
+        // Usar la configuración de appsettings.json como último recurso
+        connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    }
+}
 
 // Validar que la cadena de conexión esté configurada
 if (string.IsNullOrWhiteSpace(connectionString))
 {
     throw new InvalidOperationException(
         "La cadena de conexión no está configurada. " +
-        "Configure la variable de entorno POSTGRES_CONNECTION o agregue DefaultConnection en appsettings.json");
+        "Configure la variable de entorno POSTGRES_CONNECTION o las variables individuales " +
+        "(POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD) " +
+        "o agregue DefaultConnection en appsettings.json");
 }
 
 // Configurar DbContextFactory para evitar problemas de concurrencia en Blazor Server
@@ -41,6 +62,9 @@ builder.Services.AddHttpClient<InterviewApiService>();
 
 // Registrar servicio de gamificación
 builder.Services.AddHttpClient<Ready4Hire.Services.GamificationService>();
+
+// Registrar servicio de configuración
+builder.Services.AddHttpClient<Ready4Hire.Services.SettingsApiService>();
 
 // Agregar controladores API
 builder.Services.AddControllers();

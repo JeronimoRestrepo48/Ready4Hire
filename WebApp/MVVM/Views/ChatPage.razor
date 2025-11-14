@@ -50,7 +50,7 @@
                 }
                 else if (currentPhase == "technical" || currentPhase == "soft_skills")
                 {
-                    <span class="phase-badge interview">🎯 Entrevista (@questionCount)</span>
+                    <span class="phase-badge interview">🎯 Preguntas Técnicas (@questionCount/@totalTechnicalQuestions)</span>
                 }
                 else if (currentPhase == "completed")
                 {
@@ -347,10 +347,11 @@
     <div class="chat-input-area">
         <div class="input-container">
                 <textarea @bind="UserInput" 
-                         @onkeypress="HandleKeyPressMethod"
+                         @bind:event="oninput"
+                         @onkeydown="HandleKeyDown"
                          @ref="inputTextArea"
                          class="chat-input" 
-                    placeholder="Escribe tu respuesta aquí..."
+                    placeholder="Escribe tu respuesta aquí... (Presiona Enter para enviar)"
                          rows="1"></textarea>
                 
                 <div class="input-actions">

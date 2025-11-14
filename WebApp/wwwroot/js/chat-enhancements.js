@@ -70,11 +70,21 @@ class ChatEnhancements {
         const chatMessages = document.querySelector('.chat-messages-container, .chat-messages');
         if (!chatMessages) return;
 
-        // Auto-scroll al agregar mensajes
+        // Auto-scroll al agregar mensajes - siempre hacer scroll cuando se agregan mensajes nuevos
         const observer = new MutationObserver((mutations) => {
-            const isNearBottom = this.isNearBottom(chatMessages);
-            if (isNearBottom) {
+            // Verificar si se agregaron nuevos nodos
+            const hasNewMessages = mutations.some(mutation => 
+                mutation.addedNodes.length > 0 && 
+                Array.from(mutation.addedNodes).some(node => 
+                    node.nodeType === 1 && (node.classList.contains('message-wrapper') || node.querySelector('.message-wrapper'))
+                )
+            );
+            
+            if (hasNewMessages) {
+                // Pequeño delay para asegurar que el DOM se actualizó completamente
+                setTimeout(() => {
                 this.scrollToBottom(chatMessages);
+                }, 100);
             }
         });
 
@@ -86,6 +96,13 @@ class ChatEnhancements {
         // Mantener scroll al cargar mensajes
         chatMessages.addEventListener('scroll', () => {
             this.lastScroll = chatMessages.scrollTop;
+        });
+        
+        // También hacer scroll cuando cambia el contenido
+        chatMessages.addEventListener('DOMSubtreeModified', () => {
+            setTimeout(() => {
+                this.scrollToBottom(chatMessages);
+            }, 100);
         });
     }
 

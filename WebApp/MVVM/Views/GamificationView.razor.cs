@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
+using Microsoft.EntityFrameworkCore;
+using Ready4Hire.Data;
 using Ready4Hire.MVVM.Models;
 using Ready4Hire.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Ready4Hire.MVVM.Views
@@ -18,6 +21,9 @@ namespace Ready4Hire.MVVM.Views
 
         [Inject]
         public AchievementProgressService AchievementProgressService { get; set; } = null!;
+
+        [Inject]
+        public IDbContextFactory<AppDbContext> DbFactory { get; set; } = null!;
 
         private UserStats? stats;
         private List<Achievement> achievements = new();
@@ -56,6 +62,9 @@ namespace Ready4Hire.MVVM.Views
                     stats = await statsTask;
                     achievements = await achievementsTask ?? new();
                     leaderboard = await leaderboardTask ?? new();
+                    
+                    // Enriquecer el leaderboard con nombres reales de usuarios desde la base de datos
+                    await EnrichLeaderboardWithRealNames(leaderboard);
                 }
                 catch (Exception backendEx)
                 {
@@ -64,6 +73,9 @@ namespace Ready4Hire.MVVM.Views
                     stats = GetMockStats();
                     achievements = await AchievementProgressService.GetUserAchievementsAsync(userId);
                     leaderboard = GetMockLeaderboard();
+                    
+                    // Enriquecer el leaderboard mock con nombres reales si es posible
+                    await EnrichLeaderboardWithRealNames(leaderboard);
                 }
             }
             catch (Exception ex)
@@ -74,6 +86,9 @@ namespace Ready4Hire.MVVM.Views
                 stats = GetMockStats();
                 achievements = await AchievementProgressService.GetUserAchievementsAsync(userId);
                 leaderboard = GetMockLeaderboard();
+                
+                // Enriquecer el leaderboard mock con nombres reales si es posible
+                await EnrichLeaderboardWithRealNames(leaderboard);
             }
             finally
             {
@@ -714,6 +729,74 @@ namespace Ready4Hire.MVVM.Views
                     Profession = "Developer"
                 }
             };
+        }
+
+        /// <summary>
+        /// Enriquece el leaderboard con los nombres reales de los usuarios desde la base de datos
+        /// </summary>
+        private async Task EnrichLeaderboardWithRealNames(List<LeaderboardEntry> leaderboard)
+        {
+            try
+            {
+                using var db = await DbFactory.CreateDbContextAsync();
+                
+                foreach (var entry in leaderboard)
+                {
+                    // El user_id viene en formato "user_email_at_domain" o "user-xxxxx"
+                    // Necesitamos extraer el email o buscar por el formato
+                    string? email = null;
+                    
+                    if (entry.UserId.StartsWith("user_"))
+                    {
+                        // Formato: user_email_at_domain
+                        // Convertir de vuelta: user_email_at_domain -> email@domain.com
+                        var emailPart = entry.UserId.Replace("user_", "");
+                        email = emailPart.Replace("_at_", "@").Replace("_", ".");
+                    }
+                    else if (entry.UserId.StartsWith("user-"))
+                    {
+                        // Formato: user-xxxxx (GUID), buscar por ID numérico si es posible
+                        // Intentar buscar por el ID numérico si existe
+                        var idPart = entry.UserId.Replace("user-", "");
+                        if (int.TryParse(idPart, out var userId))
+                        {
+                            var user = await db.Users.FindAsync(userId);
+                            if (user != null)
+                            {
+                                entry.Username = $"{user.Name} {user.LastName}".Trim();
+                                continue;
+                            }
+                        }
+                        // Si no se puede parsear, continuar con el siguiente
+                        continue;
+                    }
+                    
+                    // Buscar usuario por email
+                    if (!string.IsNullOrEmpty(email))
+                    {
+                        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+                        if (user != null)
+                        {
+                            // Usar nombre completo o solo nombre si no hay apellido
+                            var fullName = $"{user.Name} {user.LastName}".Trim();
+                            if (string.IsNullOrWhiteSpace(fullName))
+                            {
+                                fullName = user.Name;
+                            }
+                            if (string.IsNullOrWhiteSpace(fullName))
+                            {
+                                fullName = user.Email.Split('@')[0]; // Usar parte antes del @ como fallback
+                            }
+                            entry.Username = fullName;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error enriching leaderboard with real names: {ex.Message}");
+                // Continuar sin enriquecer si hay error
+            }
         }
     }
 }

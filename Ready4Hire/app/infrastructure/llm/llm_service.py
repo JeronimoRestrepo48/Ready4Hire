@@ -56,7 +56,7 @@ class OllamaLLMService(LLMService):
                 max_retries = max_retries or settings.OLLAMA_MAX_RETRIES
             except ImportError:
                 # Fallback si no se puede importar settings
-                timeout = timeout or 45
+                timeout = timeout or 120
                 max_retries = max_retries or 1
         
         self.client = OllamaClient(
