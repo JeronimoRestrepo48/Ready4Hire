@@ -60,8 +60,8 @@ namespace Ready4Hire.MVVM.Views
                     return;
                 }
 
-                // Sanitizar y validar email
-                email = SecurityService.SanitizeInput(email.Trim());
+                // Normalizar y validar email (no sanitizar con HTML encoding para JSON)
+                email = email.Trim().ToLower();
                 
                 if (!SecurityService.ValidateEmail(email))
                 {
@@ -147,10 +147,12 @@ namespace Ready4Hire.MVVM.Views
 
                 Console.WriteLine($"[REGISTRO] Iniciando registro para: {registerEmail}");
 
-                // Sanitizar todos los inputs
+                // Normalizar email (trim + lowercase) - no HTML encoding para JSON
+                registerEmail = registerEmail.Trim().ToLower();
+                
+                // Sanitizar otros inputs (nombre, apellido, etc.) para prevenir XSS en la UI
                 registerName = SecurityService.SanitizeInput(registerName);
                 registerLastName = SecurityService.SanitizeInput(registerLastName);
-                registerEmail = SecurityService.SanitizeInput(registerEmail);
                 registerCountry = SecurityService.SanitizeInput(registerCountry);
                 registerJob = SecurityService.SanitizeInput(registerJob);
 
